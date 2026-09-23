@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="40" fill="#0c831f"/>
+  <circle cx="96" cy="96" r="68" fill="#f8cb46" fill-opacity="0.15"/>
+  <!-- Sparkles & Stars -->
+  <path d="M96 36 L104 68 L136 76 L104 84 L96 116 L88 84 L56 76 L88 68 Z" fill="#f8cb46"/>
+  <path d="M136 104 L141 124 L161 129 L141 134 L136 154 L131 134 L111 129 L131 124 Z" fill="#ffffff"/>
+  <path d="M60 116 L64 132 L80 136 L64 140 L60 156 L56 140 L40 136 L56 132 Z" fill="#ffffff" fill-opacity="0.8"/>
+  <text x="96" y="165" font-family="Arial, sans-serif" font-weight="900" font-size="20" fill="#ffffff" text-anchor="middle" letter-spacing="1">BLINKIT</text>
+</svg>

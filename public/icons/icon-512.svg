@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="110" fill="#0c831f"/>
+  <circle cx="256" cy="256" r="180" fill="#f8cb46" fill-opacity="0.15"/>
+  <!-- Central Sparkle -->
+  <path d="M256 90 L278 180 L368 202 L278 224 L256 314 L234 224 L144 202 L234 180 Z" fill="#f8cb46"/>
+  <!-- Secondary Sparkles -->
+  <path d="M370 280 L384 330 L434 344 L384 358 L370 408 L356 358 L306 344 L356 330 Z" fill="#ffffff"/>
+  <path d="M150 310 L160 350 L200 360 L160 370 L150 410 L140 370 L100 360 L140 350 Z" fill="#ffffff" fill-opacity="0.85"/>
+  <!-- Branding Text -->
+  <text x="256" y="445" font-family="Arial, sans-serif" font-weight="900" font-size="52" fill="#ffffff" text-anchor="middle" letter-spacing="4">BLINKIT</text>
+  <text x="256" y="480" font-family="Arial, sans-serif" font-weight="700" font-size="22" fill="#f8cb46" text-anchor="middle" letter-spacing="2">DEEP CLEANING</text>
+</svg>
