@@ -8,12 +8,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "node server.cjs",
     "desktop": "electron electron/main.cjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
+    "cors": "^2.8.6",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
+    "express": "^5.2.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.475.0",

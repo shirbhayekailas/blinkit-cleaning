@@ -3,17 +3,32 @@ import { db } from '../db/db';
 const STORAGE_KEY = 'blinkit_cloud_sync_config';
 
 export function getCloudConfig() {
+  const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
+  const envKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        supabaseUrl: parsed.supabaseUrl || envUrl,
+        supabaseKey: parsed.supabaseKey || envKey,
+        autoSync: parsed.autoSync !== false,
+        lastSyncTime: parsed.lastSyncTime || null,
+        mode: parsed.mode || 'server',
+        status: parsed.status || 'idle'
+      };
+    }
   } catch (e) {
     console.warn('Error reading cloud config:', e);
   }
+
   return {
-    supabaseUrl: '',
-    supabaseKey: '',
+    supabaseUrl: envUrl,
+    supabaseKey: envKey,
     autoSync: true,
     lastSyncTime: null,
+    mode: 'server',
     status: 'idle'
   };
 }
@@ -52,10 +67,211 @@ function toCamelCase(obj) {
   return res;
 }
 
-// 2-Way Sync between Local Dexie and Supabase Cloud
+/**
+ * Intelligent local DB re-hydration from remote/server data.
+ * Merges records cleanly by business keys to prevent ID collision.
+ */
+async function applyRemoteDataToLocalDB(data) {
+  if (!data || typeof data !== 'object') return;
+
+  // 1. Stores (Key: storeCode)
+  if (Array.isArray(data.stores) && data.stores.length > 0) {
+    for (const s of data.stores) {
+      if (!s || !s.storeCode) continue;
+      const existing = await db.stores.where('storeCode').equals(s.storeCode).first();
+      if (existing) {
+        await db.stores.put({ ...existing, ...s, id: existing.id });
+      } else {
+        const { id, ...rest } = s;
+        await db.stores.add(rest);
+      }
+    }
+  }
+
+  // 2. Cleanings (Key: storeCode + cleaningDate)
+  if (Array.isArray(data.cleanings) && data.cleanings.length > 0) {
+    for (const c of data.cleanings) {
+      if (!c) continue;
+      let existing = null;
+      if (c.storeCode && c.cleaningDate) {
+        existing = await db.cleanings
+          .where('storeCode')
+          .equals(c.storeCode)
+          .and(item => item.cleaningDate === c.cleaningDate)
+          .first();
+      }
+      if (existing) {
+        // Only update if remote is newer or has equal timestamp
+        const oldTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const newTime = new Date(c.updatedAt || c.createdAt || Date.now()).getTime();
+        if (newTime >= oldTime) {
+          await db.cleanings.put({ ...existing, ...c, id: existing.id });
+        }
+      } else {
+        const { id, ...rest } = c;
+        await db.cleanings.add(rest);
+      }
+    }
+  }
+
+  // 3. Supervisors (Key: phone)
+  if (Array.isArray(data.supervisors) && data.supervisors.length > 0) {
+    for (const sup of data.supervisors) {
+      if (!sup || !sup.phone) continue;
+      const existing = await db.supervisors.where('phone').equals(sup.phone).first();
+      if (existing) {
+        await db.supervisors.put({ ...existing, ...sup, id: existing.id });
+      } else {
+        const { id, ...rest } = sup;
+        await db.supervisors.add(rest);
+      }
+    }
+  }
+
+  // 4. Cleaners (Key: phone or name)
+  if (Array.isArray(data.cleaners) && data.cleaners.length > 0) {
+    for (const cln of data.cleaners) {
+      if (!cln) continue;
+      let existing = null;
+      if (cln.phone) {
+        existing = await db.cleaners.where('phone').equals(cln.phone).first();
+      } else if (cln.name) {
+        existing = await db.cleaners.where('name').equals(cln.name).first();
+      }
+      if (existing) {
+        await db.cleaners.put({ ...existing, ...cln, id: existing.id });
+      } else {
+        const { id, ...rest } = cln;
+        await db.cleaners.add(rest);
+      }
+    }
+  }
+
+  // 5. Schedules (Key: storeCode + scheduledDate)
+  if (Array.isArray(data.cleaningSchedules) && data.cleaningSchedules.length > 0) {
+    for (const sch of data.cleaningSchedules) {
+      if (!sch || !sch.storeCode || !sch.scheduledDate) continue;
+      const existing = await db.cleaningSchedules
+        .where('storeCode')
+        .equals(sch.storeCode)
+        .and(item => item.scheduledDate === sch.scheduledDate)
+        .first();
+      if (existing) {
+        await db.cleaningSchedules.put({ ...existing, ...sch, id: existing.id });
+      } else {
+        const { id, ...rest } = sch;
+        await db.cleaningSchedules.add(rest);
+      }
+    }
+  }
+
+  // 6. Chemical Stock (Key: itemName)
+  if (Array.isArray(data.chemicalStock) && data.chemicalStock.length > 0) {
+    for (const chem of data.chemicalStock) {
+      if (!chem || !chem.itemName) continue;
+      const existing = await db.chemicalStock.where('itemName').equals(chem.itemName).first();
+      if (existing) {
+        await db.chemicalStock.put({ ...existing, ...chem, id: existing.id });
+      } else {
+        const { id, ...rest } = chem;
+        await db.chemicalStock.add(rest);
+      }
+    }
+  }
+
+  // 7. Store Issues
+  if (Array.isArray(data.storeIssues) && data.storeIssues.length > 0) {
+    for (const iss of data.storeIssues) {
+      if (!iss) continue;
+      const existing = await db.storeIssues
+        .where('storeCode')
+        .equals(iss.storeCode || '')
+        .and(item => item.reportedAt === iss.reportedAt)
+        .first();
+      if (existing) {
+        await db.storeIssues.put({ ...existing, ...iss, id: existing.id });
+      } else {
+        const { id, ...rest } = iss;
+        await db.storeIssues.add(rest);
+      }
+    }
+  }
+
+  // 8. Login Logs
+  if (db.loginLogs && Array.isArray(data.loginLogs) && data.loginLogs.length > 0) {
+    for (const log of data.loginLogs) {
+      if (!log || !log.timestamp) continue;
+      const existing = await db.loginLogs
+        .where('timestamp')
+        .equals(log.timestamp)
+        .and(item => item.loginId === log.loginId)
+        .first();
+      if (!existing) {
+        const { id, ...rest } = log;
+        await db.loginLogs.add(rest);
+      }
+    }
+  }
+}
+
+/**
+ * Perform 2-Way Global Synchronization:
+ * 1. Tries Server API (/api/sync) - Instant, automatic, zero-setup across desktop & mobile
+ * 2. Tries Supabase PostgreSQL (if configured)
+ * 3. Keeps local Dexie as high-speed cache & offline backup
+ */
 export async function performCloudSync() {
   const config = getCloudConfig();
 
+  // Gather current local database state
+  const localData = {
+    cleanings: await db.cleanings.toArray(),
+    stores: await db.stores.toArray(),
+    supervisors: await db.supervisors.toArray(),
+    cleaners: await db.cleaners.toArray(),
+    cleaningSchedules: await db.cleaningSchedules.toArray(),
+    chemicalStock: await db.chemicalStock.toArray(),
+    chemicalLogs: await db.chemicalLogs.toArray(),
+    cleanerAdvances: await db.cleanerAdvances.toArray(),
+    storeIssues: await db.storeIssues.toArray(),
+    loginLogs: db.loginLogs ? await db.loginLogs.toArray() : []
+  };
+
+  // -----------------------------------------------------------------
+  // STRATEGY 1: Built-in Server Database (/api/sync)
+  // -----------------------------------------------------------------
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates: localData })
+    });
+
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && result.data) {
+        await applyRemoteDataToLocalDB(result.data);
+
+        saveCloudConfig({
+          lastSyncTime: new Date().toISOString(),
+          status: 'success',
+          mode: 'server'
+        });
+
+        return {
+          success: true,
+          mode: 'server',
+          message: 'Server Database: Live Synced! Desktop and Mobile are in sync.'
+        };
+      }
+    }
+  } catch (serverErr) {
+    console.warn('Server API not reachable directly (may be static deploy or offline):', serverErr.message);
+  }
+
+  // -----------------------------------------------------------------
+  // STRATEGY 2: Supabase Cloud Database (if credentials configured)
+  // -----------------------------------------------------------------
   if (config.supabaseUrl && config.supabaseKey) {
     try {
       const headers = {
@@ -65,14 +281,14 @@ export async function performCloudSync() {
         'Prefer': 'resolution=merge-duplicates'
       };
 
-      // 1. PUSH LOCAL TABLES TO SUPABASE
+      // 1. Push local tables
       const tablesToPush = [
-        { name: 'cleanings', data: await db.cleanings.toArray() },
-        { name: 'stores', data: await db.stores.toArray() },
-        { name: 'supervisors', data: await db.supervisors.toArray() },
-        { name: 'cleaners', data: await db.cleaners.toArray() },
-        { name: 'cleaning_schedules', data: await db.cleaningSchedules.toArray() },
-        { name: 'chemical_stock', data: await db.chemicalStock.toArray() }
+        { name: 'cleanings', data: localData.cleanings },
+        { name: 'stores', data: localData.stores },
+        { name: 'supervisors', data: localData.supervisors },
+        { name: 'cleaners', data: localData.cleaners },
+        { name: 'cleaning_schedules', data: localData.cleaningSchedules },
+        { name: 'chemical_stock', data: localData.chemicalStock }
       ];
 
       for (const t of tablesToPush) {
@@ -86,60 +302,65 @@ export async function performCloudSync() {
         }
       }
 
-      // 2. PULL REMOTE UPDATES FROM SUPABASE INTO LOCAL DEXIE
-      try {
-        const pullRes = await fetch(`${config.supabaseUrl}/rest/v1/cleanings?select=*`, {
-          method: 'GET',
-          headers: {
-            'apikey': config.supabaseKey,
-            'Authorization': `Bearer ${config.supabaseKey}`
-          }
-        });
+      // 2. Pull remote updates
+      const pullRes = await fetch(`${config.supabaseUrl}/rest/v1/cleanings?select=*`, {
+        method: 'GET',
+        headers
+      });
 
-        if (pullRes.ok) {
-          const remoteCleanings = await pullRes.json();
-          if (Array.isArray(remoteCleanings) && remoteCleanings.length > 0) {
-            const camelData = remoteCleanings.map(toCamelCase);
-            await db.cleanings.bulkPut(camelData);
-          }
+      if (pullRes.ok) {
+        const remoteCleanings = await pullRes.json();
+        if (Array.isArray(remoteCleanings) && remoteCleanings.length > 0) {
+          const camelCleanings = remoteCleanings.map(toCamelCase);
+          await applyRemoteDataToLocalDB({ cleanings: camelCleanings });
         }
-      } catch (pullErr) {
-        console.warn('Pulling remote updates note:', pullErr);
       }
 
       saveCloudConfig({
         lastSyncTime: new Date().toISOString(),
-        status: 'success'
+        status: 'success',
+        mode: 'supabase'
       });
 
-      return { success: true, message: 'Cloud database synchronized with all connected phones & laptops!' };
+      return { 
+        success: true, 
+        mode: 'supabase',
+        message: 'Supabase Cloud: Synchronized with all connected phones & laptops!' 
+      };
     } catch (err) {
       console.error('Supabase sync error:', err);
       saveCloudConfig({ status: 'error' });
-      return { success: false, message: err.message };
+      return { success: false, message: 'Supabase sync failed: ' + err.message };
     }
   }
 
-  // Standalone offline-first mode
-  try {
-    saveCloudConfig({
-      lastSyncTime: new Date().toISOString(),
-      status: 'success'
-    });
+  // -----------------------------------------------------------------
+  // STRATEGY 3: Offline local mode
+  // -----------------------------------------------------------------
+  saveCloudConfig({
+    lastSyncTime: new Date().toISOString(),
+    status: 'offline_ready',
+    mode: 'offline'
+  });
 
-    return { 
-      success: true, 
-      message: 'Local offline database ready. Add your free Supabase URL in settings to sync live across devices.'
-    };
-  } catch (err) {
-    saveCloudConfig({ status: 'error' });
-    return { success: false, message: err.message };
-  }
+  return { 
+    success: true, 
+    mode: 'offline',
+    message: 'Local offline mode active. Connect Server Web Service or Supabase to sync live.'
+  };
 }
 
-// Auto sync when device connects to internet
+// Auto-sync when reconnecting to network
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
+    const config = getCloudConfig();
+    if (config.autoSync) {
+      performCloudSync().catch(console.warn);
+    }
+  });
+
+  // Also sync when browser tab gains focus
+  window.addEventListener('focus', () => {
     const config = getCloudConfig();
     if (config.autoSync) {
       performCloudSync().catch(console.warn);

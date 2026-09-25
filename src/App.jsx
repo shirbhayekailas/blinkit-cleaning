@@ -34,6 +34,7 @@ import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
 import { logUserLogout } from './utils/auditLogger';
+import { performCloudSync } from './utils/cloudSync';
 import { 
   Building2, 
   Plus, 
@@ -160,6 +161,19 @@ export default function App() {
     } catch (e) {
       console.warn('Storage notice:', e);
     }
+  }, []);
+
+  // Automatic 2-Way Global Synchronization between Desktop, Mobile and Server
+  useEffect(() => {
+    // Initial sync on startup
+    performCloudSync().catch(console.warn);
+
+    // Periodic sync every 15 seconds so Desktop & Mobile stay in live sync
+    const syncInterval = setInterval(() => {
+      performCloudSync().catch(console.warn);
+    }, 15000);
+
+    return () => clearInterval(syncInterval);
   }, []);
 
   // Update dark mode class on <html>
@@ -309,6 +323,7 @@ export default function App() {
           });
         }
       }
+      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error saving record: ' + err.message);
     }
@@ -326,6 +341,7 @@ export default function App() {
         paymentNotes: updatedCleaning.paymentNotes,
         updatedAt: new Date()
       });
+      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error updating payment: ' + err.message);
     }
@@ -337,6 +353,7 @@ export default function App() {
       if (photoCleaning && photoCleaning.id === cleaningId) {
         setPhotoCleaning(prev => ({ ...prev, photos }));
       }
+      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error saving photos: ' + err.message);
     }
@@ -345,6 +362,7 @@ export default function App() {
   const handleDeleteCleaning = async (id) => {
     if (confirm('Are you sure you want to delete this deep cleaning record?')) {
       await db.cleanings.delete(id);
+      performCloudSync().catch(console.warn);
     }
   };
 
@@ -357,6 +375,7 @@ export default function App() {
     try {
       await db.cleanings.clear();
       await db.stores.clear();
+      performCloudSync().catch(console.warn);
       alert('Sara demo data successfully delete ho gaya hai! Ab database 100% clean hai. Aap apni real store entries shuru kar sakte hain.');
     } catch (err) {
       alert('Error clearing data: ' + err.message);
@@ -377,6 +396,7 @@ export default function App() {
           createdAt: new Date()
         });
       }
+      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error saving store to ledger: ' + err.message);
     }
@@ -385,6 +405,7 @@ export default function App() {
   const handleDeleteStore = async (id) => {
     if (confirm('Are you sure you want to remove this store from the Master Ledger?')) {
       await db.stores.delete(id);
+      performCloudSync().catch(console.warn);
     }
   };
 
