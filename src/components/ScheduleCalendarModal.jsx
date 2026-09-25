@@ -14,6 +14,7 @@ import {
   Play
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function ScheduleCalendarModal({
   isOpen,
@@ -84,6 +85,7 @@ export default function ScheduleCalendarModal({
         notes: ''
       });
       alert('Shift successfully scheduled!');
+      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error scheduling shift: ' + err.message);
     }
@@ -91,11 +93,13 @@ export default function ScheduleCalendarModal({
 
   const handleUpdateStatus = async (id, status) => {
     await db.cleaningSchedules.update(id, { status });
+    performCloudSync().catch(() => {});
   };
 
   const handleDeleteSchedule = async (id) => {
     if (confirm('Delete this schedule entry?')) {
       await db.cleaningSchedules.delete(id);
+      performCloudSync().catch(() => {});
     }
   };
 

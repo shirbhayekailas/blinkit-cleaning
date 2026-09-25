@@ -71,7 +71,7 @@ function toCamelCase(obj) {
  * Intelligent local DB re-hydration from remote/server data.
  * Merges records cleanly by business keys to prevent ID collision.
  */
-async function applyRemoteDataToLocalDB(data) {
+export async function applyRemoteDataToLocalDB(data) {
   if (!data || typeof data !== 'object') return;
 
   // 1. Stores (Key: storeCode)
@@ -197,7 +197,7 @@ async function applyRemoteDataToLocalDB(data) {
     }
   }
 
-  // 8. Login Logs
+    // 8. Login Logs
   if (db.loginLogs && Array.isArray(data.loginLogs) && data.loginLogs.length > 0) {
     for (const log of data.loginLogs) {
       if (!log || !log.timestamp) continue;
@@ -211,6 +211,19 @@ async function applyRemoteDataToLocalDB(data) {
         await db.loginLogs.add(rest);
       }
     }
+  }
+
+  // 9. App Settings / Login Credentials Sync
+  if (data.appSettings && typeof data.appSettings === 'object') {
+    const s = data.appSettings;
+    if (s.vendor_admin_id) localStorage.setItem('vendor_admin_id', s.vendor_admin_id);
+    if (s.vendor_admin_pin) localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
+    if (s.vendor_manager_id) localStorage.setItem('vendor_manager_id', s.vendor_manager_id);
+    if (s.vendor_manager_pin) localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
+    if (s.vendor_manager_name) localStorage.setItem('vendor_manager_name', s.vendor_manager_name);
+    if (s.blinkit_client_id) localStorage.setItem('blinkit_client_id', s.blinkit_client_id);
+    if (s.blinkit_client_pin) localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
+    if (s.blinkit_client_name) localStorage.setItem('blinkit_client_name', s.blinkit_client_name);
   }
 }
 
@@ -234,7 +247,17 @@ export async function performCloudSync() {
     chemicalLogs: await db.chemicalLogs.toArray(),
     cleanerAdvances: await db.cleanerAdvances.toArray(),
     storeIssues: await db.storeIssues.toArray(),
-    loginLogs: db.loginLogs ? await db.loginLogs.toArray() : []
+    loginLogs: db.loginLogs ? await db.loginLogs.toArray() : [],
+    appSettings: {
+      vendor_admin_id: localStorage.getItem('vendor_admin_id') || 'admin',
+      vendor_admin_pin: localStorage.getItem('vendor_admin_pin') || '1234',
+      vendor_manager_id: localStorage.getItem('vendor_manager_id') || 'manager',
+      vendor_manager_pin: localStorage.getItem('vendor_manager_pin') || '1234',
+      vendor_manager_name: localStorage.getItem('vendor_manager_name') || 'Operations Manager',
+      blinkit_client_id: localStorage.getItem('blinkit_client_id') || 'client',
+      blinkit_client_pin: localStorage.getItem('blinkit_client_pin') || '5678',
+      blinkit_client_name: localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head'
+    }
   };
 
   // -----------------------------------------------------------------
@@ -251,6 +274,19 @@ export async function performCloudSync() {
       const result = await res.json();
       if (result.success && result.data) {
         await applyRemoteDataToLocalDB(result.data);
+
+        // Sync login credentials from server to this browser's localStorage
+        if (result.data.appSettings) {
+          const s = result.data.appSettings;
+          if (s.vendor_admin_id) localStorage.setItem('vendor_admin_id', s.vendor_admin_id);
+          if (s.vendor_admin_pin) localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
+          if (s.vendor_manager_id) localStorage.setItem('vendor_manager_id', s.vendor_manager_id);
+          if (s.vendor_manager_pin) localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
+          if (s.vendor_manager_name) localStorage.setItem('vendor_manager_name', s.vendor_manager_name);
+          if (s.blinkit_client_id) localStorage.setItem('blinkit_client_id', s.blinkit_client_id);
+          if (s.blinkit_client_pin) localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
+          if (s.blinkit_client_name) localStorage.setItem('blinkit_client_name', s.blinkit_client_name);
+        }
 
         saveCloudConfig({
           lastSyncTime: new Date().toISOString(),

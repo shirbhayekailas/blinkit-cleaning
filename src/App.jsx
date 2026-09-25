@@ -146,18 +146,10 @@ export default function App() {
   const [historyStore, setHistoryStore] = useState(null);
 
 
-  // Automatically purge any legacy demo data so vendor gets a 100% fresh clean slate
+  // Mark this browser as initialized (no longer delete data - server sync handles it)
   useEffect(() => {
     try {
-      const isCleaned = localStorage.getItem('blinkit_fresh_clean_v2');
-      if (!isCleaned) {
-        db.cleanings.clear()
-          .then(() => db.stores.clear())
-          .then(() => {
-            localStorage.setItem('blinkit_fresh_clean_v2', 'true');
-          })
-          .catch(err => console.warn('Clean slate notice:', err));
-      }
+      localStorage.setItem('blinkit_fresh_clean_v2', 'true');
     } catch (e) {
       console.warn('Storage notice:', e);
     }
@@ -168,12 +160,22 @@ export default function App() {
     // Initial sync on startup
     performCloudSync().catch(console.warn);
 
-    // Periodic sync every 15 seconds so Desktop & Mobile stay in live sync
+    // Periodic sync every 10 seconds so Desktop & Mobile stay in live sync
     const syncInterval = setInterval(() => {
       performCloudSync().catch(console.warn);
-    }, 15000);
+    }, 10000);
 
-    return () => clearInterval(syncInterval);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        performCloudSync().catch(console.warn);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(syncInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   // Update dark mode class on <html>

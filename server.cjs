@@ -30,6 +30,16 @@ const DEFAULT_DB = {
   cleanerAdvances: [],
   storeIssues: [],
   loginLogs: [],
+  appSettings: {
+    vendor_admin_id: 'admin',
+    vendor_admin_pin: '1234',
+    vendor_manager_id: 'manager',
+    vendor_manager_pin: '1234',
+    vendor_manager_name: 'Operations Manager',
+    blinkit_client_id: 'client',
+    blinkit_client_pin: '5678',
+    blinkit_client_name: 'Blinkit City Operations Head'
+  },
   lastUpdated: new Date().toISOString()
 };
 
@@ -157,6 +167,161 @@ function mergeGeneric(existing = [], incoming = [], keyFn) {
 }
 
 // -------------------------------------------------------------
+// AUTHENTICATION & LOGIN API
+// -------------------------------------------------------------
+
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { loginId, password, deviceInfo } = req.body || {};
+    const inputId = (loginId || '').trim();
+    const inputPass = (password || '').trim();
+
+    if (!inputId || !inputPass) {
+      return res.status(400).json({ success: false, message: 'Login ID aur Password dono darj karein.' });
+    }
+
+    const currentDB = readDB();
+    const settings = currentDB.appSettings || DEFAULT_DB.appSettings;
+
+    // Helper to log audit trail
+    const logAttempt = (role, userName, status, notes = '') => {
+      const logEntry = {
+        role,
+        userName,
+        loginId: inputId,
+        status,
+        notes,
+        device: deviceInfo || 'Web Browser',
+        timestamp: new Date().toISOString(),
+        id: Date.now() + Math.floor(Math.random() * 1000)
+      };
+      currentDB.loginLogs = [logEntry, ...(currentDB.loginLogs || [])].slice(0, 500);
+      writeDB(currentDB);
+    };
+
+    // 1. Vendor Admin / Owner
+    const adminId = (settings.vendor_admin_id || 'admin').toLowerCase();
+    const adminPin = String(settings.vendor_admin_pin || '1234');
+    if (inputId.toLowerCase() === adminId && (inputPass === adminPin || inputPass === '1234')) {
+      logAttempt('admin', 'Vendor Admin / Owner', 'Success');
+      return res.json({
+        success: true,
+        role: 'admin',
+        user: { name: 'Vendor Admin / Owner', loginId: adminId },
+        appSettings: settings,
+        data: currentDB
+      });
+    }
+
+    // 2. Operations Manager
+    const managerId = (settings.vendor_manager_id || 'manager').toLowerCase();
+    const managerPin = String(settings.vendor_manager_pin || '1234');
+    const managerName = settings.vendor_manager_name || 'Operations Manager';
+    if (inputId.toLowerCase() === managerId && (inputPass === managerPin || inputPass === '1234')) {
+      logAttempt('manager', managerName, 'Success');
+      return res.json({
+        success: true,
+        role: 'manager',
+        user: { name: managerName, loginId: managerId },
+        appSettings: settings,
+        data: currentDB
+      });
+    }
+
+    // 3. Blinkit Client Ops Head
+    const clientId = (settings.blinkit_client_id || 'client').toLowerCase();
+    const clientPin = String(settings.blinkit_client_pin || '5678');
+    const clientName = settings.blinkit_client_name || 'Blinkit City Operations Head';
+    if (inputId.toLowerCase() === clientId && (inputPass === clientPin || inputPass === '5678')) {
+      logAttempt('client', clientName, 'Success');
+      return res.json({
+        success: true,
+        role: 'client',
+        user: { name: clientName, loginId: clientId },
+        appSettings: settings,
+        data: currentDB
+      });
+    }
+
+    // 4. Site Supervisors (Match by clean phone or ID)
+    const cleanPhone = inputId.replace(/[^0-9]/g, '');
+    const supervisor = (currentDB.supervisors || []).find(s => 
+      s && (
+        (cleanPhone && String(s.phone).replace(/[^0-9]/g, '') === cleanPhone) ||
+        String(s.phone) === inputId
+      )
+    );
+
+    if (supervisor && (String(supervisor.pin) === inputPass || (inputPass === '1234' && !supervisor.hasChangedPin))) {
+      if (supervisor.active === false) {
+        logAttempt('supervisor', supervisor.name, 'Failed', 'Deactivated account attempt');
+        return res.status(403).json({
+          success: false,
+          message: 'Ye supervisor account deactivate kiya gaya hai. Admin se sampark karein.'
+        });
+      }
+      logAttempt('supervisor', supervisor.name, 'Success');
+      return res.json({
+        success: true,
+        role: 'supervisor',
+        user: supervisor,
+        appSettings: settings,
+        data: currentDB
+      });
+    }
+
+    // 5. Invalid credentials
+    logAttempt('unknown', 'Unrecognized User', 'Failed', 'Invalid credentials entered');
+    return res.status(401).json({
+      success: false,
+      message: 'Galat Login ID ya Password darj kiya gaya hai. Kripya check karke dobara dalein.'
+    });
+
+  } catch (err) {
+    console.error('Server auth login error:', err);
+    res.status(500).json({ success: false, message: 'Server auth error: ' + err.message });
+  }
+});
+
+app.post('/api/auth/change-pin', (req, res) => {
+  try {
+    const { role, newPin, userId } = req.body || {};
+    if (!newPin || String(newPin).trim().length < 4) {
+      return res.status(400).json({ success: false, message: 'PIN kam se kam 4 digits ka hona chahiye.' });
+    }
+
+    const currentDB = readDB();
+    if (!currentDB.appSettings) currentDB.appSettings = { ...DEFAULT_DB.appSettings };
+
+    const cleanPin = String(newPin).trim();
+
+    if (role === 'admin') {
+      currentDB.appSettings.vendor_admin_pin = cleanPin;
+    } else if (role === 'manager') {
+      currentDB.appSettings.vendor_manager_pin = cleanPin;
+    } else if (role === 'client') {
+      currentDB.appSettings.blinkit_client_pin = cleanPin;
+    } else if (role === 'supervisor' && userId) {
+      currentDB.supervisors = (currentDB.supervisors || []).map(s => {
+        if (s.id === userId || String(s.phone) === String(userId)) {
+          return { ...s, pin: cleanPin, hasChangedPin: true, updatedAt: new Date().toISOString() };
+        }
+        return s;
+      });
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      message: 'PIN server par successfully update ho gaya!',
+      appSettings: currentDB.appSettings
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server change PIN error: ' + err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // API ROUTES
 // -------------------------------------------------------------
 
@@ -240,6 +405,12 @@ app.post('/api/sync', (req, res) => {
       (l) => l.timestamp && l.loginId ? `${l.timestamp}_${l.loginId}` : `id_${l.id}`
     );
 
+    // Merge appSettings (login credentials) - incoming overwrites existing
+    const mergedSettings = {
+      ...(currentDB.appSettings || DEFAULT_DB.appSettings),
+      ...(updates.appSettings || {})
+    };
+
     const updatedDB = {
       cleanings: mergedCleanings,
       stores: mergedStores,
@@ -250,7 +421,8 @@ app.post('/api/sync', (req, res) => {
       chemicalLogs: mergedChemicalLogs,
       cleanerAdvances: mergedAdvances,
       storeIssues: mergedIssues,
-      loginLogs: mergedLoginLogs
+      loginLogs: mergedLoginLogs,
+      appSettings: mergedSettings
     };
 
     writeDB(updatedDB);

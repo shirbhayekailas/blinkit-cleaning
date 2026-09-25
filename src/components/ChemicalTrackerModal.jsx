@@ -14,6 +14,7 @@ import {
   ArrowUpRight 
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 const DEFAULT_CHEMICALS = [
   { itemName: 'Industrial Alkaline Degreaser (Floor Deep Clean)', unit: 'Liters', totalStock: 50, alertThreshold: 15 },
@@ -118,6 +119,7 @@ export default function ChemicalTrackerModal({
       // Reset form
       setQuantity('');
       setNotes('');
+      performCloudSync().catch(() => {});
       setActiveTab('inventory');
       alert(`Chemical stock successfully updated! New balance: ${newStock} ${chem.unit}`);
     } catch (err) {

@@ -15,6 +15,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function SupervisorManagementModal({
   isOpen,
@@ -78,6 +79,7 @@ export default function SupervisorManagementModal({
         });
       }
       setIsEditing(false);
+      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error saving supervisor: ' + err.message);
     }
@@ -86,6 +88,7 @@ export default function SupervisorManagementModal({
   const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this supervisor?')) {
       await db.supervisors.delete(id);
+      performCloudSync().catch(() => {});
     }
   };
 

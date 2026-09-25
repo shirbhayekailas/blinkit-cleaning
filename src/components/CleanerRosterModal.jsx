@@ -10,6 +10,7 @@ import {
   HardHat
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function CleanerRosterModal({
   isOpen,
@@ -68,6 +69,7 @@ export default function CleanerRosterModal({
         });
       }
       setIsEditing(false);
+      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error saving cleaner: ' + err.message);
     }
@@ -76,6 +78,7 @@ export default function CleanerRosterModal({
   const handleDelete = async (id) => {
     if (confirm('Are you sure you want to remove this cleaner from the roster?')) {
       await db.cleaners.delete(id);
+      performCloudSync().catch(() => {});
     }
   };
 

@@ -11,6 +11,7 @@ import {
   Clock
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function IssueReportModal({
   isOpen,
@@ -34,6 +35,7 @@ export default function IssueReportModal({
         status: newStatus,
         resolvedAt: newStatus === 'Resolved' ? new Date() : null
       });
+      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error updating status: ' + err.message);
     }

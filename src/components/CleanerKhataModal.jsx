@@ -15,6 +15,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function CleanerKhataModal({
   isOpen,
@@ -96,6 +97,7 @@ export default function CleanerKhataModal({
       setRemarks('');
       setIsAdvanceFormOpen(false);
       alert(`₹${advanceAmount} payout successfully recorded for ${selectedCleaner.name}!`);
+      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error recording payout: ' + err.message);
     }
@@ -104,6 +106,7 @@ export default function CleanerKhataModal({
   const handleDeleteAdvance = async (advanceId) => {
     if (confirm('Are you sure you want to delete this payment record?')) {
       await db.cleanerAdvances.delete(advanceId);
+      performCloudSync().catch(() => {});
     }
   };
 

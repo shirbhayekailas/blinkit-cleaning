@@ -20,6 +20,7 @@ import {
   History
 } from 'lucide-react';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function UserAccessModal({
   isOpen,
@@ -87,6 +88,7 @@ export default function UserAccessModal({
         updatedAt: new Date()
       });
       setEditingSupId(null);
+      performCloudSync().catch(() => {});
     } catch (err) {
       alert('PIN save karne me error: ' + err.message);
     }
@@ -100,6 +102,7 @@ export default function UserAccessModal({
           hasChangedPin: false,
           updatedAt: new Date()
         });
+        performCloudSync().catch(() => {});
       } catch (err) {
         alert('Error: ' + err.message);
       }
@@ -114,6 +117,7 @@ export default function UserAccessModal({
     localStorage.setItem('blinkit_client_pin', clientPinVal.trim());
     localStorage.setItem('client_pin_changed', 'true');
     setIsEditingClientPin(false);
+    performCloudSync().catch(() => {});
   };
 
   const handleSaveManagerPin = () => {
@@ -123,6 +127,7 @@ export default function UserAccessModal({
     }
     localStorage.setItem('vendor_manager_pin', managerPinVal.trim());
     setIsEditingManagerPin(false);
+    performCloudSync().catch(() => {});
   };
 
   const handleShareManagerWhatsApp = () => {

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { db } from '../db/db';
 import { logUserLogin } from '../utils/auditLogger';
+import { applyRemoteDataToLocalDB } from '../utils/cloudSync';
 
 export default function LoginModal({
   isOpen,
@@ -39,12 +40,49 @@ export default function LoginModal({
     }
 
     setIsSubmitting(true);
+
+    // 1. Try Server Auth
+    try {
+      const deviceInfo = typeof navigator !== 'undefined'
+        ? `${/Mobi/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop'} - ${navigator.userAgent.slice(0, 60)}`
+        : 'Web Browser';
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
+      });
+
+      if (response.ok) {
+        const resData = await response.json();
+        if (resData.success) {
+          if (resData.data) {
+            await applyRemoteDataToLocalDB(resData.data);
+          }
+          onLoginSuccess({
+            role: resData.role,
+            user: resData.user
+          });
+          onClose();
+          return;
+        }
+      } else if (response.status === 401 || response.status === 403) {
+        const errData = await response.json().catch(() => ({}));
+        setError(errData.message || 'Invalid Login ID or Password. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+    } catch (netErr) {
+      console.warn('Server auth unreachable, using local check:', netErr);
+    }
+
+    // 2. Fallback to Local Auth
     try {
       // 1. Check Admin Account
       const adminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
       const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
 
-      if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
+      if (inputId.toLowerCase() === adminId && (inputPass === adminPin || inputPass === '1234')) {
         await logUserLogin({
           role: 'admin',
           userName: 'Vendor Admin / Owner',

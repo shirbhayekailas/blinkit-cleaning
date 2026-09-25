@@ -34,6 +34,7 @@ import AudioRecorder from './AudioRecorder';
 import SpeechToTextInput from './SpeechToTextInput';
 import QRScannerModal from './QRScannerModal';
 import { db } from '../db/db';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function SupervisorPortal({
   supervisor,
@@ -323,6 +324,7 @@ export default function SupervisorPortal({
 
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.7 } });
       alert(`✅ Cleaning shift submitted successfully for ${selectedStore.storeName}!`);
+      performCloudSync().catch(() => {});
       
       // Reset form
       setSelectedStoreCode('');
