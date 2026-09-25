@@ -75,7 +75,12 @@ export default function PhotoGalleryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+    <div 
+      className="fixed inset-0 z-100 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[90vh] flex flex-col">
         
         {/* Header with Title & View Switcher */}
@@ -347,7 +352,12 @@ export default function PhotoGalleryModal({
 
         {/* Fullscreen Photo Zoom Modal */}
         {selectedPhoto && (
-          <div className="fixed inset-0 z-60 bg-black/90 flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 z-110 bg-black/90 flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedPhoto(null);
+            }}
+          >
             <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
               <button
                 onClick={() => setSelectedPhoto(null)}

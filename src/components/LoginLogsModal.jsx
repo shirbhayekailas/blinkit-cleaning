@@ -44,6 +44,15 @@ export default function LoginLogsModal({
 
   const logs = Array.isArray(logsData) ? logsData : [];
 
+  // Close on Escape key press
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!isOpen) return null;
 
   // Filter logs
@@ -137,7 +146,12 @@ export default function LoginLogsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+    <div 
+      className="fixed inset-0 z-100 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[92vh] flex flex-col">
         
         {/* Header */}
@@ -372,24 +386,37 @@ export default function LoginLogsModal({
           )}
         </div>
 
-        {/* Mobile footer buttons */}
-        <div className="p-3 border-t border-slate-100 dark:border-slate-800 sm:hidden flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => exportLoginLogsToCSV(filteredLogs)}
-            className="flex-1 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold text-xs text-center"
-          >
-            Export CSV
-          </button>
-          {currentUserRole === 'admin' && (
+        {/* Universal Footer */}
+        <div className="px-6 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleClearLogs}
-              className="flex-1 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 font-bold text-xs text-center"
+              onClick={() => exportLoginLogsToCSV(filteredLogs)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition shadow-2xs"
             >
-              Clear Logs
+              <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Export CSV</span>
             </button>
-          )}
+            {currentUserRole === 'admin' && (
+              <button
+                type="button"
+                onClick={handleClearLogs}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold text-xs transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Clear History</span>
+                <span className="sm:hidden">Clear</span>
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs transition active:scale-95 shadow-sm"
+          >
+            Close
+          </button>
         </div>
 
       </div>

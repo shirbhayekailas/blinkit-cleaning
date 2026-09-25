@@ -63,7 +63,12 @@ _Reported by Deep Cleaning Vendor Team for Immediate Maintenance Action._`;
   };
 
   return (
-    <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-100 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[90vh] flex flex-col">
         
         {/* Header */}
@@ -207,7 +212,12 @@ _Reported by Deep Cleaning Vendor Team for Immediate Maintenance Action._`;
 
         {/* Photo Lightbox */}
         {selectedPhoto && (
-          <div className="fixed inset-0 z-70 bg-black/90 flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 z-110 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedPhoto(null);
+            }}
+          >
             <div className="relative max-w-2xl max-h-[85vh]">
               <button
                 onClick={() => setSelectedPhoto(null)}
