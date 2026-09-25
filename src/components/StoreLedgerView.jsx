@@ -110,7 +110,7 @@ export default function StoreLedgerView({
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => onDeleteStore(store.id)}
+                        onClick={() => onDeleteStore(store)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
                         title="Delete Store"
                       >

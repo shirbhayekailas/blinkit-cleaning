@@ -34,7 +34,7 @@ import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
 import { logUserLogout } from './utils/auditLogger';
-import { performCloudSync } from './utils/cloudSync';
+import { performCloudSync, getApiUrl } from './utils/cloudSync';
 import { 
   Building2, 
   Plus, 
@@ -404,10 +404,70 @@ export default function App() {
     }
   };
 
-  const handleDeleteStore = async (id) => {
-    if (confirm('Are you sure you want to remove this store from the Master Ledger?')) {
-      await db.stores.delete(id);
+  const handleDeleteStore = async (storeOrId) => {
+    try {
+      let store = null;
+      if (typeof storeOrId === 'object' && storeOrId !== null) {
+        store = storeOrId;
+      } else {
+        store = await db.stores.get(storeOrId);
+      }
+      if (!store && typeof storeOrId === 'string') {
+        store = await db.stores.where('storeCode').equals(storeOrId).first();
+      }
+      if (!store) {
+        alert('Store record nahi mila.');
+        return;
+      }
+
+      // Check if store has any cleaning entries in local database
+      const count = await db.cleanings
+        .where('storeCode')
+        .equals(store.storeCode)
+        .count();
+
+      if (count > 0) {
+        alert(
+          `❌ Store Delete Nahi Ho Sakta!\n\n` +
+          `Store: ${store.storeName} (${store.storeCode})\n` +
+          `Is store ke database me ${count} cleaning record(s) maujood hain.\n\n` +
+          `Audit, GST Billing aur Proofs history maintain rakhne ke liye jis store me cleaning ho chuki hai, use delete nahi kiya ja sakta.`
+        );
+        return;
+      }
+
+      const confirmDelete = confirm(
+        `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko delete karna chahte hain?`
+      );
+      if (!confirmDelete) return;
+
+      // 1. Delete on server first
+      try {
+        const response = await fetch(getApiUrl('/api/stores/delete'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeCode: store.storeCode })
+        });
+        const resData = await response.json().catch(() => ({}));
+        if (!response.ok || resData.hasCleanings) {
+          alert(`❌ Server Notice: ${resData.message || 'Store delete nahi ho saka'}`);
+          return;
+        }
+      } catch (netErr) {
+        console.warn('Server delete call notice:', netErr.message);
+      }
+
+      // 2. Delete locally in Dexie
+      if (store.id) {
+        await db.stores.delete(store.id);
+      } else {
+        await db.stores.where('storeCode').equals(store.storeCode).delete();
+      }
+
       performCloudSync().catch(console.warn);
+      alert(`✅ Store "${store.storeName}" Master Ledger se successfully delete ho gaya hai.`);
+    } catch (err) {
+      alert('Store delete karne me error: ' + err.message);
     }
   };
 
@@ -899,6 +959,8 @@ export default function App() {
         onSave={handleSaveCleaning}
         initialData={editingCleaning}
         stores={stores}
+        supervisors={supervisors}
+        cleaners={cleaners}
         currentUserRole={currentUserRole}
         onAddNewStore={() => {
           setEditingStore(null);

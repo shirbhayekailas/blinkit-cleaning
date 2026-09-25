@@ -321,6 +321,47 @@ app.post('/api/auth/change-pin', (req, res) => {
   }
 });
 
+app.post('/api/stores/delete', (req, res) => {
+  try {
+    const { storeCode } = req.body || {};
+    if (!storeCode) {
+      return res.status(400).json({ success: false, message: 'Store code zaroori hai.' });
+    }
+
+    const currentDB = readDB();
+    const cleanCode = String(storeCode).trim().toUpperCase();
+
+    // Check if store has any cleaning records on server
+    const relatedCleanings = (currentDB.cleanings || []).filter(
+      c => c && String(c.storeCode).trim().toUpperCase() === cleanCode
+    );
+
+    if (relatedCleanings.length > 0) {
+      return res.status(400).json({
+        success: false,
+        hasCleanings: true,
+        count: relatedCleanings.length,
+        message: `Is store ke ${relatedCleanings.length} cleaning record(s) database me maujood hain. Cleaning entries hone par store delete nahi kiya ja sakta.`
+      });
+    }
+
+    // Permanently remove store from server database
+    currentDB.stores = (currentDB.stores || []).filter(
+      s => s && String(s.storeCode).trim().toUpperCase() !== cleanCode
+    );
+
+    writeDB(currentDB);
+
+    res.json({
+      success: true,
+      message: `Store ${cleanCode} successfully deleted from server database.`,
+      stores: currentDB.stores
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete store error: ' + err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // API ROUTES
 // -------------------------------------------------------------
