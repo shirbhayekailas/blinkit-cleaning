@@ -173,117 +173,6 @@ export default function Navbar({
                 </button>
               )}
 
-              {/* Desktop Management Buttons */}
-              {isOpsStaff && (
-                <>
-                  <button
-                    onClick={onOpenSchedule}
-                    title="Tonight's Shift & Cleaning Schedule Planner"
-                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Schedule</span>
-                  </button>
-
-                  <button
-                    onClick={onOpenChemicals}
-                    title="Chemical Stock & Consumption Inventory"
-                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition"
-                  >
-                    <FlaskConical className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Chemicals</span>
-                  </button>
-
-                  <button
-                    onClick={onOpenKhata}
-                    title="Cleaner Staff Haziri & Advance Payout Khata"
-                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
-                  >
-                    <Wallet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Staff Khata</span>
-                  </button>
-
-                  <button
-                    onClick={onOpenConsolidatedInvoice}
-                    title="Monthly Consolidated Multi-Store Tax Invoice Generator"
-                    className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Monthly Bill</span>
-                  </button>
-
-                  {/* Passwords Button: Strictly ONLY for Admin */}
-                  {isAdmin && (
-                    <button
-                      onClick={onOpenUserAccess}
-                      title="Security Center: View & Edit Passwords for All Users (Admin Only)"
-                      className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 transition"
-                    >
-                      <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Passwords</span>
-                    </button>
-                  )}
-
-                  {/* Login Audit Logs: Visible to both Admin & Manager */}
-                  {onOpenLoginLogs && (
-                    <button
-                      onClick={onOpenLoginLogs}
-                      title="Login Activity & Audit Logs"
-                      className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-2xs"
-                    >
-                      <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                      <span>Login Logs</span>
-                    </button>
-                  )}
-
-                  {/* Issues Alert Chip on Desktop */}
-                  <button
-                    onClick={onOpenIssues}
-                    title="Dark Store Maintenance Defects & Alerts"
-                    className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition ${
-                      issuesCount > 0
-                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300/60 animate-pulse'
-                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                    <span>Issues {issuesCount > 0 && `(${issuesCount})`}</span>
-                  </button>
-
-                  <button
-                    onClick={onOpenCloudSync}
-                    title="Global Cloud Sync"
-                    className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition"
-                  >
-                    <Cloud className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Sync</span>
-                  </button>
-                </>
-              )}
-
-              {/* Desktop Excel Export */}
-              {isOpsStaff && (
-                <button
-                  onClick={onExportExcel}
-                  title="Export all data to Excel"
-                  className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Excel</span>
-                </button>
-              )}
-
-              {/* Desktop Backup / Restore */}
-              {isOpsStaff && (
-                <button
-                  onClick={onOpenBackup}
-                  title="Backup or Restore Data"
-                  className="hidden md:inline-flex p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                >
-                  <Database className="w-4 h-4" />
-                </button>
-              )}
-
               {/* Dark Mode Toggle */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -293,12 +182,12 @@ export default function Navbar({
                 {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
               </button>
 
-              {/* Logout Button (ALWAYS VISIBLE on Mobile & Desktop) */}
+              {/* Logout Button (ALWAYS VISIBLE & PROMINENT ON DESKTOP & MOBILE) */}
               {onLogout && (
                 <button
                   onClick={onLogout}
                   title="Logout to Login Screen"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-black text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 hover:dark:bg-rose-900/60 border border-rose-200 dark:border-rose-900 shadow-2xs transition active:scale-95 shrink-0"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 hover:dark:bg-rose-900/60 border border-rose-200 dark:border-rose-900 shadow-2xs transition active:scale-95 shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Logout</span>
@@ -308,7 +197,7 @@ export default function Navbar({
               {/* Desktop Add New Cleaning Button */}
               <button
                 onClick={onOpenNewEntry}
-                className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 hover:shadow-lg transition transform active:scale-95"
+                className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 hover:shadow-lg transition transform active:scale-95 shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>{isOpsStaff ? 'New Cleaning' : 'Log Shift'}</span>
@@ -318,10 +207,10 @@ export default function Navbar({
 
           </div>
 
-          {/* Segmented Tab Navigation Row */}
+          {/* Segmented Tab Navigation & Operations Command Row */}
           <div className="py-2 border-t border-slate-100 dark:border-slate-800/60">
-            {/* Desktop View Tabs */}
-            <div className="hidden sm:flex items-center justify-between gap-3">
+            {/* Desktop View: Tabs on Left, Operations Management Tools on Right */}
+            <div className="hidden sm:flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveTab('cleanings')}
@@ -347,7 +236,7 @@ export default function Navbar({
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span>🏬 Store Master Ledger &amp; Directory</span>
+                  <span>🏬 Store Master Ledger</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                     activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}>
@@ -356,14 +245,117 @@ export default function Navbar({
                 </button>
               </div>
 
+              {/* Desktop Operations Management Tools Ribbon */}
               {isOpsStaff && (
-                <button
-                  onClick={onOpenNewStore}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1"
-                >
-                  <Building2 className="w-3.5 h-3.5 text-amber-500" />
-                  <span>+ Add Store</span>
-                </button>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={onOpenSchedule}
+                    title="Tonight's Shift & Cleaning Schedule Planner"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition shadow-2xs"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Schedule</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenChemicals}
+                    title="Chemical Stock & Consumption Inventory"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition shadow-2xs"
+                  >
+                    <FlaskConical className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Chemicals</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenKhata}
+                    title="Cleaner Staff Haziri & Advance Payout Khata"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs"
+                  >
+                    <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Staff Khata</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenConsolidatedInvoice}
+                    title="Monthly Consolidated Multi-Store Tax Invoice Generator"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition shadow-2xs"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Monthly Bill</span>
+                  </button>
+
+                  {/* Passwords Button: Strictly ONLY for Admin */}
+                  {isAdmin && (
+                    <button
+                      onClick={onOpenUserAccess}
+                      title="Security Center: View & Edit Passwords for All Users (Admin Only)"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/70 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700 transition shadow-2xs"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Passwords</span>
+                    </button>
+                  )}
+
+                  {/* Login Audit Logs: Visible to both Admin & Manager */}
+                  {onOpenLoginLogs && (
+                    <button
+                      onClick={onOpenLoginLogs}
+                      title="Login Activity & Audit Logs"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-2xs"
+                    >
+                      <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Login Logs</span>
+                    </button>
+                  )}
+
+                  {/* Issues Alert Chip on Desktop */}
+                  <button
+                    onClick={onOpenIssues}
+                    title="Dark Store Maintenance Defects & Alerts"
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition shadow-2xs ${
+                      issuesCount > 0
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300/60 animate-pulse'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Issues {issuesCount > 0 && `(${issuesCount})`}</span>
+                  </button>
+
+                  <button
+                    onClick={onExportExcel}
+                    title="Export all data to Excel"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Excel</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenCloudSync}
+                    title="Global Cloud Sync"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-2xs"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Sync</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenBackup}
+                    title="Backup or Restore Data"
+                    className="p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition shadow-2xs"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={onOpenNewStore}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-2xs"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-amber-500" />
+                    <span>+ Add Store</span>
+                  </button>
+                </div>
               )}
             </div>
 
