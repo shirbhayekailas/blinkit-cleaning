@@ -22,7 +22,9 @@ import {
   Smartphone,
   Cloud,
   Navigation,
-  KeyRound
+  KeyRound,
+  Briefcase,
+  History
 } from 'lucide-react';
 
 export default function Navbar({
@@ -58,8 +60,12 @@ export default function Navbar({
   onOpenMorningSummary,
   onOpenNightRoute,
   onOpenUserAccess,
-  onChangeAdminPassword
+  onChangeAdminPassword,
+  onOpenLoginLogs
 }) {
+  const isAdmin = currentUserRole === 'admin';
+  const isManager = currentUserRole === 'manager';
+  const isOpsStaff = isAdmin || isManager;
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
@@ -108,15 +114,24 @@ export default function Navbar({
               onClick={onOpenLogin}
               title="Click to Switch Role or Re-Login"
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border shadow-xs ${
-                currentUserRole === 'admin'
+                isAdmin
                   ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                  : isManager
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800'
+                    : currentUserRole === 'client'
+                      ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                      : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
               }`}
             >
-              {currentUserRole === 'admin' ? (
+              {isAdmin ? (
                 <>
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
                   <span>👑 Admin (Owner)</span>
+                </>
+              ) : isManager ? (
+                <>
+                  <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>👔 Operations Manager</span>
                 </>
               ) : currentUserRole === 'client' ? (
                 <>
@@ -131,8 +146,8 @@ export default function Navbar({
               )}
             </button>
 
-            {/* Quick Admin Change PIN Button */}
-            {currentUserRole === 'admin' && onChangeAdminPassword && (
+            {/* Quick Admin Change PIN Button (Admin Only) */}
+            {isAdmin && onChangeAdminPassword && (
               <button
                 type="button"
                 onClick={onChangeAdminPassword}
@@ -155,8 +170,8 @@ export default function Navbar({
               </button>
             )}
 
-            {/* Admin Management Shortcuts (Only visible to Admin) */}
-            {currentUserRole === 'admin' && (
+            {/* Operations Management Shortcuts (Admin & Manager) */}
+            {isOpsStaff && (
               <>
                 <button
                   onClick={onOpenSchedule}
@@ -194,14 +209,29 @@ export default function Navbar({
                   <span>Monthly Bill</span>
                 </button>
 
-                <button
-                  onClick={onOpenUserAccess}
-                  title="Security Center: View & Edit Passwords for All Users (Supervisors & Master)"
-                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 transition"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Passwords</span>
-                </button>
+                {/* Passwords Button: Strictly ONLY for Admin (Manager does NOT have access) */}
+                {isAdmin && (
+                  <button
+                    onClick={onOpenUserAccess}
+                    title="Security Center: View & Edit Passwords for All Users (Admin Only)"
+                    className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 transition"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Passwords</span>
+                  </button>
+                )}
+
+                {/* Login Audit Logs: Visible to both Admin & Manager */}
+                {onOpenLoginLogs && (
+                  <button
+                    onClick={onOpenLoginLogs}
+                    title="Login Activity & Audit Logs (Kisne kab login kiya)"
+                    className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-xs"
+                  >
+                    <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Login Logs</span>
+                  </button>
+                )}
 
                 <button
                   onClick={onOpenSupervisors}
@@ -263,7 +293,7 @@ export default function Navbar({
             )}
 
             {/* Excel Export */}
-            {currentUserRole === 'admin' && (
+            {isOpsStaff && (
               <button
                 onClick={onExportExcel}
                 title="Export all data to Excel"
@@ -275,7 +305,7 @@ export default function Navbar({
             )}
 
             {/* Backup / Restore */}
-            {currentUserRole === 'admin' && (
+            {isOpsStaff && (
               <button
                 onClick={onOpenBackup}
                 title="Backup or Restore Data"
@@ -304,8 +334,8 @@ export default function Navbar({
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Add New Store Button (Admin only) */}
-            {currentUserRole === 'admin' && (
+            {/* Add New Store Button (Ops Staff) */}
+            {isOpsStaff && (
               <button
                 onClick={onOpenNewStore}
                 className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
@@ -321,7 +351,7 @@ export default function Navbar({
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 hover:shadow-lg transition transform active:scale-95"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>{currentUserRole === 'admin' ? 'New Cleaning' : 'Log Shift'}</span>
+              <span>{isOpsStaff ? 'New Cleaning' : 'Log Shift'}</span>
             </button>
           </div>
 

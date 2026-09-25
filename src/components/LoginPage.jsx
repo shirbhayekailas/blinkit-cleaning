@@ -13,6 +13,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { db } from '../db/db';
+import { logUserLogin } from '../utils/auditLogger';
 
 export default function LoginPage({
   onLoginSuccess,
@@ -44,6 +45,12 @@ export default function LoginPage({
       const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
 
       if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
+        await logUserLogin({
+          role: 'admin',
+          userName: 'Vendor Admin / Owner',
+          loginId: adminId,
+          status: 'Success'
+        });
         onLoginSuccess({
           role: 'admin',
           user: { name: 'Vendor Admin / Owner', loginId: adminId }
@@ -51,12 +58,37 @@ export default function LoginPage({
         return;
       }
 
-      // 2. Check Blinkit Client Ops Head Account
+      // 2. Check Operations Manager Account
+      const managerId = (localStorage.getItem('vendor_manager_id') || 'manager').toLowerCase();
+      const managerPin = localStorage.getItem('vendor_manager_pin') || '1234';
+      const managerName = localStorage.getItem('vendor_manager_name') || 'Operations Manager';
+
+      if (inputId.toLowerCase() === managerId && inputPass === managerPin) {
+        await logUserLogin({
+          role: 'manager',
+          userName: managerName,
+          loginId: managerId,
+          status: 'Success'
+        });
+        onLoginSuccess({
+          role: 'manager',
+          user: { name: managerName, loginId: managerId }
+        });
+        return;
+      }
+
+      // 3. Check Blinkit Client Ops Head Account
       const clientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
       const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
       const clientName = localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head';
 
       if (inputId.toLowerCase() === clientId && inputPass === clientPin) {
+        await logUserLogin({
+          role: 'client',
+          userName: clientName,
+          loginId: clientId,
+          status: 'Success'
+        });
         onLoginSuccess({
           role: 'client',
           user: { name: clientName, loginId: clientId }
@@ -64,7 +96,7 @@ export default function LoginPage({
         return;
       }
 
-      // 3. Check Site Supervisors (by Mobile Number)
+      // 4. Check Site Supervisors (by Mobile Number)
       const cleanPhone = inputId.replace(/[^0-9]/g, '');
       const supervisor = await db.supervisors
         .where('phone')
@@ -76,10 +108,23 @@ export default function LoginPage({
       if (supervisor && supervisor.pin === inputPass) {
         if (supervisor.active === false) {
           setError('This supervisor account has been deactivated. Please contact Admin.');
+          await logUserLogin({
+            role: 'supervisor',
+            userName: supervisor.name,
+            loginId: supervisor.phone,
+            status: 'Failed',
+            notes: 'Deactivated account attempt'
+          });
           setIsSubmitting(false);
           return;
         }
 
+        await logUserLogin({
+          role: 'supervisor',
+          userName: supervisor.name,
+          loginId: supervisor.phone,
+          status: 'Success'
+        });
         onLoginSuccess({
           role: 'supervisor',
           user: supervisor
@@ -87,7 +132,14 @@ export default function LoginPage({
         return;
       }
 
-      // 4. Invalid credentials
+      // 5. Invalid credentials
+      await logUserLogin({
+        role: 'unknown',
+        userName: 'Unrecognized User',
+        loginId: inputId,
+        status: 'Failed',
+        notes: 'Invalid ID or Password'
+      });
       setError('Invalid Login ID or Password. Please check credentials or contact Admin.');
     } catch (err) {
       setError('Login error: ' + err.message);

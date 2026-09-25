@@ -30,6 +30,7 @@ import NightRouteModal from './components/NightRouteModal';
 import StoreQRModal from './components/StoreQRModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import UserAccessModal from './components/UserAccessModal';
+import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
 import { 
@@ -108,6 +109,7 @@ export default function App() {
     isFirstLogin: false
   });
   const [isUserAccessOpen, setIsUserAccessOpen] = useState(false);
+  const [isLoginLogsOpen, setIsLoginLogsOpen] = useState(false);
 
   // Store Master Ledger States
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
@@ -517,6 +519,7 @@ export default function App() {
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
         onOpenUserAccess={() => setIsUserAccessOpen(true)}
+        onOpenLoginLogs={() => setIsLoginLogsOpen(true)}
         onChangeAdminPassword={() => {
           setChangePasswordConfig({
             role: 'admin',
@@ -545,27 +548,41 @@ export default function App() {
             <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl shadow-md ${
               currentUserRole === 'client'
                 ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white'
-                : 'bg-gradient-to-r from-amber-400 via-amber-300 to-emerald-400 text-slate-950'
+                : currentUserRole === 'manager'
+                  ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white'
+                  : 'bg-gradient-to-r from-amber-400 via-amber-300 to-emerald-400 text-slate-950'
             }`}>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="text-xl font-extrabold tracking-tight">
                     {currentUserRole === 'client'
                       ? 'Blinkit City Operations & QA Inspection Portal'
-                      : 'Blinkit Dark Store Deep Cleaning Control Center'}
+                      : currentUserRole === 'manager'
+                        ? 'Blinkit Operations Management Control Center'
+                        : 'Blinkit Dark Store Deep Cleaning Control Center'}
                   </span>
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-extrabold ${
-                    currentUserRole === 'client' ? 'bg-white text-blue-900' : 'bg-slate-950 text-white'
+                    currentUserRole === 'client' 
+                      ? 'bg-white text-blue-900' 
+                      : currentUserRole === 'manager'
+                        ? 'bg-white text-indigo-900'
+                        : 'bg-slate-950 text-white'
                   }`}>
-                    {currentUserRole === 'client' ? 'CLIENT / CITY OPS' : 'VENDOR ADMIN'}
+                    {currentUserRole === 'client' 
+                      ? 'CLIENT / CITY OPS' 
+                      : currentUserRole === 'manager'
+                        ? 'OPERATIONS MANAGER'
+                        : 'VENDOR ADMIN'}
                   </span>
                 </div>
                 <p className={`text-xs sm:text-sm font-semibold ${
-                  currentUserRole === 'client' ? 'text-blue-100' : 'text-slate-900/80'
+                  currentUserRole === 'client' || currentUserRole === 'manager' ? 'text-indigo-100' : 'text-slate-900/80'
                 }`}>
                   {currentUserRole === 'client'
                     ? 'Official inspection portal: View completed store cleanings, interactive Before/After photo comparisons, and download FSSAI Hygiene Certificates.'
-                    : 'Track store visits, manage your Store Ledger, auto-fill store info, track pending payments, view P&L profits, and manage site supervisors.'}
+                    : currentUserRole === 'manager'
+                      ? 'Operations Manager Portal: Manage deep cleaning store visits, schedules, night routes, chemical stocks, and cleaner staff attendance.'
+                      : 'Track store visits, manage your Store Ledger, auto-fill store info, track pending payments, view P&L profits, and manage site supervisors.'}
                 </p>
               </div>
 
@@ -892,6 +909,16 @@ export default function App() {
           });
           setIsChangePasswordOpen(true);
         }}
+        onOpenLoginLogs={() => {
+          setIsUserAccessOpen(false);
+          setIsLoginLogsOpen(true);
+        }}
+      />
+
+      <LoginLogsModal
+        isOpen={isLoginLogsOpen}
+        onClose={() => setIsLoginLogsOpen(false)}
+        currentUserRole={currentUserRole}
       />
 
       <ChangePasswordModal

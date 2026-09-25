@@ -27,6 +27,19 @@ db.version(3).stores({
   cleaningSchedules: '++id, storeCode, storeName, scheduledDate, shift, supervisorId, status, createdAt'
 });
 
+db.version(4).stores({
+  stores: '++id, storeCode, storeName, city, managerName, managerPhone, createdAt',
+  cleanings: '++id, storeId, storeCode, storeName, cleaningDate, paymentStatus, status, teamVendor, supervisorId, createdAt',
+  supervisors: '++id, name, phone, pin, active, createdAt',
+  cleaners: '++id, name, phone, dailyWage, active, createdAt',
+  storeIssues: '++id, storeCode, cleaningId, issueType, status, reportedAt',
+  chemicalStock: '++id, itemName, unit, totalStock, alertThreshold, updatedAt',
+  chemicalLogs: '++id, chemicalId, itemName, type, quantity, storeCode, supervisorId, date, notes',
+  cleanerAdvances: '++id, cleanerId, cleanerName, amount, date, paymentMode, remarks, createdAt',
+  cleaningSchedules: '++id, storeCode, storeName, scheduledDate, shift, supervisorId, status, createdAt',
+  loginLogs: '++id, role, userName, loginId, timestamp, status, device'
+});
+
 // No automatic demo seeding - database remains 100% clean for real vendor entries
 export async function seedInitialData() {
   // Kept empty so real vendor operations start with a clean slate
@@ -44,5 +57,10 @@ export async function clearAllData() {
   await db.chemicalLogs.clear();
   await db.cleanerAdvances.clear();
   await db.cleaningSchedules.clear();
+  try {
+    if (db.loginLogs) await db.loginLogs.clear();
+  } catch (e) {
+    console.warn('Could not clear login logs:', e);
+  }
 }
 

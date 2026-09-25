@@ -16,7 +16,8 @@ import {
   Lock,
   Phone,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  History
 } from 'lucide-react';
 import { db } from '../db/db';
 
@@ -25,18 +26,24 @@ export default function UserAccessModal({
   onClose,
   supervisors = [],
   onOpenAddSupervisor,
-  onChangeAdminPin
+  onChangeAdminPin,
+  onOpenLoginLogs
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Show / Hide states for PINs
   const [showAdminPin, setShowAdminPin] = useState(false);
+  const [showManagerPin, setShowManagerPin] = useState(false);
   const [showClientPin, setShowClientPin] = useState(false);
   const [visiblePins, setVisiblePins] = useState({}); // { [supId]: boolean }
 
   // Inline editing state: { [supId]: newPinString }
   const [editingSupId, setEditingSupId] = useState(null);
   const [tempPin, setTempPin] = useState('');
+
+  // Manager PIN state
+  const [isEditingManagerPin, setIsEditingManagerPin] = useState(false);
+  const [managerPinVal, setManagerPinVal] = useState(() => localStorage.getItem('vendor_manager_pin') || '1234');
 
   // Client PIN state
   const [isEditingClientPin, setIsEditingClientPin] = useState(false);
@@ -47,6 +54,11 @@ export default function UserAccessModal({
   const adminId = localStorage.getItem('vendor_admin_id') || 'admin';
   const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
   const isAdminDefault = adminPin === '1234';
+
+  const managerId = localStorage.getItem('vendor_manager_id') || 'manager';
+  const managerPin = localStorage.getItem('vendor_manager_pin') || '1234';
+  const isManagerDefault = managerPin === '1234';
+
   const clientId = localStorage.getItem('blinkit_client_id') || 'client';
   const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
 
@@ -102,6 +114,28 @@ export default function UserAccessModal({
     localStorage.setItem('blinkit_client_pin', clientPinVal.trim());
     localStorage.setItem('client_pin_changed', 'true');
     setIsEditingClientPin(false);
+  };
+
+  const handleSaveManagerPin = () => {
+    if (!managerPinVal || managerPinVal.trim().length < 4) {
+      alert('Manager PIN kam se kam 4 digits ka hona chahiye.');
+      return;
+    }
+    localStorage.setItem('vendor_manager_pin', managerPinVal.trim());
+    setIsEditingManagerPin(false);
+  };
+
+  const handleShareManagerWhatsApp = () => {
+    const appUrl = window.location.origin;
+    const msg = `*Blinkit Deep Cleaning Operations - Operations Manager Login*\n\n` +
+      `Namaste,\n` +
+      `Aapka Operations Manager portal account access credentials:\n\n` +
+      `📱 *Login ID*: ${managerId}\n` +
+      `🔑 *Password (PIN)*: ${managerPin}\n` +
+      `🌐 *Portal Link*: ${appUrl}\n\n` +
+      `Aap is login se store cleanings, ledger, schedules, chemical inventory aur attendance manage kar sakte hain.`;
+    
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const handleShareSupervisorWhatsApp = (sup) => {
@@ -165,11 +199,32 @@ export default function UserAccessModal({
           </button>
         </div>
 
+        {/* Top Audit Log Banner */}
+        <div className="px-6 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/30 border-b border-blue-100 dark:border-blue-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-blue-900 dark:text-blue-300">
+            <History className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="font-semibold">Login Activity Tracker: Kisne kab aur kis device se login kiya audit karein</span>
+          </div>
+          {onOpenLoginLogs && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenLoginLogs();
+              }}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>View Login Logs</span>
+            </button>
+          )}
+        </div>
+
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
 
-          {/* ADMIN & CLIENT SYSTEM ACCOUNTS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* ADMIN, MANAGER & CLIENT SYSTEM ACCOUNTS */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             {/* Admin Master PIN Card */}
             <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10 space-y-3">
@@ -230,6 +285,108 @@ export default function UserAccessModal({
                     Change PIN
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Operations Manager PIN Card */}
+            <div className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/20 dark:to-purple-950/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    👔
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-xs text-slate-900 dark:text-white">Operations Manager</h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">All Ops Access (No Passwords)</p>
+                  </div>
+                </div>
+
+                {isManagerDefault ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200">
+                    Default PIN (1234)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200">
+                    Secured
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                {isEditingManagerPin ? (
+                  <div className="flex items-center gap-2 flex-1 mr-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={managerPinVal}
+                      onChange={(e) => setManagerPinVal(e.target.value)}
+                      className="w-24 px-2 py-1 text-sm font-mono border rounded-lg bg-slate-50 dark:bg-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveManagerPin}
+                      className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingManagerPin(false)}
+                      className="p-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
+                      <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                        {managerId}
+                      </span>
+                    </div>
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-750 hidden sm:block" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
+                      <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
+                        {showManagerPin ? managerPin : '••••'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {!isEditingManagerPin && (
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowManagerPin(!showManagerPin)}
+                      title={showManagerPin ? 'Hide PIN' : 'View PIN'}
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
+                    >
+                      {showManagerPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManagerPinVal(managerPin);
+                        setIsEditingManagerPin(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition"
+                    >
+                      Change PIN
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleShareManagerWhatsApp}
+                      title="Send Manager Login on WhatsApp"
+                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
