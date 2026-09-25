@@ -97,7 +97,7 @@ export default function Navbar({
                   <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">
                     blink<span className="text-blinkit-green">it</span>
                   </span>
-                  <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300/40">
+                  <span className="hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300/40">
                     DEEP CLEANING
                   </span>
                 </div>
@@ -292,20 +292,6 @@ export default function Navbar({
               >
                 {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
               </button>
-
-              {/* Mobile "More Menu" Toggle Button */}
-              {isOpsStaff && (
-                <button
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  title="Open Mobile Operations Hub"
-                  className="md:hidden relative p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
-                >
-                  <Menu className="w-4 h-4" />
-                  {issuesCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping" />
-                  )}
-                </button>
-              )}
 
               {/* Logout Button (ALWAYS VISIBLE on Mobile & Desktop) */}
               {onLogout && (
