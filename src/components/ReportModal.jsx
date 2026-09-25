@@ -78,7 +78,7 @@ export default function ReportModal({
                 <span>PDF Work Completion & Audit Certificate</span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Official PDF with Blinkit branding, timings, team deployed, checklist, payment details, and embedded photo proofs.
+                Official PDF with Blinkit branding, timings, team deployed, verified checklist, and embedded photo proofs.
               </p>
             </div>
             <button

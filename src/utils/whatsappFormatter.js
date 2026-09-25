@@ -1,6 +1,5 @@
 export function formatWhatsAppMessage(cleaning) {
   const statusEmoji = cleaning.status === 'Completed' ? '✅' : '⏳';
-  const paymentEmoji = cleaning.paymentStatus === 'Received' ? '🟢' : cleaning.paymentStatus === 'Partial' ? '🟡' : '🔴';
 
   return `*🟡 BLINKIT DARK STORE DEEP CLEANING REPORT 🟡*
 ---------------------------------------
@@ -29,12 +28,6 @@ ${(cleaning.scopeOfWork || [
   'Wall Dry & Rust Removal'
 ]).map(s => `  ✔ ${s}`).join('\n')}
 
-💰 *BILLING & PAYMENT STATUS:*
-💵 *Total Amount:* Rs. ${Number(cleaning.amount || 0).toLocaleString('en-IN')}
-${paymentEmoji} *Payment Status:* ${cleaning.paymentStatus.toUpperCase()}
-📥 *Amount Received:* Rs. ${Number(cleaning.amountReceived || 0).toLocaleString('en-IN')}
-⏳ *Amount Pending:* Rs. ${Number(cleaning.amountPending || 0).toLocaleString('en-IN')}
-${cleaning.utrNumber ? `💳 *UTR / Ref:* ${cleaning.utrNumber}\n` : ''}${cleaning.paymentDate ? `🗓️ *Payment Date:* ${cleaning.paymentDate}\n` : ''}
 📋 *Checklist & Audit Score:* ${'⭐'.repeat(cleaning.rating || 5)} (${cleaning.rating || 5}/5)
 💬 *Remarks:* ${cleaning.remarks || 'None'}
 ---------------------------------------

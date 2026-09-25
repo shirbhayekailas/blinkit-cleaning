@@ -77,40 +77,8 @@ export function generateCleaningPDF(cleaning) {
       }
     });
 
-    // Financial & Payment Section
-    const paymentY = (doc.lastAutoTable?.finalY || 42) + 6;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.text('Payment & Billing Summary', 14, paymentY);
-
-    runAutoTable(doc, {
-      startY: paymentY + 2,
-      head: [['Total Amount', 'Amount Received', 'Amount Pending', 'Payment Status', 'Payment Details']],
-      body: [
-        [
-          `Rs. ${Number(cleaning.amount || 0).toLocaleString('en-IN')}`,
-          `Rs. ${Number(cleaning.amountReceived || 0).toLocaleString('en-IN')}`,
-          `Rs. ${Number(cleaning.amountPending || 0).toLocaleString('en-IN')}`,
-          (cleaning.paymentStatus || 'PENDING').toUpperCase(),
-          cleaning.paymentStatus === 'Received' || cleaning.paymentStatus === 'Partial'
-            ? `Mode: ${cleaning.paymentMode || 'UPI'} | UTR: ${cleaning.utrNumber || 'N/A'} | Date: ${cleaning.paymentDate || 'N/A'}`
-            : 'Payment approval pending from Store Manager / Finance'
-        ]
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [248, 203, 70], textColor: [17, 24, 39], fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 3 },
-      columnStyles: {
-        0: { fontStyle: 'bold' },
-        1: { textColor: [12, 131, 31], fontStyle: 'bold' },
-        2: { textColor: cleaning.amountPending > 0 ? [220, 38, 38] : [12, 131, 31], fontStyle: 'bold' },
-        3: { fontStyle: 'bold', textColor: cleaning.paymentStatus === 'Received' ? [12, 131, 31] : [220, 38, 38] }
-      }
-    });
-
     // Vendor Scope of Work Section
-    const scopeY = (doc.lastAutoTable?.finalY || paymentY + 25) + 6;
+    const scopeY = (doc.lastAutoTable?.finalY || 42) + 8;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);

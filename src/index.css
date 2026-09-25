@@ -48,3 +48,49 @@
   padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
 }
 
+/* Print Rules - Isolates #printable-qr-card and hides application background */
+@media print {
+  @page {
+    size: auto;
+    margin: 10mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* Hide everything on page */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Make only printable QR card visible */
+  #printable-qr-card,
+  #printable-qr-card * {
+    visibility: visible !important;
+  }
+
+  #printable-qr-card {
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 130mm !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
+    background: #ffffff !important;
+    border: 3.5px solid #0c831f !important;
+    border-radius: 20px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+  }
+}
+
+
