@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { db } from '../db/db';
 import { exportLoginLogsToCSV } from '../utils/auditLogger';
+import { clearLoginLogsOnServer, performCloudSync } from '../utils/cloudSync';
 
 export default function LoginLogsModal({
   isOpen,
@@ -102,9 +103,12 @@ export default function LoginLogsModal({
 
     if (confirm('Kya aap sach me sare Login Audit Logs delete karna chahte hain?')) {
       try {
+        await clearLoginLogsOnServer();
         if (db.loginLogs) {
           await db.loginLogs.clear();
         }
+        performCloudSync().catch(() => {});
+        alert('✅ Sare Login Audit Logs permanently clear ho gaye hain.');
       } catch (err) {
         alert('Error clearing logs: ' + err.message);
       }

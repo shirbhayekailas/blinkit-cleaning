@@ -32,6 +32,11 @@ const DEFAULT_DB = {
   loginLogs: [],
   deletedStores: [],
   deletedCleanings: [],
+  deletedSupervisors: [],
+  deletedCleaners: [],
+  deletedSchedules: [],
+  deletedAdvances: [],
+  logsClearedAt: null,
   appSettings: {
     vendor_admin_id: 'admin',
     vendor_admin_pin: '1234',
@@ -170,12 +175,67 @@ function mergeStores(existing = [], incoming = [], deletedStores = []) {
   return Array.from(map.values());
 }
 
-function mergeSupervisors(existing = [], incoming = []) {
+function isSupervisorDeleted(s, deletedSupervisors = []) {
+  if (!s || !deletedSupervisors || deletedSupervisors.length === 0) return false;
+  const phone = s.phone ? String(s.phone).trim() : null;
+  const id = s.id ? String(s.id) : null;
+  return deletedSupervisors.some(d => {
+    if (!d) return false;
+    if (typeof d === 'string') return d === phone || d === id;
+    if (phone && d.phone && String(d.phone).trim() === phone) return true;
+    if (id && d.id && String(d.id) === id) return true;
+    return false;
+  });
+}
+
+function isCleanerDeleted(c, deletedCleaners = []) {
+  if (!c || !deletedCleaners || deletedCleaners.length === 0) return false;
+  const phone = c.phone ? String(c.phone).trim() : null;
+  const name = c.name ? String(c.name).trim().toLowerCase() : null;
+  const id = c.id ? String(c.id) : null;
+  return deletedCleaners.some(d => {
+    if (!d) return false;
+    if (typeof d === 'string') return d === phone || d === name || d === id;
+    if (phone && d.phone && String(d.phone).trim() === phone) return true;
+    if (name && d.name && String(d.name).trim().toLowerCase() === name) return true;
+    if (id && d.id && String(d.id) === id) return true;
+    return false;
+  });
+}
+
+function isScheduleDeleted(s, deletedSchedules = []) {
+  if (!s || !deletedSchedules || deletedSchedules.length === 0) return false;
+  const sc = s.storeCode ? String(s.storeCode).trim().toUpperCase() : null;
+  const sd = s.scheduledDate ? String(s.scheduledDate).trim() : null;
+  const id = s.id ? String(s.id) : null;
+  return deletedSchedules.some(d => {
+    if (!d) return false;
+    if (typeof d === 'string') return d === id;
+    if (sc && sd && d.storeCode && d.scheduledDate && String(d.storeCode).trim().toUpperCase() === sc && String(d.scheduledDate).trim() === sd) return true;
+    if (id && d.id && String(d.id) === id) return true;
+    return false;
+  });
+}
+
+function isAdvanceDeleted(a, deletedAdvances = []) {
+  if (!a || !deletedAdvances || deletedAdvances.length === 0) return false;
+  const id = a.id ? String(a.id) : null;
+  return deletedAdvances.some(d => {
+    if (!d) return false;
+    if (typeof d === 'string') return d === id;
+    if (id && d.id && String(d.id) === id) return true;
+    return false;
+  });
+}
+
+function mergeSupervisors(existing = [], incoming = [], deletedSupervisors = []) {
   const map = new Map();
   for (const s of existing) {
+    if (isSupervisorDeleted(s, deletedSupervisors)) continue;
     if (s && s.phone) map.set(String(s.phone).trim(), s);
   }
   for (const s of incoming) {
+    if (isSupervisorDeleted(s, deletedSupervisors)) continue;
     if (!s || !s.phone) continue;
     const phone = String(s.phone).trim();
     const old = map.get(phone);
@@ -188,15 +248,17 @@ function mergeSupervisors(existing = [], incoming = []) {
   return Array.from(map.values());
 }
 
-function mergeGeneric(existing = [], incoming = [], keyFn) {
+function mergeGeneric(existing = [], incoming = [], keyFn, isDeletedFn = null) {
   const map = new Map();
   for (const item of existing) {
     if (!item) continue;
+    if (isDeletedFn && isDeletedFn(item)) continue;
     const key = keyFn(item);
     if (key) map.set(key, item);
   }
   for (const item of incoming) {
     if (!item) continue;
+    if (isDeletedFn && isDeletedFn(item)) continue;
     const key = keyFn(item);
     if (!key) continue;
     const old = map.get(key);
@@ -493,6 +555,163 @@ app.post('/api/stores/delete', (req, res) => {
   }
 });
 
+app.post('/api/logs/clear', (req, res) => {
+  try {
+    const currentDB = readDB();
+    currentDB.loginLogs = [];
+    currentDB.logsClearedAt = new Date().toISOString();
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      message: 'Login audit logs successfully cleared from server.',
+      logsClearedAt: currentDB.logsClearedAt
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server clear logs error: ' + err.message });
+  }
+});
+
+app.post('/api/supervisors/delete', (req, res) => {
+  try {
+    const { id, phone, name } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.deletedSupervisors) currentDB.deletedSupervisors = [];
+
+    const cleanPhone = phone ? String(phone).trim() : null;
+
+    currentDB.supervisors = (currentDB.supervisors || []).filter(s => {
+      if (!s) return false;
+      if (id && s.id && String(s.id) === String(id)) return false;
+      if (cleanPhone && s.phone && String(s.phone).trim() === cleanPhone) return false;
+      return true;
+    });
+
+    currentDB.deletedSupervisors.push({
+      id: id || null,
+      phone: cleanPhone,
+      name: name || null,
+      deletedAt: new Date().toISOString()
+    });
+    if (currentDB.deletedSupervisors.length > 500) {
+      currentDB.deletedSupervisors = currentDB.deletedSupervisors.slice(-500);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, supervisors: currentDB.supervisors, deletedSupervisors: currentDB.deletedSupervisors });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete supervisor error: ' + err.message });
+  }
+});
+
+app.post('/api/cleaners/delete', (req, res) => {
+  try {
+    const { id, name, phone } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.deletedCleaners) currentDB.deletedCleaners = [];
+
+    const cleanPhone = phone ? String(phone).trim() : null;
+    const cleanName = name ? String(name).trim().toLowerCase() : null;
+
+    currentDB.cleaners = (currentDB.cleaners || []).filter(c => {
+      if (!c) return false;
+      if (id && c.id && String(c.id) === String(id)) return false;
+      if (cleanPhone && c.phone && String(c.phone).trim() === cleanPhone) return false;
+      if (cleanName && c.name && String(c.name).trim().toLowerCase() === cleanName) return false;
+      return true;
+    });
+
+    currentDB.deletedCleaners.push({
+      id: id || null,
+      phone: cleanPhone,
+      name: cleanName,
+      deletedAt: new Date().toISOString()
+    });
+    if (currentDB.deletedCleaners.length > 500) {
+      currentDB.deletedCleaners = currentDB.deletedCleaners.slice(-500);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, cleaners: currentDB.cleaners, deletedCleaners: currentDB.deletedCleaners });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete cleaner error: ' + err.message });
+  }
+});
+
+app.post('/api/schedules/delete', (req, res) => {
+  try {
+    const { id, storeCode, scheduledDate } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.deletedSchedules) currentDB.deletedSchedules = [];
+
+    const sc = storeCode ? String(storeCode).trim().toUpperCase() : null;
+    const sd = scheduledDate ? String(scheduledDate).trim() : null;
+
+    currentDB.cleaningSchedules = (currentDB.cleaningSchedules || []).filter(s => {
+      if (!s) return false;
+      if (id && s.id && String(s.id) === String(id)) return false;
+      if (sc && sd && String(s.storeCode).trim().toUpperCase() === sc && String(s.scheduledDate).trim() === sd) return false;
+      return true;
+    });
+
+    currentDB.deletedSchedules.push({
+      id: id || null,
+      storeCode: sc,
+      scheduledDate: sd,
+      deletedAt: new Date().toISOString()
+    });
+    if (currentDB.deletedSchedules.length > 500) {
+      currentDB.deletedSchedules = currentDB.deletedSchedules.slice(-500);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, cleaningSchedules: currentDB.cleaningSchedules, deletedSchedules: currentDB.deletedSchedules });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete schedule error: ' + err.message });
+  }
+});
+
+app.post('/api/advances/delete', (req, res) => {
+  try {
+    const { id, cleanerId, advanceDate } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.deletedAdvances) currentDB.deletedAdvances = [];
+
+    currentDB.cleanerAdvances = (currentDB.cleanerAdvances || []).filter(a => {
+      if (!a) return false;
+      if (id && a.id && String(a.id) === String(id)) return false;
+      return true;
+    });
+
+    currentDB.deletedAdvances.push({
+      id: id || null,
+      cleanerId: cleanerId || null,
+      advanceDate: advanceDate || null,
+      deletedAt: new Date().toISOString()
+    });
+    if (currentDB.deletedAdvances.length > 500) {
+      currentDB.deletedAdvances = currentDB.deletedAdvances.slice(-500);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, cleanerAdvances: currentDB.cleanerAdvances, deletedAdvances: currentDB.deletedAdvances });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete advance error: ' + err.message });
+  }
+});
+
+app.post('/api/demo/clear', (req, res) => {
+  try {
+    const currentDB = readDB();
+    const demoCodes = ['BLK-TEST-001', 'BLK-GURGAON-42', 'BLK-', 'BLK-009'];
+    currentDB.stores = (currentDB.stores || []).filter(s => s && !demoCodes.includes(String(s.storeCode).trim().toUpperCase()));
+    currentDB.cleanings = (currentDB.cleanings || []).filter(c => c && !demoCodes.includes(String(c.storeCode).trim().toUpperCase()));
+    writeDB(currentDB);
+    res.json({ success: true, message: 'Demo data cleared from server database.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server clear demo error: ' + err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // API ROUTES
 // -------------------------------------------------------------
@@ -532,21 +751,27 @@ app.post('/api/sync', (req, res) => {
     const currentDB = readDB();
     if (!currentDB.deletedStores) currentDB.deletedStores = [];
     if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
+    if (!currentDB.deletedSupervisors) currentDB.deletedSupervisors = [];
+    if (!currentDB.deletedCleaners) currentDB.deletedCleaners = [];
+    if (!currentDB.deletedSchedules) currentDB.deletedSchedules = [];
+    if (!currentDB.deletedAdvances) currentDB.deletedAdvances = [];
 
     const mergedCleanings = mergeCleanings(currentDB.cleanings, updates.cleanings || [], currentDB.deletedCleanings);
     const mergedStores = mergeStores(currentDB.stores, updates.stores || [], currentDB.deletedStores);
-    const mergedSupervisors = mergeSupervisors(currentDB.supervisors, updates.supervisors || []);
+    const mergedSupervisors = mergeSupervisors(currentDB.supervisors, updates.supervisors || [], currentDB.deletedSupervisors);
 
     const mergedCleaners = mergeGeneric(
       currentDB.cleaners, 
       updates.cleaners || [], 
-      (c) => c.phone ? `cln_${c.phone}` : (c.id ? `id_${c.id}` : c.name)
+      (c) => c.phone ? `cln_${c.phone}` : (c.id ? `id_${c.id}` : c.name),
+      (c) => isCleanerDeleted(c, currentDB.deletedCleaners)
     );
 
     const mergedSchedules = mergeGeneric(
       currentDB.cleaningSchedules, 
       updates.cleaningSchedules || [], 
-      (s) => s.storeCode && s.scheduledDate ? `${s.storeCode}_${s.scheduledDate}_${s.shift || ''}` : `id_${s.id}`
+      (s) => s.storeCode && s.scheduledDate ? `${s.storeCode}_${s.scheduledDate}_${s.shift || ''}` : `id_${s.id}`,
+      (s) => isScheduleDeleted(s, currentDB.deletedSchedules)
     );
 
     const mergedChemicalStock = mergeGeneric(
@@ -564,7 +789,8 @@ app.post('/api/sync', (req, res) => {
     const mergedAdvances = mergeGeneric(
       currentDB.cleanerAdvances, 
       updates.cleanerAdvances || [], 
-      (a) => a.id ? `id_${a.id}` : `${a.cleanerId}_${a.advanceDate}_${a.amount}`
+      (a) => a.id ? `id_${a.id}` : `${a.cleanerId}_${a.advanceDate}_${a.amount}`,
+      (a) => isAdvanceDeleted(a, currentDB.deletedAdvances)
     );
 
     const mergedIssues = mergeGeneric(
@@ -573,9 +799,16 @@ app.post('/api/sync', (req, res) => {
       (i) => i.id ? `id_${i.id}` : `${i.storeCode}_${i.reportedAt}`
     );
 
+    // Login logs: ignore any incoming logs older than or equal to logsClearedAt
+    const logsClearedTime = new Date(currentDB.logsClearedAt || 0).getTime();
+    const filteredIncomingLogs = (updates.loginLogs || []).filter(l => {
+      if (!l || !l.timestamp) return false;
+      return new Date(l.timestamp).getTime() > logsClearedTime;
+    });
+
     const mergedLoginLogs = mergeGeneric(
       currentDB.loginLogs, 
-      updates.loginLogs || [], 
+      filteredIncomingLogs, 
       (l) => l.timestamp && l.loginId ? `${l.timestamp}_${l.loginId}` : `id_${l.id}`
     );
 
@@ -586,6 +819,7 @@ app.post('/api/sync', (req, res) => {
     };
 
     const updatedDB = {
+      ...currentDB,
       cleanings: mergedCleanings,
       stores: mergedStores,
       supervisors: mergedSupervisors,
@@ -596,6 +830,13 @@ app.post('/api/sync', (req, res) => {
       cleanerAdvances: mergedAdvances,
       storeIssues: mergedIssues,
       loginLogs: mergedLoginLogs,
+      deletedStores: currentDB.deletedStores || [],
+      deletedCleanings: currentDB.deletedCleanings || [],
+      deletedSupervisors: currentDB.deletedSupervisors || [],
+      deletedCleaners: currentDB.deletedCleaners || [],
+      deletedSchedules: currentDB.deletedSchedules || [],
+      deletedAdvances: currentDB.deletedAdvances || [],
+      logsClearedAt: currentDB.logsClearedAt || null,
       appSettings: mergedSettings
     };
 

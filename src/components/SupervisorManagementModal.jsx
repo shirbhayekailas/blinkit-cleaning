@@ -15,7 +15,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { performCloudSync, deleteSupervisorOnServer } from '../utils/cloudSync';
 
 export default function SupervisorManagementModal({
   isOpen,
@@ -85,9 +85,12 @@ export default function SupervisorManagementModal({
     }
   };
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this supervisor?')) {
-      await db.supervisors.delete(id);
+  const handleDelete = async (sup) => {
+    if (confirm(`Are you sure you want to delete supervisor "${sup?.name || 'this supervisor'}"?`)) {
+      await deleteSupervisorOnServer(sup);
+      if (sup?.id) {
+        await db.supervisors.delete(sup.id);
+      }
       performCloudSync().catch(() => {});
     }
   };
@@ -220,7 +223,7 @@ export default function SupervisorManagementModal({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(sup.id)}
+                          onClick={() => handleDelete(sup)}
                           className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                         >
                           <Trash2 className="w-4 h-4" />

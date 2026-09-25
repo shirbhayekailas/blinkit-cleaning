@@ -15,7 +15,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { performCloudSync, deleteAdvanceOnServer } from '../utils/cloudSync';
 
 export default function CleanerKhataModal({
   isOpen,
@@ -105,6 +105,10 @@ export default function CleanerKhataModal({
 
   const handleDeleteAdvance = async (advanceId) => {
     if (confirm('Are you sure you want to delete this payment record?')) {
+      const adv = advances.find(a => a.id === advanceId);
+      if (adv) {
+        await deleteAdvanceOnServer(adv);
+      }
       await db.cleanerAdvances.delete(advanceId);
       performCloudSync().catch(() => {});
     }

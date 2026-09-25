@@ -14,7 +14,7 @@ import {
   Play
 } from 'lucide-react';
 import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { performCloudSync, deleteScheduleOnServer } from '../utils/cloudSync';
 
 export default function ScheduleCalendarModal({
   isOpen,
@@ -98,6 +98,10 @@ export default function ScheduleCalendarModal({
 
   const handleDeleteSchedule = async (id) => {
     if (confirm('Delete this schedule entry?')) {
+      const sch = schedules.find(s => s.id === id);
+      if (sch) {
+        await deleteScheduleOnServer(sch);
+      }
       await db.cleaningSchedules.delete(id);
       performCloudSync().catch(() => {});
     }

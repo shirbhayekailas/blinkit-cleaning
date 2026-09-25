@@ -33,7 +33,7 @@ import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
-import { performCloudSync, getApiUrl, deleteCleaningOnServer, deleteStoreOnServer } from './utils/cloudSync';
+import { performCloudSync, getApiUrl, deleteCleaningOnServer, deleteStoreOnServer, clearDemoDataOnServer } from './utils/cloudSync';
 import { 
   Building2, 
   Plus, 
@@ -417,6 +417,7 @@ export default function App() {
     if (!isConfirmed) return;
 
     try {
+      await clearDemoDataOnServer();
       await db.cleanings.clear();
       await db.stores.clear();
       performCloudSync().catch(console.warn);

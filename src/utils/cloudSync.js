@@ -52,6 +52,104 @@ export async function deleteStoreOnServer(storeCode, deleteCleanings = false) {
   }
 }
 
+export async function deleteSupervisorOnServer(supervisor) {
+  try {
+    const res = await fetch(getApiUrl('/api/supervisors/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: supervisor.id,
+        phone: supervisor.phone,
+        name: supervisor.name
+      })
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('deleteSupervisorOnServer error:', err);
+    return null;
+  }
+}
+
+export async function deleteCleanerOnServer(cleaner) {
+  try {
+    const res = await fetch(getApiUrl('/api/cleaners/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: cleaner.id,
+        phone: cleaner.phone,
+        name: cleaner.name
+      })
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('deleteCleanerOnServer error:', err);
+    return null;
+  }
+}
+
+export async function deleteScheduleOnServer(schedule) {
+  try {
+    const res = await fetch(getApiUrl('/api/schedules/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: schedule.id,
+        storeCode: schedule.storeCode,
+        scheduledDate: schedule.scheduledDate
+      })
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('deleteScheduleOnServer error:', err);
+    return null;
+  }
+}
+
+export async function deleteAdvanceOnServer(advance) {
+  try {
+    const res = await fetch(getApiUrl('/api/advances/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: advance.id,
+        cleanerId: advance.cleanerId,
+        advanceDate: advance.advanceDate
+      })
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('deleteAdvanceOnServer error:', err);
+    return null;
+  }
+}
+
+export async function clearLoginLogsOnServer() {
+  try {
+    const res = await fetch(getApiUrl('/api/logs/clear'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('clearLoginLogsOnServer error:', err);
+    return null;
+  }
+}
+
+export async function clearDemoDataOnServer() {
+  try {
+    const res = await fetch(getApiUrl('/api/demo/clear'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('clearDemoDataOnServer error:', err);
+    return null;
+  }
+}
+
 const STORAGE_KEY = 'blinkit_cloud_sync_config';
 
 export function getCloudConfig() {
@@ -158,6 +256,10 @@ export async function applyRemoteDataToLocalDB(data) {
 
   const deletedStores = Array.isArray(data.deletedStores) ? data.deletedStores : [];
   const deletedCleanings = Array.isArray(data.deletedCleanings) ? data.deletedCleanings : [];
+  const deletedSupervisors = Array.isArray(data.deletedSupervisors) ? data.deletedSupervisors : [];
+  const deletedCleaners = Array.isArray(data.deletedCleaners) ? data.deletedCleaners : [];
+  const deletedSchedules = Array.isArray(data.deletedSchedules) ? data.deletedSchedules : [];
+  const deletedAdvances = Array.isArray(data.deletedAdvances) ? data.deletedAdvances : [];
 
   // 0a. Prune locally deleted cleanings using server tombstones
   if (deletedCleanings.length > 0) {
@@ -190,6 +292,78 @@ export async function applyRemoteDataToLocalDB(data) {
         if (s.storeCode && String(s.storeCode).trim().toUpperCase() === cleanCode) {
           await db.stores.delete(s.id);
         }
+      }
+    }
+  }
+
+  // 0c. Prune locally deleted supervisors
+  if (deletedSupervisors.length > 0) {
+    for (const del of deletedSupervisors) {
+      if (!del) continue;
+      if (del.id) await db.supervisors.delete(del.id);
+      if (del.phone) {
+        const p = String(del.phone).trim();
+        const allSup = await db.supervisors.toArray();
+        for (const s of allSup) {
+          if (s.phone && String(s.phone).trim() === p) await db.supervisors.delete(s.id);
+        }
+      }
+    }
+  }
+
+  // 0d. Prune locally deleted cleaners
+  if (deletedCleaners.length > 0) {
+    for (const del of deletedCleaners) {
+      if (!del) continue;
+      if (del.id) await db.cleaners.delete(del.id);
+      if (del.phone) {
+        const p = String(del.phone).trim();
+        const allCln = await db.cleaners.toArray();
+        for (const c of allCln) {
+          if (c.phone && String(c.phone).trim() === p) await db.cleaners.delete(c.id);
+        }
+      }
+      if (del.name) {
+        const n = String(del.name).trim().toLowerCase();
+        const allCln = await db.cleaners.toArray();
+        for (const c of allCln) {
+          if (c.name && String(c.name).trim().toLowerCase() === n) await db.cleaners.delete(c.id);
+        }
+      }
+    }
+  }
+
+  // 0e. Prune locally deleted schedules
+  if (deletedSchedules.length > 0) {
+    for (const del of deletedSchedules) {
+      if (!del) continue;
+      if (del.id) await db.cleaningSchedules.delete(del.id);
+      if (del.storeCode && del.scheduledDate) {
+        const allSch = await db.cleaningSchedules.toArray();
+        for (const s of allSch) {
+          if (s.storeCode === del.storeCode && s.scheduledDate === del.scheduledDate) {
+            await db.cleaningSchedules.delete(s.id);
+          }
+        }
+      }
+    }
+  }
+
+  // 0f. Prune locally deleted advances
+  if (deletedAdvances.length > 0) {
+    for (const del of deletedAdvances) {
+      if (!del) continue;
+      if (del.id) await db.cleanerAdvances.delete(del.id);
+    }
+  }
+
+  // 0g. Prune cleared login logs
+  if (db.loginLogs && data.logsClearedAt) {
+    const clearTime = new Date(data.logsClearedAt).getTime();
+    const allLogs = await db.loginLogs.toArray();
+    for (const log of allLogs) {
+      if (log.timestamp && new Date(log.timestamp).getTime() <= clearTime) {
+        await db.loginLogs.delete(log.id);
       }
     }
   }
@@ -244,6 +418,10 @@ export async function applyRemoteDataToLocalDB(data) {
   if (Array.isArray(data.supervisors) && data.supervisors.length > 0) {
     for (const sup of data.supervisors) {
       if (!sup || !sup.phone) continue;
+      const cleanPhone = String(sup.phone).trim();
+      const isDel = deletedSupervisors.some(d => (d.phone && String(d.phone).trim() === cleanPhone) || (d.id && String(d.id) === String(sup.id)));
+      if (isDel) continue;
+
       const existing = await db.supervisors.where('phone').equals(sup.phone).first();
       if (existing) {
         await db.supervisors.put({ ...existing, ...sup, id: existing.id });
@@ -258,6 +436,15 @@ export async function applyRemoteDataToLocalDB(data) {
   if (Array.isArray(data.cleaners) && data.cleaners.length > 0) {
     for (const cln of data.cleaners) {
       if (!cln) continue;
+      const cleanPhone = cln.phone ? String(cln.phone).trim() : null;
+      const cleanName = cln.name ? String(cln.name).trim().toLowerCase() : null;
+      const isDel = deletedCleaners.some(d => 
+        (cleanPhone && d.phone && String(d.phone).trim() === cleanPhone) ||
+        (cleanName && d.name && String(d.name).trim().toLowerCase() === cleanName) ||
+        (d.id && String(d.id) === String(cln.id))
+      );
+      if (isDel) continue;
+
       let existing = null;
       if (cln.phone) {
         existing = await db.cleaners.where('phone').equals(cln.phone).first();
@@ -277,6 +464,12 @@ export async function applyRemoteDataToLocalDB(data) {
   if (Array.isArray(data.cleaningSchedules) && data.cleaningSchedules.length > 0) {
     for (const sch of data.cleaningSchedules) {
       if (!sch || !sch.storeCode || !sch.scheduledDate) continue;
+      const isDel = deletedSchedules.some(d => 
+        (d.id && String(d.id) === String(sch.id)) ||
+        (d.storeCode && d.scheduledDate && d.storeCode === sch.storeCode && d.scheduledDate === sch.scheduledDate)
+      );
+      if (isDel) continue;
+
       const existing = await db.cleaningSchedules
         .where('storeCode')
         .equals(sch.storeCode)
@@ -305,6 +498,45 @@ export async function applyRemoteDataToLocalDB(data) {
     }
   }
 
+  // 6b. Chemical Logs
+  if (db.chemicalLogs && Array.isArray(data.chemicalLogs) && data.chemicalLogs.length > 0) {
+    for (const cl of data.chemicalLogs) {
+      if (!cl) continue;
+      const existing = await db.chemicalLogs
+        .where('chemicalId')
+        .equals(cl.chemicalId || 0)
+        .and(item => item.date === cl.date && item.quantity === cl.quantity)
+        .first();
+      if (existing) {
+        await db.chemicalLogs.put({ ...existing, ...cl, id: existing.id });
+      } else {
+        const { id, ...rest } = cl;
+        await db.chemicalLogs.add(rest);
+      }
+    }
+  }
+
+  // 6c. Cleaner Advances (Key: cleanerId + date + amount)
+  if (db.cleanerAdvances && Array.isArray(data.cleanerAdvances) && data.cleanerAdvances.length > 0) {
+    for (const adv of data.cleanerAdvances) {
+      if (!adv) continue;
+      const isDel = deletedAdvances.some(d => d && String(d.id) === String(adv.id));
+      if (isDel) continue;
+
+      const existing = await db.cleanerAdvances
+        .where('cleanerId')
+        .equals(adv.cleanerId || 0)
+        .and(item => item.date === adv.date && Number(item.amount) === Number(adv.amount))
+        .first();
+      if (existing) {
+        await db.cleanerAdvances.put({ ...existing, ...adv, id: existing.id });
+      } else {
+        const { id, ...rest } = adv;
+        await db.cleanerAdvances.add(rest);
+      }
+    }
+  }
+
   // 7. Store Issues
   if (Array.isArray(data.storeIssues) && data.storeIssues.length > 0) {
     for (const iss of data.storeIssues) {
@@ -323,10 +555,12 @@ export async function applyRemoteDataToLocalDB(data) {
     }
   }
 
-    // 8. Login Logs
+  // 8. Login Logs
   if (db.loginLogs && Array.isArray(data.loginLogs) && data.loginLogs.length > 0) {
+    const clearTime = data.logsClearedAt ? new Date(data.logsClearedAt).getTime() : 0;
     for (const log of data.loginLogs) {
       if (!log || !log.timestamp) continue;
+      if (clearTime && new Date(log.timestamp).getTime() <= clearTime) continue;
       const existing = await db.loginLogs
         .where('timestamp')
         .equals(log.timestamp)

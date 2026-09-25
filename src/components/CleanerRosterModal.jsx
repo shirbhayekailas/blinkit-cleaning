@@ -10,7 +10,7 @@ import {
   HardHat
 } from 'lucide-react';
 import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { performCloudSync, deleteCleanerOnServer } from '../utils/cloudSync';
 
 export default function CleanerRosterModal({
   isOpen,
@@ -75,9 +75,12 @@ export default function CleanerRosterModal({
     }
   };
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to remove this cleaner from the roster?')) {
-      await db.cleaners.delete(id);
+  const handleDelete = async (cln) => {
+    if (confirm(`Are you sure you want to remove cleaner "${cln?.name || 'this cleaner'}" from the roster?`)) {
+      await deleteCleanerOnServer(cln);
+      if (cln?.id) {
+        await db.cleaners.delete(cln.id);
+      }
       performCloudSync().catch(() => {});
     }
   };
@@ -164,7 +167,7 @@ export default function CleanerRosterModal({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(cln.id)}
+                          onClick={() => handleDelete(cln)}
                           className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                         >
                           <Trash2 className="w-4 h-4" />
