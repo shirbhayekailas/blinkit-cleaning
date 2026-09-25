@@ -28,6 +28,8 @@ import CloudSyncModal from './components/CloudSyncModal';
 import MorningSummaryModal from './components/MorningSummaryModal';
 import NightRouteModal from './components/NightRouteModal';
 import StoreQRModal from './components/StoreQRModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
+import UserAccessModal from './components/UserAccessModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
 import { 
@@ -97,6 +99,15 @@ export default function App() {
   const [isMorningSummaryOpen, setIsMorningSummaryOpen] = useState(false);
   const [isNightRouteOpen, setIsNightRouteOpen] = useState(false);
   const [qrStore, setQrStore] = useState(null);
+
+  // Security & Password Management States
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [changePasswordConfig, setChangePasswordConfig] = useState({
+    role: 'admin',
+    user: null,
+    isFirstLogin: false
+  });
+  const [isUserAccessOpen, setIsUserAccessOpen] = useState(false);
 
   // Store Master Ledger States
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
@@ -396,7 +407,7 @@ export default function App() {
     setIsEntryModalOpen(true);
   };
 
-  const handleLoginSuccess = ({ role, user }) => {
+  const handleLoginSuccess = ({ role, user, isFirstLogin }) => {
     setCurrentUserRole(role);
     try {
       localStorage.setItem('blinkit_user_role', role);
@@ -407,10 +418,35 @@ export default function App() {
         setCurrentSupervisor(null);
         localStorage.removeItem('blinkit_supervisor');
       }
+
+      if (isFirstLogin) {
+        setChangePasswordConfig({
+          role,
+          user: role === 'supervisor' ? user : null,
+          isFirstLogin: true
+        });
+        setIsChangePasswordOpen(true);
+      }
     } catch (e) {
       console.warn('Storage notice:', e);
     }
   };
+
+  // Check if admin is on default PIN and prompt for change
+  useEffect(() => {
+    if (currentUserRole === 'admin') {
+      const pinChanged = localStorage.getItem('admin_pin_changed') === 'true';
+      const currentPin = localStorage.getItem('vendor_admin_pin') || '1234';
+      if (!pinChanged || currentPin === '1234') {
+        setChangePasswordConfig({
+          role: 'admin',
+          user: null,
+          isFirstLogin: true
+        });
+        setIsChangePasswordOpen(true);
+      }
+    }
+  }, [currentUserRole]);
 
   const handleLogout = () => {
     setCurrentUserRole(null);
@@ -480,6 +516,15 @@ export default function App() {
         onOpenCloudSync={() => setIsCloudSyncOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
+        onOpenUserAccess={() => setIsUserAccessOpen(true)}
+        onChangeAdminPassword={() => {
+          setChangePasswordConfig({
+            role: 'admin',
+            user: null,
+            isFirstLogin: false
+          });
+          setIsChangePasswordOpen(true);
+        }}
       />
 
       {/* Main Container */}
@@ -829,6 +874,33 @@ export default function App() {
         isOpen={isBackupOpen}
         onClose={() => setIsBackupOpen(false)}
         onDataRestored={() => {}}
+      />
+
+      <UserAccessModal
+        isOpen={isUserAccessOpen}
+        onClose={() => setIsUserAccessOpen(false)}
+        supervisors={supervisors}
+        onOpenAddSupervisor={() => {
+          setIsUserAccessOpen(false);
+          setIsSupervisorModalOpen(true);
+        }}
+        onChangeAdminPin={() => {
+          setChangePasswordConfig({
+            role: 'admin',
+            user: null,
+            isFirstLogin: false
+          });
+          setIsChangePasswordOpen(true);
+        }}
+      />
+
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        role={changePasswordConfig.role}
+        user={changePasswordConfig.user}
+        isFirstLogin={changePasswordConfig.isFirstLogin}
+        onSuccess={() => {}}
       />
 
       {/* Footer */}

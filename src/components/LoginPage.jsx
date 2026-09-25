@@ -12,7 +12,9 @@ import {
   Moon,
   CheckCircle2,
   Users,
-  Smartphone
+  Smartphone,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { db } from '../db/db';
 
@@ -21,37 +23,51 @@ export default function LoginPage({
   darkMode,
   setDarkMode
 }) {
-  const [activeTab, setActiveTab] = useState('supervisor'); // 'supervisor' | 'admin'
+  const [activeTab, setActiveTab] = useState('supervisor'); // 'supervisor' | 'admin' | 'client'
   
   // Admin state
   const [adminPin, setAdminPin] = useState('');
   const [adminError, setAdminError] = useState('');
+  const [showAdminPin, setShowAdminPin] = useState(false);
 
   // Supervisor state
   const [supPhone, setSupPhone] = useState('');
   const [supPin, setSupPin] = useState('');
   const [supError, setSupError] = useState('');
+  const [showSupPin, setShowSupPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Client state
+  const [clientPin, setClientPin] = useState('');
+  const [clientError, setClientError] = useState('');
+  const [showClientPin, setShowClientPin] = useState(false);
 
   const handleAdminLogin = (e) => {
     e.preventDefault();
     const storedPin = localStorage.getItem('vendor_admin_pin') || '1234';
-    if (adminPin.trim() === storedPin || adminPin.trim() === '1234') {
+    if (adminPin.trim() === storedPin) {
       onLoginSuccess({
         role: 'admin',
-        user: { name: 'Vendor Admin / Owner' }
+        user: { name: 'Vendor Admin / Owner' },
+        isFirstLogin: localStorage.getItem('admin_pin_changed') !== 'true'
       });
     } else {
-      setAdminError('Incorrect Admin PIN! (Default master PIN is 1234)');
+      setAdminError(`Incorrect Admin PIN! (${storedPin === '1234' ? 'Default master PIN is 1234' : 'Please enter your updated PIN'})`);
     }
   };
 
   const handleClientLogin = (e) => {
     e.preventDefault();
-    onLoginSuccess({
-      role: 'client',
-      user: { name: 'Blinkit City Operations Head' }
-    });
+    const storedPin = localStorage.getItem('blinkit_client_pin') || '5678';
+    if (clientPin.trim() === storedPin) {
+      onLoginSuccess({
+        role: 'client',
+        user: { name: 'Blinkit City Operations Head' },
+        isFirstLogin: localStorage.getItem('client_pin_changed') !== 'true'
+      });
+    } else {
+      setClientError('Incorrect Client PIN! (Default master PIN is 5678)');
+    }
   };
 
   const handleSupervisorLogin = async (e) => {
@@ -91,7 +107,8 @@ export default function LoginPage({
 
       onLoginSuccess({
         role: 'supervisor',
-        user: supervisor
+        user: supervisor,
+        isFirstLogin: !supervisor.hasChangedPin || supervisor.pin === '1234'
       });
     } catch (err) {
       setSupError('Login error: ' + err.message);
@@ -253,7 +270,7 @@ export default function LoginPage({
                   <div className="relative">
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="password"
+                      type={showSupPin ? "text" : "password"}
                       maxLength={6}
                       required
                       placeholder="Enter your 4-digit PIN"
@@ -262,8 +279,15 @@ export default function LoginPage({
                         setSupPin(e.target.value);
                         setSupError('');
                       }}
-                      className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
+                      className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowSupPin(!showSupPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                    >
+                      {showSupPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -304,26 +328,33 @@ export default function LoginPage({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="password"
+                      type={showAdminPin ? "text" : "password"}
                       autoFocus
                       required
-                      placeholder="Default PIN: 1234"
+                      placeholder="Enter Admin PIN"
                       value={adminPin}
                       onChange={(e) => {
                         setAdminPin(e.target.value);
                         setAdminError('');
                       }}
-                      className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
+                      className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
                     />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>Default PIN: <strong className="text-amber-600">1234</strong></span>
                     <button
                       type="button"
-                      onClick={() => setAdminPin('1234')}
+                      onClick={() => setShowAdminPin(!showAdminPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                    >
+                      {showAdminPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+                    <span>Master PIN (Default: <strong className="text-amber-600">1234</strong>)</span>
+                    <button
+                      type="button"
+                      onClick={() => setAdminPin(localStorage.getItem('vendor_admin_pin') || '1234')}
                       className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
                     >
-                      Auto-fill 1234
+                      Auto-fill PIN
                     </button>
                   </div>
                 </div>
@@ -357,17 +388,49 @@ export default function LoginPage({
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    City / Cluster Scope
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Client Access PIN
                   </label>
-                  <input
-                    type="text"
-                    value="Delhi NCR / All Assigned Clusters"
-                    readOnly
-                    className="w-full px-3.5 py-2.5 text-xs font-semibold rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                  />
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showClientPin ? "text" : "password"}
+                      required
+                      placeholder="Default PIN: 5678"
+                      value={clientPin}
+                      onChange={(e) => {
+                        setClientPin(e.target.value);
+                        setClientError('');
+                      }}
+                      className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blue-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowClientPin(!showClientPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                    >
+                      {showClientPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+                    <span>Default PIN: <strong className="text-blue-600">5678</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setClientPin(localStorage.getItem('blinkit_client_pin') || '5678')}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                    >
+                      Auto-fill 5678
+                    </button>
+                  </div>
                 </div>
+
+                {clientError && (
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{clientError}</span>
+                  </div>
+                )}
 
                 <button
                   type="submit"

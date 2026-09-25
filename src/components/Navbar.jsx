@@ -21,7 +21,8 @@ import {
   Calendar,
   Smartphone,
   Cloud,
-  Navigation
+  Navigation,
+  KeyRound
 } from 'lucide-react';
 
 export default function Navbar({
@@ -55,7 +56,9 @@ export default function Navbar({
   onOpenSchedule,
   onOpenCloudSync,
   onOpenMorningSummary,
-  onOpenNightRoute
+  onOpenNightRoute,
+  onOpenUserAccess,
+  onChangeAdminPassword
 }) {
 
   return (
@@ -128,6 +131,18 @@ export default function Navbar({
               )}
             </button>
 
+            {/* Quick Admin Change PIN Button */}
+            {currentUserRole === 'admin' && onChangeAdminPassword && (
+              <button
+                type="button"
+                onClick={onChangeAdminPassword}
+                title="Change Admin Master PIN / Password"
+                className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition shadow-xs"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {/* Logout Button */}
             {onLogout && (
               <button
@@ -177,6 +192,15 @@ export default function Navbar({
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
                   <span>Monthly Bill</span>
+                </button>
+
+                <button
+                  onClick={onOpenUserAccess}
+                  title="Security Center: View & Edit Passwords for All Users (Supervisors & Master)"
+                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 transition"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Passwords</span>
                 </button>
 
                 <button

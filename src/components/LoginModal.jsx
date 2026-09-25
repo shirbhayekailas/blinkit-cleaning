@@ -34,14 +34,15 @@ export default function LoginModal({
   const handleAdminLogin = (e) => {
     e.preventDefault();
     const storedPin = localStorage.getItem('vendor_admin_pin') || '1234';
-    if (adminPin === storedPin || adminPin === '1234') {
+    if (adminPin.trim() === storedPin) {
       onLoginSuccess({
         role: 'admin',
-        user: { name: 'Vendor Admin / Owner' }
+        user: { name: 'Vendor Admin / Owner' },
+        isFirstLogin: localStorage.getItem('admin_pin_changed') !== 'true'
       });
       onClose();
     } else {
-      setAdminError('Incorrect Admin PIN! (Default PIN is 1234)');
+      setAdminError(`Incorrect Admin PIN! (${storedPin === '1234' ? 'Default PIN is 1234' : 'Please enter your updated PIN'})`);
     }
   };
 
@@ -80,7 +81,8 @@ export default function LoginModal({
 
       onLoginSuccess({
         role: 'supervisor',
-        user: supervisor
+        user: supervisor,
+        isFirstLogin: !supervisor.hasChangedPin || supervisor.pin === '1234'
       });
       onClose();
     } catch (err) {

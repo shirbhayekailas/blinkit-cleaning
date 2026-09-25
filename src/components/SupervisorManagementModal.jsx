@@ -10,7 +10,9 @@ import {
   Edit3, 
   Trash2, 
   ShieldCheck,
-  CheckSquare
+  CheckSquare,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { db } from '../db/db';
 
@@ -21,6 +23,7 @@ export default function SupervisorManagementModal({
   stores = []
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [visiblePins, setVisiblePins] = useState({});
   const [currentSupervisor, setCurrentSupervisor] = useState({
     name: '',
     phone: '',
@@ -167,9 +170,17 @@ export default function SupervisorManagementModal({
                           <span className="font-bold text-sm text-slate-900 dark:text-white">
                             {sup.name}
                           </span>
-                          <span className="text-[11px] font-mono px-2 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
-                            PIN: {sup.pin}
-                          </span>
+                          <div className="flex items-center gap-1.5 font-mono text-[11px] px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
+                            <span>PIN: {visiblePins[sup.id] ? sup.pin : '••••'}</span>
+                            <button
+                              type="button"
+                              onClick={() => setVisiblePins(p => ({ ...p, [sup.id]: !p[sup.id] }))}
+                              title={visiblePins[sup.id] ? "Hide PIN" : "Show PIN"}
+                              className="p-0.5 hover:text-amber-950 dark:hover:text-white"
+                            >
+                              {visiblePins[sup.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                          </div>
                         </div>
                         <div className="text-xs text-slate-500 flex items-center gap-3">
                           <span className="flex items-center gap-1">
