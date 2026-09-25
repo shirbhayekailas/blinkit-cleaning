@@ -10,7 +10,9 @@ import {
   EyeOff, 
   AlertCircle,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { db } from '../db/db';
 import { logUserLogin } from '../utils/auditLogger';
@@ -18,7 +20,9 @@ import { logUserLogin } from '../utils/auditLogger';
 export default function LoginPage({
   onLoginSuccess,
   darkMode,
-  setDarkMode
+  setDarkMode,
+  logoutNotice = null,
+  onClearLogoutNotice
 }) {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
@@ -217,6 +221,27 @@ export default function LoginPage({
 
           {/* Form Area */}
           <div className="p-6">
+            
+            {/* Auto-logout / Manual Logout Status Notice */}
+            {logoutNotice === 'inactivity' && (
+              <div className="p-3.5 mb-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-300 font-semibold flex items-start gap-2.5 animate-in fade-in duration-150">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-xs">Session Auto-Logged Out (Screen Idle)</div>
+                  <div className="text-[11px] text-amber-800 dark:text-amber-300/80 mt-0.5">
+                    Suraksha ke liye 10 minute screen inactive hone par session auto-close kar diya gaya hai. Kripya naye sire se login karein.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {logoutNotice === 'manual' && (
+              <div className="p-3 mb-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2 animate-in fade-in duration-150">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Aap successfully logout ho chuke hain. Naye user login ke liye credentials dalein.</span>
+              </div>
+            )}
+
             <form onSubmit={handleUniversalLogin} className="space-y-4">
               
               {/* Login ID Input */}

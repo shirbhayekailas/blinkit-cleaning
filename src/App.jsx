@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, seedInitialData } from './db/db';
 import Navbar from './components/Navbar';
@@ -33,6 +33,7 @@ import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
+import { logUserLogout } from './utils/auditLogger';
 import { 
   Building2, 
   Plus, 
@@ -42,7 +43,8 @@ import {
   Calendar, 
   CheckCircle2,
   AlertCircle,
-  LogOut
+  LogOut,
+  Clock
 } from 'lucide-react';
 
 export default function App() {
@@ -54,22 +56,47 @@ export default function App() {
     }
   });
 
-  // User Role & Supervisor Authentication (null = Not Logged In -> Show LoginPage)
+  // Session Security & Auto-Logout Configuration
+  const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 Minutes Inactivity Auto-Logout
+  const WARNING_TIMEOUT_MS = 9 * 60 * 1000; // 9 Minutes (shows 60s countdown warning)
+
+  // User Role & Supervisor Authentication (sessionStorage ensures tab-closure requires re-login)
   const [currentUserRole, setCurrentUserRole] = useState(() => {
     try {
-      return localStorage.getItem('blinkit_user_role') || null;
+      const sessionRole = sessionStorage.getItem('blinkit_user_role');
+      const lastActive = Number(sessionStorage.getItem('blinkit_last_active') || 0);
+
+      // If active session exists and last active was within 10 minutes
+      if (sessionRole && lastActive && Date.now() - lastActive < IDLE_TIMEOUT_MS) {
+        return sessionRole;
+      }
+
+      // Purge any stale session
+      sessionStorage.removeItem('blinkit_user_role');
+      sessionStorage.removeItem('blinkit_supervisor');
+      sessionStorage.removeItem('blinkit_last_active');
+      localStorage.removeItem('blinkit_user_role');
+      localStorage.removeItem('blinkit_supervisor');
+      return null;
     } catch {
       return null;
     }
   });
+
   const [currentSupervisor, setCurrentSupervisor] = useState(() => {
     try {
-      const saved = localStorage.getItem('blinkit_supervisor');
+      const saved = sessionStorage.getItem('blinkit_supervisor');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
+
+  // Idle and Logout State
+  const [logoutNotice, setLogoutNotice] = useState(null); // 'inactivity' | 'manual' | null
+  const [isIdleWarningOpen, setIsIdleWarningOpen] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(60);
+  const lastActiveRef = useRef(Date.now());
 
   const [activeTab, setActiveTab] = useState('cleanings'); // 'cleanings' | 'ledger'
   const [searchTerm, setSearchTerm] = useState('');
@@ -412,15 +439,24 @@ export default function App() {
 
   const handleLoginSuccess = ({ role, user, isFirstLogin }) => {
     setCurrentUserRole(role);
+    setLogoutNotice(null);
+    setIsIdleWarningOpen(false);
+    lastActiveRef.current = Date.now();
+
     try {
-      localStorage.setItem('blinkit_user_role', role);
+      sessionStorage.setItem('blinkit_user_role', role);
+      sessionStorage.setItem('blinkit_last_active', String(Date.now()));
       if (role === 'supervisor') {
         setCurrentSupervisor(user);
-        localStorage.setItem('blinkit_supervisor', JSON.stringify(user));
+        sessionStorage.setItem('blinkit_supervisor', JSON.stringify(user));
       } else {
         setCurrentSupervisor(null);
-        localStorage.removeItem('blinkit_supervisor');
+        sessionStorage.removeItem('blinkit_supervisor');
       }
+
+      // Clear any legacy localStorage to ensure clean isolated sessions
+      localStorage.removeItem('blinkit_user_role');
+      localStorage.removeItem('blinkit_supervisor');
 
       if (isFirstLogin && role === 'admin') {
         setChangePasswordConfig({
@@ -434,6 +470,78 @@ export default function App() {
       console.warn('Storage notice:', e);
     }
   };
+
+  const handleLogout = async (reason = 'manual') => {
+    try {
+      const role = currentUserRole;
+      const userName = role === 'supervisor' ? (currentSupervisor?.name || 'Supervisor') : (role || 'User');
+      const loginId = role === 'supervisor' ? (currentSupervisor?.phone || '') : (role || '');
+      
+      await logUserLogout({
+        role,
+        userName,
+        loginId,
+        reason: reason === 'inactivity' ? 'Auto-Logout (10 Min Screen Inactivity)' : 'Manual Logout by User'
+      });
+    } catch (e) {
+      console.warn('Logout audit notice:', e);
+    }
+
+    setCurrentUserRole(null);
+    setCurrentSupervisor(null);
+    setIsIdleWarningOpen(false);
+    setLogoutNotice(reason);
+
+    try {
+      sessionStorage.removeItem('blinkit_user_role');
+      sessionStorage.removeItem('blinkit_supervisor');
+      sessionStorage.removeItem('blinkit_last_active');
+      localStorage.removeItem('blinkit_user_role');
+      localStorage.removeItem('blinkit_supervisor');
+    } catch (e) {
+      console.warn('Storage notice:', e);
+    }
+  };
+
+  // Inactivity Auto-Logout Watcher (Auto-Logout after 10m idle screen)
+  useEffect(() => {
+    if (!currentUserRole) return;
+
+    lastActiveRef.current = Date.now();
+    sessionStorage.setItem('blinkit_last_active', String(Date.now()));
+
+    const resetActivity = () => {
+      lastActiveRef.current = Date.now();
+      sessionStorage.setItem('blinkit_last_active', String(Date.now()));
+      setIsIdleWarningOpen(false);
+    };
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach(evt => {
+      window.addEventListener(evt, resetActivity, { passive: true });
+    });
+
+    const intervalId = setInterval(() => {
+      const elapsed = Date.now() - lastActiveRef.current;
+
+      if (elapsed >= IDLE_TIMEOUT_MS) {
+        handleLogout('inactivity');
+      } else if (elapsed >= WARNING_TIMEOUT_MS) {
+        setIsIdleWarningOpen(true);
+        const remaining = Math.max(1, Math.ceil((IDLE_TIMEOUT_MS - elapsed) / 1000));
+        setCountdownSeconds(remaining);
+      } else {
+        setIsIdleWarningOpen(false);
+      }
+    }, 1000);
+
+    return () => {
+      activityEvents.forEach(evt => {
+        window.removeEventListener(evt, resetActivity);
+      });
+      clearInterval(intervalId);
+    };
+  }, [currentUserRole]);
 
   // Check if admin is on default PIN and prompt for change
   useEffect(() => {
@@ -451,17 +559,6 @@ export default function App() {
     }
   }, [currentUserRole]);
 
-  const handleLogout = () => {
-    setCurrentUserRole(null);
-    setCurrentSupervisor(null);
-    try {
-      localStorage.removeItem('blinkit_user_role');
-      localStorage.removeItem('blinkit_supervisor');
-    } catch (e) {
-      console.warn('Storage notice:', e);
-    }
-  };
-
   // If user is not logged in, show the dedicated full-screen Login Page
   if (!currentUserRole) {
     return (
@@ -471,6 +568,8 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
           darkMode={darkMode}
           setDarkMode={setDarkMode}
+          logoutNotice={logoutNotice}
+          onClearLogoutNotice={() => setLogoutNotice(null)}
         />
       </>
     );
@@ -738,18 +837,7 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         currentRole={currentUserRole}
         onLoginSuccess={({ role, user }) => {
-          setCurrentUserRole(role);
-          setCurrentSupervisor(role === 'supervisor' ? user : null);
-          try {
-            localStorage.setItem('blinkit_user_role', role);
-            if (role === 'supervisor') {
-              localStorage.setItem('blinkit_supervisor', JSON.stringify(user));
-            } else {
-              localStorage.removeItem('blinkit_supervisor');
-            }
-          } catch (e) {
-            console.warn('Storage notice:', e);
-          }
+          handleLoginSuccess({ role, user, isFirstLogin: false });
         }}
       />
 
@@ -930,6 +1018,48 @@ export default function App() {
         isFirstLogin={changePasswordConfig.isFirstLogin}
         onSuccess={() => {}}
       />
+
+      {/* SCREEN INACTIVITY WARNING MODAL */}
+      {isIdleWarningOpen && currentUserRole && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-amber-300 dark:border-amber-700/80 p-6 space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center mx-auto text-2xl shadow-xs animate-pulse">
+              ⏰
+            </div>
+            
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                Screen Inactivity Alert
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Security ke liye aapka session <strong className="text-rose-600 font-extrabold text-sm">{countdownSeconds}s</strong> mein auto-logout ho jayega.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  lastActiveRef.current = Date.now();
+                  sessionStorage.setItem('blinkit_last_active', String(Date.now()));
+                  setIsIdleWarningOpen(false);
+                }}
+                className="w-full py-3 rounded-2xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-black text-xs shadow-md transition transform active:scale-98"
+              >
+                Main Active Hoon (Continue Session)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleLogout('manual')}
+                className="w-full py-2 text-xs font-bold text-slate-400 hover:text-rose-600 transition"
+              >
+                Abhi Logout Karein
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="mt-12 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">

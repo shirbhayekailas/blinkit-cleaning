@@ -56,6 +56,31 @@ export async function logUserLogin({ role, userName, loginId, status = 'Success'
 }
 
 /**
+ * Records a logout event into Dexie loginLogs table.
+ */
+export async function logUserLogout({ role, userName, loginId, reason = 'Manual Logout' }) {
+  try {
+    const entry = {
+      role: role || 'unknown',
+      userName: userName || 'User',
+      loginId: loginId || 'N/A',
+      status: 'Logout',
+      notes: reason || 'Logged out',
+      device: getDeviceInfo(),
+      timestamp: new Date().toISOString()
+    };
+
+    if (db.loginLogs) {
+      await db.loginLogs.add(entry);
+    }
+    return entry;
+  } catch (err) {
+    console.warn('Audit logger logout warning:', err);
+    return null;
+  }
+}
+
+/**
  * Exports login logs to CSV file for download.
  */
 export function exportLoginLogsToCSV(logs = []) {
