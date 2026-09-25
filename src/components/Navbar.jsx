@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Plus, 
   Search, 
@@ -6,25 +6,28 @@ import {
   Database, 
   Sparkles, 
   Sun, 
-  Moon,
-  Filter,
-  Building2,
-  Users,
-  HardHat,
-  AlertTriangle,
-  UserCheck,
-  ShieldCheck,
-  LogOut,
-  FlaskConical,
-  FileSpreadsheet,
-  Wallet,
-  Calendar,
-  Smartphone,
-  Cloud,
-  Navigation,
-  KeyRound,
-  Briefcase,
-  History
+  Moon, 
+  Building2, 
+  Users, 
+  HardHat, 
+  AlertTriangle, 
+  UserCheck, 
+  ShieldCheck, 
+  LogOut, 
+  FlaskConical, 
+  FileSpreadsheet, 
+  Wallet, 
+  Calendar, 
+  Smartphone, 
+  Cloud, 
+  Navigation, 
+  KeyRound, 
+  Briefcase, 
+  History,
+  Menu,
+  X,
+  Layers,
+  ChevronRight
 } from 'lucide-react';
 
 export default function Navbar({
@@ -63,362 +66,766 @@ export default function Navbar({
   onChangeAdminPassword,
   onOpenLoginLogs
 }) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   const isAdmin = currentUserRole === 'admin';
   const isManager = currentUserRole === 'manager';
   const isOpsStaff = isAdmin || isManager;
 
+  // Helper to trigger mobile menu actions and auto-close drawer
+  const triggerMobileAction = (actionFn) => {
+    setIsMobileMenuOpen(false);
+    if (typeof actionFn === 'function') {
+      actionFn();
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blinkit-yellow text-slate-950 font-black text-xl shadow-md border border-amber-300">
-              b
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-white">
-                  blink<span className="text-blinkit-green">it</span>
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300/40">
-                  DEEP CLEANING OPS
-                </span>
+    <>
+      {/* Top Header Navbar */}
+      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
+            
+            {/* Logo & Brand */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blinkit-yellow text-slate-950 font-black text-lg sm:text-xl shadow-xs border border-amber-300">
+                b
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 -mt-0.5 hidden sm:block">
-                Dark Store Hygiene, Timings & Payment Tracker
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">
+                    blink<span className="text-blinkit-green">it</span>
+                  </span>
+                  <span className="text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300/40">
+                    DEEP CLEANING
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 -mt-0.5 hidden sm:block truncate">
+                  Dark Store Hygiene, Timings &amp; Payment Tracker
+                </p>
+              </div>
             </div>
+
+            {/* Desktop Search Bar */}
+            <div className="flex-1 max-w-md hidden md:block">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search store name, code (BLK-...), city, manager..."
+                  className="w-full pl-10 pr-4 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-blinkit-green text-slate-800 dark:text-slate-100 placeholder-slate-400 transition"
+                />
+              </div>
+            </div>
+
+            {/* Desktop & Mobile Actions Row */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              
+              {/* Role Switcher Pill */}
+              <button
+                onClick={onOpenLogin}
+                title="Click to Switch Role or Re-Login"
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1 sm:gap-1.5 border shadow-2xs ${
+                  isAdmin
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                    : isManager
+                      ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800'
+                      : currentUserRole === 'client'
+                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                }`}
+              >
+                {isAdmin ? (
+                  <>
+                    <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+                    <span>Admin</span>
+                  </>
+                ) : isManager ? (
+                  <>
+                    <Briefcase className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-600" />
+                    <span>Manager</span>
+                  </>
+                ) : currentUserRole === 'client' ? (
+                  <>
+                    <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+                    <span>Client</span>
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{currentSupervisor?.name || 'Supervisor'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Desktop Quick Master PIN (Admin only) */}
+              {isAdmin && onChangeAdminPassword && (
+                <button
+                  type="button"
+                  onClick={onChangeAdminPassword}
+                  title="Change Admin Master PIN"
+                  className="hidden sm:inline-flex p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Desktop Management Buttons */}
+              {isOpsStaff && (
+                <>
+                  <button
+                    onClick={onOpenSchedule}
+                    title="Tonight's Shift & Cleaning Schedule Planner"
+                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Schedule</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenChemicals}
+                    title="Chemical Stock & Consumption Inventory"
+                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition"
+                  >
+                    <FlaskConical className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Chemicals</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenKhata}
+                    title="Cleaner Staff Haziri & Advance Payout Khata"
+                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
+                  >
+                    <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Staff Khata</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenConsolidatedInvoice}
+                    title="Monthly Consolidated Multi-Store Tax Invoice Generator"
+                    className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Monthly Bill</span>
+                  </button>
+
+                  {/* Passwords Button: Strictly ONLY for Admin */}
+                  {isAdmin && (
+                    <button
+                      onClick={onOpenUserAccess}
+                      title="Security Center: View & Edit Passwords for All Users (Admin Only)"
+                      className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 transition"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Passwords</span>
+                    </button>
+                  )}
+
+                  {/* Login Audit Logs: Visible to both Admin & Manager */}
+                  {onOpenLoginLogs && (
+                    <button
+                      onClick={onOpenLoginLogs}
+                      title="Login Activity & Audit Logs"
+                      className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-2xs"
+                    >
+                      <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Login Logs</span>
+                    </button>
+                  )}
+
+                  {/* Issues Alert Chip on Desktop */}
+                  <button
+                    onClick={onOpenIssues}
+                    title="Dark Store Maintenance Defects & Alerts"
+                    className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition ${
+                      issuesCount > 0
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300/60 animate-pulse'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Issues {issuesCount > 0 && `(${issuesCount})`}</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenCloudSync}
+                    title="Global Cloud Sync"
+                    className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Sync</span>
+                  </button>
+                </>
+              )}
+
+              {/* Desktop Excel Export */}
+              {isOpsStaff && (
+                <button
+                  onClick={onExportExcel}
+                  title="Export all data to Excel"
+                  className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Excel</span>
+                </button>
+              )}
+
+              {/* Desktop Backup / Restore */}
+              {isOpsStaff && (
+                <button
+                  onClick={onOpenBackup}
+                  title="Backup or Restore Data"
+                  className="hidden md:inline-flex p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  <Database className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                title="Toggle Dark Mode"
+                className="p-1.5 sm:p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              </button>
+
+              {/* Mobile "More Menu" Toggle Button */}
+              {isOpsStaff && (
+                <button
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  title="Open Mobile Operations Hub"
+                  className="md:hidden relative p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
+                >
+                  <Menu className="w-4 h-4" />
+                  {issuesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping" />
+                  )}
+                </button>
+              )}
+
+              {/* Desktop Logout Button */}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  title="Logout to Login Screen"
+                  className="hidden sm:flex px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition items-center gap-1 border border-slate-200 dark:border-slate-800"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
+              )}
+
+              {/* Desktop Add New Cleaning Button */}
+              <button
+                onClick={onOpenNewEntry}
+                className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 hover:shadow-lg transition transform active:scale-95"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>{isOpsStaff ? 'New Cleaning' : 'Log Shift'}</span>
+              </button>
+
+            </div>
+
           </div>
 
-          {/* Search Bar */}
-          <div className="flex-1 max-w-md hidden md:block">
+          {/* Segmented Tab Navigation Row */}
+          <div className="py-2 border-t border-slate-100 dark:border-slate-800/60">
+            {/* Desktop View Tabs */}
+            <div className="hidden sm:flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab('cleanings')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    activeTab === 'cleanings'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>🧹 Cleaning Visits &amp; Logs</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    activeTab === 'cleanings' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {cleaningCount}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('ledger')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    activeTab === 'ledger'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>🏬 Store Master Ledger &amp; Directory</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {storeCount}
+                  </span>
+                </button>
+              </div>
+
+              {isOpsStaff && (
+                <button
+                  onClick={onOpenNewStore}
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-amber-500" />
+                  <span>+ Add Store</span>
+                </button>
+              )}
+            </div>
+
+            {/* Mobile Native Segmented Control (100% width, 50%/50% split) */}
+            <div className="sm:hidden grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-2xl gap-1">
+              <button
+                onClick={() => setActiveTab('cleanings')}
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+                  activeTab === 'cleanings'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                <span>🧹 Cleanings</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                  activeTab === 'cleanings' ? 'bg-blinkit-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}>
+                  {cleaningCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('ledger')}
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+                  activeTab === 'ledger'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                <span>🏬 Store Ledger</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                  activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}>
+                  {storeCount}
+                </span>
+              </button>
+            </div>
+
+          </div>
+
+          {/* Mobile Search Bar */}
+          <div className="pb-2.5 pt-0.5 md:hidden">
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search store name, code (BLK-...), city, manager..."
-                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-blinkit-green text-slate-800 dark:text-slate-100 placeholder-slate-400 transition"
+                placeholder="Search store name, BLK code, city..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border-none text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-blinkit-green"
               />
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+        </div>
+      </header>
+
+
+      {/* FIXED MOBILE NATIVE BOTTOM NAVIGATION BAR (Visible strictly on mobile < md) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 shadow-xl px-2 py-1.5 pb-safe flex items-center justify-around">
+        
+        {/* Tab 1: Cleanings */}
+        <button
+          onClick={() => setActiveTab('cleanings')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+            activeTab === 'cleanings' ? 'text-blinkit-green font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'
+          }`}
+        >
+          <Sparkles className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px]">Cleanings</span>
+        </button>
+
+        {/* Tab 2: Store Ledger */}
+        <button
+          onClick={() => setActiveTab('ledger')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+            activeTab === 'ledger' ? 'text-amber-500 font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'
+          }`}
+        >
+          <Building2 className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px]">Stores</span>
+        </button>
+
+        {/* Center Floating + New Action Button */}
+        <div className="flex-1 flex justify-center -mt-5">
+          <button
+            onClick={onOpenNewEntry}
+            className="w-12 h-12 rounded-full bg-gradient-to-tr from-blinkit-darkgreen via-blinkit-green to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white dark:border-slate-900 active:scale-95 transition transform"
+            title="Create New Cleaning Entry"
+          >
+            <Plus className="w-6 h-6 stroke-[3]" />
+          </button>
+        </div>
+
+        {/* Tab 4: Schedule / Night Route */}
+        {isOpsStaff ? (
+          <button
+            onClick={onOpenSchedule}
+            className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-indigo-600 transition"
+          >
+            <Calendar className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">Schedule</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setActiveTab('cleanings')}
+            className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium"
+          >
+            <Layers className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">Inspect</span>
+          </button>
+        )}
+
+        {/* Tab 5: More Features / Drawer Toggle */}
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-white transition relative"
+        >
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px]">More Hub</span>
+          {issuesCount > 0 && (
+            <span className="absolute top-0.5 right-4 w-2 h-2 bg-rose-500 rounded-full" />
+          )}
+        </button>
+
+      </nav>
+
+
+      {/* MOBILE OPERATIONS ACTION SHEET DRAWER MODAL */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end md:hidden animate-fade-in">
+          
+          {/* Backdrop close */}
+          <div className="flex-1" onClick={() => setIsMobileMenuOpen(false)} />
+
+          {/* Drawer Sheet Body */}
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl border-t border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto p-5 pb-safe shadow-2xl space-y-5 animate-slide-up">
             
-            {/* Role Switcher Pill */}
-            <button
-              onClick={onOpenLogin}
-              title="Click to Switch Role or Re-Login"
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border shadow-xs ${
-                isAdmin
-                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-                  : isManager
-                    ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800'
-                    : currentUserRole === 'client'
-                      ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-800'
-                      : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
-              }`}
-            >
-              {isAdmin ? (
-                <>
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                  <span>👑 Admin (Owner)</span>
-                </>
-              ) : isManager ? (
-                <>
-                  <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>👔 Operations Manager</span>
-                </>
-              ) : currentUserRole === 'client' ? (
-                <>
-                  <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>🏢 Blinkit City Ops</span>
-                </>
-              ) : (
-                <>
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="truncate max-w-[100px] sm:max-w-[130px]">👷 {currentSupervisor?.name || 'Supervisor'}</span>
-                </>
-              )}
-            </button>
+            {/* Header & Close */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blinkit-yellow text-slate-950 font-black flex items-center justify-center text-lg shadow-xs">
+                  b
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                    Operations Hub
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Logged in as: <span className="font-bold capitalize text-blinkit-green">{currentUserRole}</span>
+                  </p>
+                </div>
+              </div>
 
-            {/* Quick Admin Change PIN Button (Admin Only) */}
-            {isAdmin && onChangeAdminPassword && (
               <button
-                type="button"
-                onClick={onChangeAdminPassword}
-                title="Change Admin Master PIN / Password"
-                className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition shadow-xs"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
               >
-                <KeyRound className="w-3.5 h-3.5" />
+                <X className="w-5 h-5" />
               </button>
-            )}
+            </div>
 
-            {/* Logout Button */}
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                title="Logout to Login Screen"
-                className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition flex items-center gap-1 border border-slate-200 dark:border-slate-800 shadow-xs"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-            )}
-
-            {/* Operations Management Shortcuts (Admin & Manager) */}
+            {/* Quick Add Actions */}
             {isOpsStaff && (
-              <>
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
-                  onClick={onOpenSchedule}
-                  title="Tonight's Shift & Cleaning Schedule Planner"
-                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition"
+                  onClick={() => triggerMobileAction(onOpenNewEntry)}
+                  className="p-3 rounded-2xl bg-blinkit-green text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-98 transition"
                 >
-                  <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Schedule</span>
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>+ New Cleaning</span>
                 </button>
 
                 <button
-                  onClick={onOpenChemicals}
-                  title="Chemical Stock & Consumption Inventory"
-                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition"
+                  onClick={() => triggerMobileAction(onOpenNewStore)}
+                  className="p-3 rounded-2xl bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-98 transition"
                 >
-                  <FlaskConical className="w-3.5 h-3.5 text-purple-500" />
-                  <span>Chemicals</span>
+                  <Building2 className="w-4 h-4" />
+                  <span>+ Add Store</span>
                 </button>
+              </div>
+            )}
 
-                <button
-                  onClick={onOpenKhata}
-                  title="Cleaner Staff Haziri & Advance Payout Khata"
-                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
-                >
-                  <Wallet className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Staff Khata</span>
-                </button>
-
-                <button
-                  onClick={onOpenConsolidatedInvoice}
-                  title="Monthly Consolidated Multi-Store Tax Invoice Generator"
-                  className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Monthly Bill</span>
-                </button>
-
-                {/* Passwords Button: Strictly ONLY for Admin (Manager does NOT have access) */}
-                {isAdmin && (
+            {/* SECTION 1: Shift & Field Operations */}
+            {isOpsStaff && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Daily Shift &amp; Field Ops
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-left">
                   <button
-                    onClick={onOpenUserAccess}
-                    title="Security Center: View & Edit Passwords for All Users (Admin Only)"
-                    className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 transition"
+                    onClick={() => triggerMobileAction(onOpenSchedule)}
+                    className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800 text-left transition"
                   >
-                    <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Passwords</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Calendar className="w-5 h-5 text-indigo-600" />
+                      <ChevronRight className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Shift Schedule</div>
+                    <div className="text-[10px] text-indigo-600 dark:text-indigo-400">Tonight's plan</div>
                   </button>
-                )}
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenMorningSummary)}
+                    className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Sun className="w-5 h-5 text-amber-500" />
+                      <ChevronRight className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">Morning Summary</div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400">6 AM Flash WA</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenNightRoute)}
+                    className="p-3 rounded-2xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Navigation className="w-5 h-5 text-blue-600" />
+                      <ChevronRight className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="text-xs font-bold text-blue-950 dark:text-blue-200">Night Route</div>
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400">Google Maps order</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenIssues)}
+                    className="p-3 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800 text-left transition relative"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <AlertTriangle className="w-5 h-5 text-rose-600" />
+                      {issuesCount > 0 ? (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-rose-600 text-white">
+                          {issuesCount}
+                        </span>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-rose-400" />
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-rose-950 dark:text-rose-200">Store Issues</div>
+                    <div className="text-[10px] text-rose-600 dark:text-rose-400">Defects &amp; alerts</div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 2: Staff & Inventory */}
+            {isOpsStaff && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Staff &amp; Chemical Inventory
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  <button
+                    onClick={() => triggerMobileAction(onOpenChemicals)}
+                    className="p-3 rounded-2xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <FlaskConical className="w-5 h-5 text-purple-600" />
+                      <ChevronRight className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="text-xs font-bold text-purple-950 dark:text-purple-200">Chemical Stock</div>
+                    <div className="text-[10px] text-purple-600 dark:text-purple-400">Taski R-Series Ltr</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenKhata)}
+                    className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Wallet className="w-5 h-5 text-emerald-600" />
+                      <ChevronRight className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">Staff Khata</div>
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Haziri &amp; advances</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenSupervisors)}
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Users className="w-5 h-5 text-emerald-600" />
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Supervisors</div>
+                    <div className="text-[10px] text-slate-500">Site leads</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenCleaners)}
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <HardHat className="w-5 h-5 text-amber-500" />
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Cleaners Team</div>
+                    <div className="text-[10px] text-slate-500">Roster &amp; daily wages</div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 3: Finance, Backup & Reports */}
+            {isOpsStaff && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Billing &amp; Cloud Database
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  <button
+                    onClick={() => triggerMobileAction(onOpenConsolidatedInvoice)}
+                    className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <FileSpreadsheet className="w-5 h-5 text-amber-600" />
+                      <ChevronRight className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">Monthly Bill</div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400">Consolidated GST</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onExportExcel)}
+                    className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Download className="w-5 h-5 text-emerald-600" />
+                      <ChevronRight className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">Export Excel</div>
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Full workbook</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenBackup)}
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Database className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Backup / Restore</div>
+                    <div className="text-[10px] text-slate-500">Offline JSON save</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenCloudSync)}
+                    className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Cloud className="w-5 h-5 text-blue-600" />
+                      <ChevronRight className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="text-xs font-bold text-blue-950 dark:text-blue-200">Cloud Sync</div>
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400">Remote database</div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 4: Security & Passwords */}
+            <div className="space-y-2">
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                Security &amp; Audit Logs
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-left">
+                {/* Admin-only Password Management */}
+                {isAdmin ? (
+                  <>
+                    <button
+                      onClick={() => triggerMobileAction(onOpenUserAccess)}
+                      className="p-3 rounded-2xl bg-amber-500 text-slate-950 font-bold text-left shadow-xs transition"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <KeyRound className="w-5 h-5" />
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                      <div className="text-xs font-black">Passwords Center</div>
+                      <div className="text-[10px] text-slate-900/80">Manage all user PINs</div>
+                    </button>
+
+                    <button
+                      onClick={() => triggerMobileAction(onChangeAdminPassword)}
+                      className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-left transition"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <KeyRound className="w-5 h-5 text-amber-500" />
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Change Master PIN</div>
+                      <div className="text-[10px] text-slate-500">Update Admin PIN</div>
+                    </button>
+                  </>
+                ) : null}
 
                 {/* Login Audit Logs: Visible to both Admin & Manager */}
                 {onOpenLoginLogs && (
                   <button
-                    onClick={onOpenLoginLogs}
-                    title="Login Activity & Audit Logs (Kisne kab login kiya)"
-                    className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-xs"
+                    onClick={() => triggerMobileAction(onOpenLoginLogs)}
+                    className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-left transition col-span-2"
                   >
-                    <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    <span>Login Logs</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <History className="w-5 h-5 text-blue-600" />
+                        <span className="text-xs font-bold text-blue-950 dark:text-blue-200">
+                          Login Activity &amp; Audit Logs
+                        </span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400">
+                      Live record of who logged in and when (timestamp &amp; role)
+                    </div>
                   </button>
                 )}
+              </div>
+            </div>
 
-                <button
-                  onClick={onOpenSupervisors}
-                  title="Manage Site Supervisors & Store Assignments"
-                  className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition"
-                >
-                  <Users className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Supervisors</span>
-                </button>
-
-                <button
-                  onClick={onOpenCleaners}
-                  title="Manage Cleaner Team & Wages"
-                  className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition"
-                >
-                  <HardHat className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Cleaners</span>
-                </button>
-
-                <button
-                  onClick={onOpenIssues}
-                  title="Dark Store Maintenance Defects & Alerts"
-                  className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl transition ${
-                    issuesCount > 0
-                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300/60 animate-pulse'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Issues ({issuesCount})</span>
-                </button>
-                <button
-                  onClick={onOpenMorningSummary}
-                  title="Generate 6:00 AM Morning Flash Summary for WhatsApp"
-                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800 transition shadow-xs"
-                >
-                  <Sun className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Morning Summary</span>
-                </button>
-
-                <button
-                  onClick={onOpenNightRoute}
-                  title="Multi-Store Night Route & Google Maps Navigation"
-                  className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition shadow-xs"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Night Route</span>
-                </button>
-
-                <button
-                  onClick={onOpenCloudSync}
-                  title="Global Cloud Sync & Remote Database"
-                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-xs"
-                >
-                  <Cloud className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Cloud Sync</span>
-                </button>
-              </>
-            )}
-
-            {/* Excel Export */}
-            {isOpsStaff && (
+            {/* SECTION 5: App Utilities & Logout */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
               <button
-                onClick={onExportExcel}
-                title="Export all data to Excel"
-                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
+                onClick={() => {
+                  window.dispatchEvent(new Event('trigger-pwa-install'));
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Excel</span>
+                <Smartphone className="w-4 h-4 text-blinkit-green" />
+                <span>Install Mobile App (PWA)</span>
               </button>
-            )}
 
-            {/* Backup / Restore */}
-            {isOpsStaff && (
-              <button
-                onClick={onOpenBackup}
-                title="Backup or Restore Data"
-                className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-              >
-                <Database className="w-4 h-4" />
-              </button>
-            )}
+              {onLogout && (
+                <button
+                  onClick={() => triggerMobileAction(onLogout)}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 font-bold text-xs flex items-center justify-center gap-2 transition border border-rose-200 dark:border-rose-900/40"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout from Session</span>
+                </button>
+              )}
+            </div>
 
-            {/* Install App Button */}
-            <button
-              onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
-              title="Install App on Phone / Desktop"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blinkit-green/10 hover:bg-blinkit-green/20 text-blinkit-green dark:text-emerald-400 border border-blinkit-green/30 transition shadow-xs"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Install App</span>
-            </button>
-
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              title="Toggle Dark Mode"
-              className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-            >
-              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-            </button>
-
-            {/* Add New Store Button (Ops Staff) */}
-            {isOpsStaff && (
-              <button
-                onClick={onOpenNewStore}
-                className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
-              >
-                <Building2 className="w-3.5 h-3.5 text-amber-500" />
-                <span>+ Add Store</span>
-              </button>
-            )}
-
-            {/* Add New Cleaning Entry */}
-            <button
-              onClick={onOpenNewEntry}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 hover:shadow-lg transition transform active:scale-95"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>{isOpsStaff ? 'New Cleaning' : 'Log Shift'}</span>
-            </button>
-          </div>
-
-
-        </div>
-
-        {/* Tab Navigation Row */}
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 py-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab('cleanings')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-                activeTab === 'cleanings'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <span>🧹 Cleaning Visits & Logs</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                activeTab === 'cleanings' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-              }`}>
-                {cleaningCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('ledger')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-                activeTab === 'ledger'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <span>🏬 Store Master Ledger & History</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-              }`}>
-                {storeCount}
-              </span>
-            </button>
-          </div>
-
-          <div className="lg:hidden flex items-center gap-1">
-            <button
-              onClick={onOpenNewStore}
-              className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-            >
-              + Store
-            </button>
           </div>
         </div>
-
-        {/* Mobile Search & Filter Bar */}
-        <div className="pb-3 pt-1 md:hidden">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search store name, code, city..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border-none text-slate-800 dark:text-slate-100"
-            />
-          </div>
-        </div>
-
-      </div>
-    </header>
+      )}
+    </>
   );
 }

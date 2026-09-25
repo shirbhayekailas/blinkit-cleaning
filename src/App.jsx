@@ -531,7 +531,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5 sm:space-y-6 flex-1 w-full max-w-full overflow-x-hidden min-w-0 pb-28 md:pb-8">
         
         {/* If Supervisor is logged in, show dedicated field portal */}
         {currentUserRole === 'supervisor' ? (
@@ -545,23 +545,23 @@ export default function App() {
         ) : (
           <>
             {/* Welcome & Quick Overview Banner (Admin View) */}
-            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl shadow-md ${
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm min-w-0 ${
               currentUserRole === 'client'
                 ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white'
                 : currentUserRole === 'manager'
                   ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white'
                   : 'bg-gradient-to-r from-amber-400 via-amber-300 to-emerald-400 text-slate-950'
             }`}>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-extrabold tracking-tight">
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base sm:text-xl font-extrabold tracking-tight break-words">
                     {currentUserRole === 'client'
                       ? 'Blinkit City Operations & QA Inspection Portal'
                       : currentUserRole === 'manager'
                         ? 'Blinkit Operations Management Control Center'
                         : 'Blinkit Dark Store Deep Cleaning Control Center'}
                   </span>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-extrabold ${
+                  <span className={`text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 rounded-full font-extrabold shrink-0 ${
                     currentUserRole === 'client' 
                       ? 'bg-white text-blue-900' 
                       : currentUserRole === 'manager'
@@ -587,13 +587,13 @@ export default function App() {
               </div>
 
               {currentUserRole !== 'client' && (
-                <div className="flex items-center gap-2 self-start sm:self-center">
+                <div className="flex items-center gap-2 self-start sm:self-center shrink-0 flex-wrap">
                   <button
                     onClick={() => {
                       setEditingStore(null);
                       setIsStoreModalOpen(true);
                     }}
-                    className="px-3.5 py-2.5 rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-xs sm:text-sm shadow-sm transition flex items-center gap-1.5"
+                    className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5"
                   >
                     <Building2 className="w-4 h-4 text-blinkit-green" />
                     <span>+ Add Store</span>
@@ -604,7 +604,7 @@ export default function App() {
                       setEditingCleaning(null);
                       setIsEntryModalOpen(true);
                     }}
-                    className="px-4 py-2.5 rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-2 transform active:scale-95"
+                    className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 sm:gap-2 transform active:scale-95"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
                     <span>New Cleaning</span>
@@ -615,7 +615,7 @@ export default function App() {
 
         {/* VIEW 1: Cleaning Visits & Logs */}
         {activeTab === 'cleanings' && (
-          <div className="space-y-6">
+          <div className="space-y-5 sm:space-y-6 min-w-0">
             {/* Operational & Financial Dashboard Stats */}
             <DashboardStats
               cleanings={cleanings}
@@ -630,11 +630,11 @@ export default function App() {
             />
 
             {/* Store Cards Grid / Records View */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+            <div className="space-y-3 sm:space-y-4 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-blinkit-green" />
+                    <Building2 className="w-5 h-5 text-blinkit-green shrink-0" />
                     <span>Store Deep Cleaning Records</span>
                   </h2>
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -645,7 +645,7 @@ export default function App() {
                 {filteredCleanings.length > 0 && (
                   <button
                     onClick={() => exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx')}
-                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold"
+                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold self-start sm:self-auto"
                   >
                     Export filtered ({filteredCleanings.length})
                   </button>

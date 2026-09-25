@@ -40,23 +40,23 @@ export default function StoreLedgerView({
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5 min-w-0">
       
       {/* Ledger Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs">
-        <div>
-          <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blinkit-green" />
-            <span>Blinkit Store Master Ledger & Directory</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs min-w-0">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+            <Building2 className="w-5 h-5 text-blinkit-green shrink-0" />
+            <span>Store Master Ledger &amp; Directory</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage all registered Blinkit dark stores, view store-wise cleaning histories & payment balances
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 break-words">
+            Manage registered dark stores, store-wise cleaning records &amp; pending payments
           </p>
         </div>
 
         <button
           onClick={onAddNewStore}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 transition self-start sm:self-auto"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 transition self-start sm:self-auto shrink-0"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
           <span>Add New Store to Ledger</span>
