@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
 import { 
-  ShieldCheck, 
-  UserCheck, 
   Lock, 
-  Phone, 
-  KeyRound, 
+  User, 
+  Sparkles, 
+  Sun, 
+  Moon, 
+  Smartphone, 
+  Eye, 
+  EyeOff, 
   AlertCircle,
-  Building2,
-  Sparkles,
-  Sun,
-  Moon,
-  CheckCircle2,
-  Users,
-  Smartphone,
-  Eye,
-  EyeOff
+  ArrowRight,
+  ShieldCheck
 } from 'lucide-react';
 import { db } from '../db/db';
 
@@ -23,95 +19,78 @@ export default function LoginPage({
   darkMode,
   setDarkMode
 }) {
-  const [activeTab, setActiveTab] = useState('supervisor'); // 'supervisor' | 'admin' | 'client'
-  
-  // Admin state
-  const [adminPin, setAdminPin] = useState('');
-  const [adminError, setAdminError] = useState('');
-  const [showAdminPin, setShowAdminPin] = useState(false);
-
-  // Supervisor state
-  const [supPhone, setSupPhone] = useState('');
-  const [supPin, setSupPin] = useState('');
-  const [supError, setSupError] = useState('');
-  const [showSupPin, setShowSupPin] = useState(false);
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Client state
-  const [clientPin, setClientPin] = useState('');
-  const [clientError, setClientError] = useState('');
-  const [showClientPin, setShowClientPin] = useState(false);
-
-  const handleAdminLogin = (e) => {
+  const handleUniversalLogin = async (e) => {
     e.preventDefault();
-    const storedPin = localStorage.getItem('vendor_admin_pin') || '1234';
-    if (adminPin.trim() === storedPin) {
-      onLoginSuccess({
-        role: 'admin',
-        user: { name: 'Vendor Admin / Owner' },
-        isFirstLogin: localStorage.getItem('admin_pin_changed') !== 'true'
-      });
-    } else {
-      setAdminError(`Incorrect Admin PIN! (${storedPin === '1234' ? 'Default master PIN is 1234' : 'Please enter your updated PIN'})`);
-    }
-  };
+    setError('');
 
-  const handleClientLogin = (e) => {
-    e.preventDefault();
-    const storedPin = localStorage.getItem('blinkit_client_pin') || '5678';
-    if (clientPin.trim() === storedPin) {
-      onLoginSuccess({
-        role: 'client',
-        user: { name: 'Blinkit City Operations Head' },
-        isFirstLogin: localStorage.getItem('client_pin_changed') !== 'true'
-      });
-    } else {
-      setClientError('Incorrect Client PIN! (Default master PIN is 5678)');
-    }
-  };
+    const inputId = loginId.trim();
+    const inputPass = password.trim();
 
-  const handleSupervisorLogin = async (e) => {
-    e.preventDefault();
-    setSupError('');
-    if (!supPhone.trim() || !supPin.trim()) {
-      setSupError('Please enter both Phone Number and 4-Digit PIN.');
+    if (!inputId || !inputPass) {
+      setError('Please enter both Login ID and Password.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const cleanPhone = supPhone.trim().replace(/[^0-9]/g, '');
+      // 1. Check Admin Account (Configured by Owner)
+      const adminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
+      const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
+
+      if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
+        onLoginSuccess({
+          role: 'admin',
+          user: { name: 'Vendor Admin / Owner', loginId: adminId }
+        });
+        return;
+      }
+
+      // 2. Check Blinkit Client Ops Head Account
+      const clientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
+      const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
+      const clientName = localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head';
+
+      if (inputId.toLowerCase() === clientId && inputPass === clientPin) {
+        onLoginSuccess({
+          role: 'client',
+          user: { name: clientName, loginId: clientId }
+        });
+        return;
+      }
+
+      // 3. Check Site Supervisors (by Mobile Number)
+      const cleanPhone = inputId.replace(/[^0-9]/g, '');
       const supervisor = await db.supervisors
         .where('phone')
         .equals(cleanPhone)
         .or('phone')
-        .equals(supPhone.trim())
+        .equals(inputId)
         .first();
 
-      if (!supervisor) {
-        const allSupervisors = await db.supervisors.count();
-        if (allSupervisors === 0) {
-          setSupError('No supervisors registered yet. Please login as Admin first (PIN: 1234) and create a supervisor under "Supervisors".');
-        } else {
-          setSupError('Supervisor phone number not registered. Please check with your Admin.');
+      if (supervisor && supervisor.pin === inputPass) {
+        if (supervisor.active === false) {
+          setError('This supervisor account has been deactivated. Please contact Admin.');
+          setIsSubmitting(false);
+          return;
         }
-        setIsSubmitting(false);
+
+        onLoginSuccess({
+          role: 'supervisor',
+          user: supervisor
+        });
         return;
       }
 
-      if (supervisor.pin !== supPin.trim()) {
-        setSupError('Incorrect 4-digit PIN! Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      onLoginSuccess({
-        role: 'supervisor',
-        user: supervisor,
-        isFirstLogin: !supervisor.hasChangedPin || supervisor.pin === '1234'
-      });
+      // 4. Invalid credentials
+      setError('Invalid Login ID or Password. Please check credentials or contact Admin.');
     } catch (err) {
-      setSupError('Login error: ' + err.message);
+      setError('Login error: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -161,7 +140,7 @@ export default function LoginPage({
         </div>
       </header>
 
-      {/* Main Login Card */}
+      {/* Main Single Login Card */}
       <main className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           
@@ -170,281 +149,99 @@ export default function LoginPage({
             <div className="flex items-center justify-between">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950 text-white text-xs font-bold shadow-xs">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>VENDOR ACCESS</span>
+                <span>OPERATIONS ACCESS</span>
               </div>
               <span className="text-xs font-black tracking-wider text-slate-900/80">
                 SYSTEM v2.0
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight mt-3 text-slate-950">
-              Operations Login
+              Operations Sign In
             </h1>
             <p className="text-xs sm:text-sm font-semibold text-slate-900/85 mt-0.5">
-              Login to access your store dashboard &amp; field entry portal
+              Enter your assigned Login ID &amp; Password to access your portal
             </p>
-          </div>
-
-          {/* Role Switcher Tabs */}
-          <div className="p-4 pb-0">
-            <div className="grid grid-cols-3 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-center">
-              <button
-                type="button"
-                onClick={() => setActiveTab('supervisor')}
-                className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
-                  activeTab === 'supervisor'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span className="truncate">Supervisor</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('admin')}
-                className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
-                  activeTab === 'admin'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="truncate">Admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('client')}
-                className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
-                  activeTab === 'client'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span className="truncate">Client View</span>
-              </button>
-            </div>
           </div>
 
           {/* Form Area */}
           <div className="p-6">
-            {/* SUPERVISOR LOGIN FORM */}
-            {activeTab === 'supervisor' && (
-              <form onSubmit={handleSupervisorLogin} className="space-y-4">
-                <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 text-xs text-emerald-900 dark:text-emerald-300">
-                  <div className="font-bold flex items-center gap-1.5 mb-0.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Site Supervisor Portal</span>
-                  </div>
-                  <p className="text-[11px] opacity-90">
-                    Direct access to assigned dark stores, shift punch-in timer, cleaner attendance, photo watermarking &amp; store manager sign-off.
-                  </p>
+            <form onSubmit={handleUniversalLogin} className="space-y-4">
+              
+              {/* Login ID Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Login ID / Mobile Number
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="Enter your Login ID or Mobile Number"
+                    value={loginId}
+                    onChange={(e) => {
+                      setLoginId(e.target.value);
+                      setError('');
+                    }}
+                    className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green font-medium"
+                  />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Supervisor Mobile Number
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="tel"
-                      required
-                      placeholder="e.g. 9876543210"
-                      value={supPhone}
-                      onChange={(e) => {
-                        setSupPhone(e.target.value);
-                        setSupError('');
-                      }}
-                      className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green font-medium"
-                    />
-                  </div>
+              {/* Password Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Password / PIN
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError('');
+                    }}
+                    className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    4-Digit Access PIN
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type={showSupPin ? "text" : "password"}
-                      maxLength={6}
-                      required
-                      placeholder="Enter your 4-digit PIN"
-                      value={supPin}
-                      onChange={(e) => {
-                        setSupPin(e.target.value);
-                        setSupError('');
-                      }}
-                      className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowSupPin(!showSupPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                    >
-                      {showSupPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+              {/* Error Message */}
+              {error && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2 animate-in fade-in duration-150">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
                 </div>
+              )}
 
-                {supError && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{supError}</span>
-                  </div>
-                )}
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3.5 rounded-2xl bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-black text-sm shadow-lg shadow-slate-950/20 hover:shadow-xl transition transform active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <span>{isSubmitting ? 'Verifying Credentials...' : 'Sign In to Portal'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 rounded-2xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-black text-sm shadow-lg shadow-emerald-700/20 hover:shadow-xl transition transform active:scale-[0.98]"
-                >
-                  {isSubmitting ? 'Verifying...' : 'Login as Site Supervisor →'}
-                </button>
-              </form>
-            )}
-
-            {/* ADMIN LOGIN FORM */}
-            {activeTab === 'admin' && (
-              <form onSubmit={handleAdminLogin} className="space-y-4">
-                <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-300">
-                  <div className="font-bold flex items-center gap-1.5 mb-0.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Vendor Admin / Owner Portal</span>
-                  </div>
-                  <p className="text-[11px] opacity-90">
-                    Complete master control: All dark stores, Store Ledger, P&amp;L profits, cleaner wages, supervisor assignments, Tax Invoices &amp; PDF reports.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Admin Master PIN
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type={showAdminPin ? "text" : "password"}
-                      autoFocus
-                      required
-                      placeholder="Enter Admin PIN"
-                      value={adminPin}
-                      onChange={(e) => {
-                        setAdminPin(e.target.value);
-                        setAdminError('');
-                      }}
-                      className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowAdminPin(!showAdminPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                    >
-                      {showAdminPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>Master PIN (Default: <strong className="text-amber-600">1234</strong>)</span>
-                    <button
-                      type="button"
-                      onClick={() => setAdminPin(localStorage.getItem('vendor_admin_pin') || '1234')}
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-                    >
-                      Auto-fill PIN
-                    </button>
-                  </div>
-                </div>
-
-                {adminError && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{adminError}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-black text-sm shadow-lg shadow-slate-950/20 hover:shadow-xl transition transform active:scale-[0.98]"
-                >
-                  Login as Vendor Admin →
-                </button>
-              </form>
-            )}
-
-            {/* BLINKIT CLIENT / OPS HEAD LOGIN FORM */}
-            {activeTab === 'client' && (
-              <form onSubmit={handleClientLogin} className="space-y-4">
-                <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 text-xs text-blue-900 dark:text-blue-300">
-                  <div className="font-bold flex items-center gap-1.5 mb-0.5">
-                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Blinkit City Operations &amp; QA Portal</span>
-                  </div>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    Read-only executive portal for Blinkit City Managers, QA leads, and Area Heads to inspect cleanings, view Before/After proof, and download certificates.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Client Access PIN
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type={showClientPin ? "text" : "password"}
-                      required
-                      placeholder="Default PIN: 5678"
-                      value={clientPin}
-                      onChange={(e) => {
-                        setClientPin(e.target.value);
-                        setClientError('');
-                      }}
-                      className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blue-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowClientPin(!showClientPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                    >
-                      {showClientPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>Default PIN: <strong className="text-blue-600">5678</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => setClientPin(localStorage.getItem('blinkit_client_pin') || '5678')}
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-                    >
-                      Auto-fill 5678
-                    </button>
-                  </div>
-                </div>
-
-                {clientError && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{clientError}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20 hover:shadow-xl transition transform active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  <span>View Client Operations Dashboard →</span>
-                </button>
-              </form>
-            )}
+            </form>
           </div>
 
           {/* Footer note */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
-            🔒 Secure Local Session &bull; Offline Ready IndexedDB Engine
+          <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Admin Managed Access &bull; Role-Based Secure Portals</span>
           </div>
 
         </div>

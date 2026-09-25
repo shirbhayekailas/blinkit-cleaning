@@ -23,8 +23,7 @@ import {
   Plus,
   Share2,
   Smartphone,
-  QrCode,
-  KeyRound
+  QrCode
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
@@ -34,7 +33,6 @@ import { shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
 import AudioRecorder from './AudioRecorder';
 import SpeechToTextInput from './SpeechToTextInput';
 import QRScannerModal from './QRScannerModal';
-import ChangePasswordModal from './ChangePasswordModal';
 import { db } from '../db/db';
 
 export default function SupervisorPortal({
@@ -53,9 +51,6 @@ export default function SupervisorPortal({
 
   const [selectedStoreCode, setSelectedStoreCode] = useState('');
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
-  const [isChangePinOpen, setIsChangePinOpen] = useState(() => {
-    return supervisor && (!supervisor.hasChangedPin || supervisor.pin === '1234');
-  });
   const selectedStore = stores.find(s => s.storeCode === selectedStoreCode);
 
   // Timer & Shift states
@@ -372,16 +367,6 @@ export default function SupervisorPortal({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsChangePinOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-            title="Change Your 4-Digit Login PIN"
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Change PIN</span>
-          </button>
-
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
@@ -987,18 +972,6 @@ export default function SupervisorPortal({
         onClose={() => setIsQRScannerOpen(false)}
         stores={assignedStores}
         onStoreScanned={(code) => setSelectedStoreCode(code)}
-      />
-
-      <ChangePasswordModal
-        isOpen={isChangePinOpen}
-        onClose={() => setIsChangePinOpen(false)}
-        role="supervisor"
-        user={supervisor}
-        isFirstLogin={!supervisor.hasChangedPin || supervisor.pin === '1234'}
-        onSuccess={(newPin) => {
-          supervisor.pin = newPin;
-          supervisor.hasChangedPin = true;
-        }}
       />
 
     </div>

@@ -44,8 +44,10 @@ export default function UserAccessModal({
 
   if (!isOpen) return null;
 
+  const adminId = localStorage.getItem('vendor_admin_id') || 'admin';
   const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
   const isAdminDefault = adminPin === '1234';
+  const clientId = localStorage.getItem('blinkit_client_id') || 'client';
   const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
 
   const toggleSupPinVisibility = (id) => {
@@ -107,12 +109,25 @@ export default function UserAccessModal({
     const msg = `*Blinkit Deep Cleaning Operations - Supervisor Login*\n\n` +
       `Namaste *${sup.name}* ji,\n` +
       `Aapka cleaning portal account ready hai:\n\n` +
-      `📱 *Mobile*: ${sup.phone}\n` +
-      `🔑 *PIN*: ${sup.pin}\n` +
+      `📱 *Login ID (Mobile)*: ${sup.phone}\n` +
+      `🔑 *Password (PIN)*: ${sup.pin}\n` +
       `🌐 *App Link*: ${appUrl}\n\n` +
-      `Pehli baar login karne par apna secret 4-digit PIN badal lijiye.`;
+      `Kripya is Login ID aur Password se portal me login karein aur cleaning inspection shuru karein.`;
     
     window.open(`https://wa.me/91${sup.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleShareClientWhatsApp = () => {
+    const appUrl = window.location.origin;
+    const msg = `*Blinkit Dark Store Deep Cleaning - Client View Portal*\n\n` +
+      `Namaste,\n` +
+      `Blinkit Dark Store Deep Cleaning QA & Monitoring Portal login credentials:\n\n` +
+      `📱 *Login ID*: ${clientId}\n` +
+      `🔑 *Password*: ${clientPin}\n` +
+      `🌐 *Portal Link*: ${appUrl}\n\n` +
+      `Is link se aap real-time store deep cleaning progress, before/after photos aur ratings check kar sakte hain.`;
+    
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const filteredSupervisors = supervisors.filter(s => 
@@ -180,15 +195,24 @@ export default function UserAccessModal({
                 )}
               </div>
 
-              <div className="flex items-center justify-between bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Current PIN</span>
-                  <span className="font-mono text-base font-black text-slate-900 dark:text-white tracking-widest">
-                    {showAdminPin ? adminPin : '••••'}
-                  </span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
+                    <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                      {adminId}
+                    </span>
+                  </div>
+                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-750 hidden sm:block" />
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
+                    <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
+                      {showAdminPin ? adminPin : '••••'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 self-end sm:self-auto">
                   <button
                     type="button"
                     onClick={() => setShowAdminPin(!showAdminPin)}
@@ -226,7 +250,7 @@ export default function UserAccessModal({
                 </span>
               </div>
 
-              <div className="flex items-center justify-between bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                 {isEditingClientPin ? (
                   <div className="flex items-center gap-2 flex-1 mr-2">
                     <input
@@ -252,16 +276,25 @@ export default function UserAccessModal({
                     </button>
                   </div>
                 ) : (
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Client PIN</span>
-                    <span className="font-mono text-base font-black text-slate-900 dark:text-white tracking-widest">
-                      {showClientPin ? clientPin : '••••'}
-                    </span>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
+                      <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                        {clientId}
+                      </span>
+                    </div>
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-750 hidden sm:block" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
+                      <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
+                        {showClientPin ? clientPin : '••••'}
+                      </span>
+                    </div>
                   </div>
                 )}
 
                 {!isEditingClientPin && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
                     <button
                       type="button"
                       onClick={() => setShowClientPin(!showClientPin)}
@@ -280,6 +313,15 @@ export default function UserAccessModal({
                       className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition"
                     >
                       Change PIN
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleShareClientWhatsApp}
+                      title="Send Client Portal Login on WhatsApp"
+                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
@@ -345,17 +387,18 @@ export default function UserAccessModal({
                           
                           {isDefaultPin ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                              Default PIN (Not Changed Yet)
+                              Default PIN (1234)
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                              ✓ PIN Changed by User
+                              ✓ PIN Set by Admin
                             </span>
                           )}
                         </div>
 
                         <div className="flex items-center gap-3 text-xs text-slate-500">
                           <span className="flex items-center gap-1 font-mono">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Login ID:</span>
                             <Phone className="w-3 h-3 text-slate-400" />
                             {sup.phone}
                           </span>

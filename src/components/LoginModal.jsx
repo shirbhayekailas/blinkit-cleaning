@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  ShieldCheck, 
-  UserCheck, 
   Lock, 
-  Phone, 
-  KeyRound, 
-  CheckCircle2, 
+  User, 
   AlertCircle,
-  Building2
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ShieldCheck
 } from 'lucide-react';
 import { db } from '../db/db';
 
@@ -18,75 +17,85 @@ export default function LoginModal({
   currentRole,
   onLoginSuccess
 }) {
-  const [activeTab, setActiveTab] = useState('supervisor'); // 'supervisor' | 'admin'
-  
-  // Admin state
-  const [adminPin, setAdminPin] = useState('');
-  const [adminError, setAdminError] = useState('');
-
-  // Supervisor state
-  const [supPhone, setSupPhone] = useState('');
-  const [supPin, setSupPin] = useState('');
-  const [supError, setSupError] = useState('');
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleAdminLogin = (e) => {
+  const handleUniversalLogin = async (e) => {
     e.preventDefault();
-    const storedPin = localStorage.getItem('vendor_admin_pin') || '1234';
-    if (adminPin.trim() === storedPin) {
-      onLoginSuccess({
-        role: 'admin',
-        user: { name: 'Vendor Admin / Owner' },
-        isFirstLogin: localStorage.getItem('admin_pin_changed') !== 'true'
-      });
-      onClose();
-    } else {
-      setAdminError(`Incorrect Admin PIN! (${storedPin === '1234' ? 'Default PIN is 1234' : 'Please enter your updated PIN'})`);
-    }
-  };
+    setError('');
 
-  const handleSupervisorLogin = async (e) => {
-    e.preventDefault();
-    setSupError('');
-    if (!supPhone || !supPin) {
-      setSupError('Please enter both Phone Number and 4-Digit PIN.');
+    const inputId = loginId.trim();
+    const inputPass = password.trim();
+
+    if (!inputId || !inputPass) {
+      setError('Please enter both Login ID and Password.');
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      const cleanPhone = supPhone.trim().replace(/[^0-9]/g, '');
+      // 1. Check Admin Account
+      const adminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
+      const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
+
+      if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
+        onLoginSuccess({
+          role: 'admin',
+          user: { name: 'Vendor Admin / Owner', loginId: adminId }
+        });
+        onClose();
+        return;
+      }
+
+      // 2. Check Blinkit Client Ops Head Account
+      const clientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
+      const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
+      const clientName = localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head';
+
+      if (inputId.toLowerCase() === clientId && inputPass === clientPin) {
+        onLoginSuccess({
+          role: 'client',
+          user: { name: clientName, loginId: clientId }
+        });
+        onClose();
+        return;
+      }
+
+      // 3. Check Site Supervisors (by Mobile Number)
+      const cleanPhone = inputId.replace(/[^0-9]/g, '');
       const supervisor = await db.supervisors
         .where('phone')
         .equals(cleanPhone)
         .or('phone')
-        .equals(supPhone.trim())
+        .equals(inputId)
         .first();
 
-      if (!supervisor) {
-        // If no supervisor exists yet, let them know to ask admin or login as admin first
-        const allSupervisors = await db.supervisors.count();
-        if (allSupervisors === 0) {
-          setSupError('No supervisors registered yet. Please login as Admin first (PIN: 1234) and create a supervisor.');
-        } else {
-          setSupError('Supervisor phone number not found. Please check with your Admin.');
+      if (supervisor && supervisor.pin === inputPass) {
+        if (supervisor.active === false) {
+          setError('This supervisor account has been deactivated. Please contact Admin.');
+          setIsSubmitting(false);
+          return;
         }
+
+        onLoginSuccess({
+          role: 'supervisor',
+          user: supervisor
+        });
+        onClose();
         return;
       }
 
-      if (supervisor.pin !== supPin.trim()) {
-        setSupError('Incorrect 4-digit PIN! Please try again.');
-        return;
-      }
-
-      onLoginSuccess({
-        role: 'supervisor',
-        user: supervisor,
-        isFirstLogin: !supervisor.hasChangedPin || supervisor.pin === '1234'
-      });
-      onClose();
+      // 4. Invalid credentials
+      setError('Invalid Login ID or Password. Please check credentials or contact Admin.');
     } catch (err) {
-      setSupError('Login error: ' + err.message);
+      setError('Login error: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -102,10 +111,10 @@ export default function LoginModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Blinkit Vendor Portal Login
+                Switch Role / Sign In
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Select your role to continue
+                Enter your Login ID and Password
               </p>
             </div>
           </div>
@@ -117,143 +126,81 @@ export default function LoginModal({
           </button>
         </div>
 
-        {/* Role Tabs */}
-        <div className="p-4 pb-0">
-          <div className="grid grid-cols-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800">
-            <button
-              type="button"
-              onClick={() => setActiveTab('supervisor')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                activeTab === 'supervisor'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              <UserCheck className="w-4 h-4 text-emerald-600" />
-              <span>Site Supervisor</span>
-            </button>
+        {/* Universal Form */}
+        <div className="p-6">
+          <form onSubmit={handleUniversalLogin} className="space-y-4">
+            
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Login ID / Mobile Number
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Enter your Login ID or Mobile Number"
+                  value={loginId}
+                  onChange={(e) => {
+                    setLoginId(e.target.value);
+                    setError('');
+                  }}
+                  className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green font-medium"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Password / PIN
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
             <button
-              type="button"
-              onClick={() => setActiveTab('admin')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                activeTab === 'admin'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-2xl bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-black text-sm shadow-lg shadow-slate-950/20 hover:shadow-xl transition transform active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              <ShieldCheck className="w-4 h-4 text-amber-500" />
-              <span>Vendor Admin (Owner)</span>
+              <span>{isSubmitting ? 'Verifying...' : 'Sign In →'}</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
-          </div>
+
+          </form>
         </div>
 
-        {/* Form Body */}
-        <div className="p-6">
-          {/* SUPERVISOR LOGIN */}
-          {activeTab === 'supervisor' && (
-            <form onSubmit={handleSupervisorLogin} className="space-y-4">
-              <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 text-xs text-emerald-900 dark:text-emerald-300">
-                <span className="font-bold">Field Staff Mode:</span> Supervisor login gives direct mobile access to assigned dark stores, punch-in/out, photo uploads &amp; manager sign-off.
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Supervisor Mobile Number
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. 9871234567"
-                    value={supPhone}
-                    onChange={(e) => setSupPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  4-Digit Access PIN
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    maxLength={6}
-                    required
-                    placeholder="Enter your PIN"
-                    value={supPin}
-                    onChange={(e) => setSupPin(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white tracking-widest font-mono focus:ring-2 focus:ring-blinkit-green"
-                  />
-                </div>
-              </div>
-
-              {supError && (
-                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{supError}</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-sm shadow-md transition"
-              >
-                Login as Supervisor
-              </button>
-            </form>
-          )}
-
-          {/* ADMIN LOGIN */}
-          {activeTab === 'admin' && (
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-300">
-                <span className="font-bold">Full Admin Mode:</span> Master control over all stores, ledger, financials, supervisor assignments, cleaner wages, tax invoices &amp; P&amp;L reports.
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Admin Master PIN
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    autoFocus
-                    required
-                    placeholder="Default PIN: 1234"
-                    value={adminPin}
-                    onChange={(e) => {
-                      setAdminPin(e.target.value);
-                      setAdminError('');
-                    }}
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono tracking-widest focus:ring-2 focus:ring-blinkit-green"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Default PIN is <code className="font-bold text-amber-600">1234</code>. You can change this in settings.
-                </p>
-              </div>
-
-              {adminError && (
-                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{adminError}</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-sm shadow-md transition"
-              >
-                Login as Admin
-              </button>
-            </form>
-          )}
+        {/* Footer */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Role-based routing: Admin, Supervisor or Client View</span>
         </div>
 
       </div>

@@ -419,10 +419,10 @@ export default function App() {
         localStorage.removeItem('blinkit_supervisor');
       }
 
-      if (isFirstLogin) {
+      if (isFirstLogin && role === 'admin') {
         setChangePasswordConfig({
-          role,
-          user: role === 'supervisor' ? user : null,
+          role: 'admin',
+          user: null,
           isFirstLogin: true
         });
         setIsChangePasswordOpen(true);
