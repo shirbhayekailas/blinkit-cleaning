@@ -145,4 +145,13 @@ if ('serviceWorker' in navigator) {
         console.warn('Blinkit PWA Service Worker registration failed:', err);
       });
   });
+
+  // When new service worker activates, reload once to load fresh code
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
 }
