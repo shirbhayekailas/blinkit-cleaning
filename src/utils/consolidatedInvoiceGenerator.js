@@ -23,7 +23,9 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     }
 
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageWidth = doc.internal.pageSize.getWidth(); // 210 mm
+    const margin = 14;
+    const contentWidth = pageWidth - (margin * 2); // 182 mm
 
     const vendorName = vendorProfile.companyName || 'CleanPro Facilities Pvt Ltd';
     const vendorPhone = vendorProfile.phone || '+91 98765 43210';
@@ -38,48 +40,84 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     const invoiceNo = invoiceMeta.invoiceNumber || `INV-CONS-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
     // Top Header Banner
+    const bannerHeight = 35;
     doc.setFillColor(15, 23, 42); // Dark Navy
-    doc.rect(0, 0, pageWidth, 32, 'F');
+    doc.rect(0, 0, pageWidth, bannerHeight, 'F');
+
+    // Accent line at bottom of header banner
+    doc.setFillColor(12, 131, 31); // Blinkit Green Accent
+    doc.rect(0, bannerHeight, pageWidth, 2, 'F');
 
     doc.setTextColor(248, 203, 70); // Blinkit Yellow
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(vendorName.toUpperCase(), 14, 17);
-
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(226, 232, 240);
-    doc.text(`${vendorAddress}  |  Ph: ${vendorPhone}  |  GSTIN/PAN: ${vendorGst}`, 14, 25);
+    doc.text(vendorName.toUpperCase(), margin, 14, { maxWidth: 110 });
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
-    doc.text('CONSOLIDATED TAX INVOICE', pageWidth - 14, 18, { align: 'right' });
+    doc.text('CONSOLIDATED TAX INVOICE', pageWidth - margin, 14, { align: 'right' });
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(248, 203, 70);
-    doc.text(monthLabel.toUpperCase(), pageWidth - 14, 25, { align: 'right' });
+    doc.text(monthLabel.toUpperCase(), pageWidth - margin, 20, { align: 'right' });
+
+    // Vendor Address & Tax Details
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(226, 232, 240);
+
+    const vendorAddressLines = doc.splitTextToSize(vendorAddress, contentWidth);
+    doc.text(vendorAddressLines, margin, 21);
+
+    const addressOffset = vendorAddressLines.length * 3.8;
+    const detailsY = Math.min(21 + addressOffset, bannerHeight - 4);
+    doc.text(`Ph: ${vendorPhone}   |   GSTIN / PAN: ${vendorGst}`, margin, detailsY, { maxWidth: contentWidth });
 
     // Client & Invoice Metadata
-    const infoY = 38;
-    doc.setFontSize(8.5);
-    doc.setTextColor(51, 65, 85);
+    const startY = bannerHeight + 8;
+    const maxLeftWidth = 98;
+    const rightColX = 120;
+    const rightColWidth = pageWidth - margin - rightColX;
+
+    let currentLeftY = startY;
 
     // Left: Billed To
     doc.setFont('helvetica', 'bold');
-    doc.text('BILLED TO (CLIENT):', 14, infoY);
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text('BILLED TO (CLIENT):', margin, currentLeftY);
+    currentLeftY += 4.8;
+
     doc.setFont('helvetica', 'normal');
-    doc.text('Blinkit Commerce Private Limited', 14, infoY + 5);
-    doc.text('Corporate Office & Dark Store Operations Division', 14, infoY + 10);
-    doc.text(`Total Dark Stores Billed: ${cleanings.length} Stores`, 14, infoY + 15);
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text('Blinkit Commerce Private Limited', margin, currentLeftY);
+    currentLeftY += 4.2;
+    doc.text('Corporate Office & Dark Store Operations Division', margin, currentLeftY);
+    currentLeftY += 4.2;
+    doc.text(`Total Dark Stores Billed: ${cleanings.length} Stores`, margin, currentLeftY);
+    currentLeftY += 4.2;
 
     // Right: Invoice Meta
+    let currentRightY = startY;
     doc.setFont('helvetica', 'bold');
-    doc.text('INVOICE METADATA:', pageWidth - 80, infoY);
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text('INVOICE METADATA:', rightColX, currentRightY);
+    currentRightY += 4.8;
+
     doc.setFont('helvetica', 'normal');
-    doc.text(`Invoice No: ${invoiceNo}`, pageWidth - 80, infoY + 5);
-    doc.text(`Invoice Date: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - 80, infoY + 10);
-    doc.text(`Billing Cycle: ${monthLabel}`, pageWidth - 80, infoY + 15);
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Invoice No: ${invoiceNo}`, rightColX, currentRightY, { maxWidth: rightColWidth });
+    currentRightY += 4.2;
+    doc.text(`Invoice Date: ${new Date().toLocaleDateString('en-IN')}`, rightColX, currentRightY);
+    currentRightY += 4.2;
+    doc.text(`Billing Cycle: ${monthLabel}`, rightColX, currentRightY, { maxWidth: rightColWidth });
+    currentRightY += 4.5;
+
+    const tableStartY = Math.max(currentLeftY, currentRightY) + 4;
 
     // Table of All Store Visits
     const bodyRows = cleanings.map((c, idx) => [
@@ -92,7 +130,7 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     ]);
 
     runAutoTable(doc, {
-      startY: infoY + 22,
+      startY: tableStartY,
       head: [['#', 'Store Code', 'Store Name & Cluster', 'Service Date', 'HSN/SAC', 'Amount']],
       body: bodyRows,
       theme: 'grid',
