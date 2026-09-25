@@ -758,7 +758,14 @@ export default function App() {
                     <StoreCard
                       key={cleaning.id}
                       cleaning={cleaning}
-                      onUpdatePayment={(c) => setPaymentCleaning(c)}
+                      isAdmin={currentUserRole === 'admin'}
+                      onUpdatePayment={(c) => {
+                        if (currentUserRole !== 'admin') {
+                          alert('Payment details enter ya update karne ka access sirf Admin ke paas hai.');
+                          return;
+                        }
+                        setPaymentCleaning(c);
+                      }}
                       onOpenPhotos={(c, view = 'grid') => {
                         setPhotoCleaning(c);
                         setPhotoInitialView(view);
@@ -870,6 +877,7 @@ export default function App() {
         onSave={handleSaveCleaning}
         initialData={editingCleaning}
         stores={stores}
+        currentUserRole={currentUserRole}
         onAddNewStore={() => {
           setEditingStore(null);
           setIsStoreModalOpen(true);
@@ -943,6 +951,10 @@ export default function App() {
         onClose={() => setIsCleanerKhataOpen(false)}
         cleaners={cleaners}
         cleanings={cleanings}
+        onOpenCleaners={() => {
+          setIsCleanerKhataOpen(false);
+          setIsCleanerModalOpen(true);
+        }}
       />
 
       <ScheduleCalendarModal

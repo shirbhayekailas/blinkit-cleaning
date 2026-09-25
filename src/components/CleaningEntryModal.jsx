@@ -29,8 +29,10 @@ export default function CleaningEntryModal({
   onSave,
   initialData = null,
   stores = [],
-  onAddNewStore
+  onAddNewStore,
+  currentUserRole = 'admin'
 }) {
+  const isAdmin = currentUserRole === 'admin';
   const [formData, setFormData] = useState({
     storeCode: '',
     storeName: '',
@@ -299,7 +301,32 @@ export default function CleaningEntryModal({
       alert('Please enter Store Code and Store Name!');
       return;
     }
-    onSave(formData);
+
+    const submissionData = { ...formData };
+    // If not admin, strictly protect payment fields from modification
+    if (!isAdmin) {
+      if (initialData) {
+        submissionData.amount = initialData.amount || 0;
+        submissionData.amountReceived = initialData.amountReceived || 0;
+        submissionData.amountPending = initialData.amountPending !== undefined ? initialData.amountPending : (initialData.amount || 0);
+        submissionData.paymentStatus = initialData.paymentStatus || 'Pending';
+        submissionData.paymentMode = initialData.paymentMode || 'UPI';
+        submissionData.utrNumber = initialData.utrNumber || '';
+        submissionData.paymentNotes = initialData.paymentNotes || '';
+      } else {
+        const selectedStore = stores.find(s => s.storeCode === formData.storeCode);
+        const defaultRate = Number(selectedStore?.ratePerCleaning) || 4500;
+        submissionData.amount = defaultRate;
+        submissionData.amountReceived = 0;
+        submissionData.amountPending = defaultRate;
+        submissionData.paymentStatus = 'Pending';
+        submissionData.paymentMode = 'UPI';
+        submissionData.utrNumber = '';
+        submissionData.paymentNotes = '';
+      }
+    }
+
+    onSave(submissionData);
     confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
     onClose();
   };
@@ -684,124 +711,129 @@ export default function CleaningEntryModal({
             </div>
           </div>
 
-          {/* SECTION 4: Payment & Amount Tracking */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-bold">
-              <IndianRupee className="w-4 h-4 text-amber-500" />
-              <span>4. Deep Cleaning Amount & Payment Tracking (Pending / Received)</span>
+          {/* SECTION 4: Payment & Amount Tracking (Strictly Admin Only) */}
+          {isAdmin && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-bold">
+                <IndianRupee className="w-4 h-4 text-amber-500" />
+                <span>4. Deep Cleaning Amount &amp; Payment Tracking (Pending / Received)</span>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                  Admin Only
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Total Cleaning Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    value={formData.amount}
+                    onChange={(e) => handleAmountChange(e.target.value, formData.amountReceived)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-blinkit-green"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Amount Received (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.amountReceived}
+                    onChange={(e) => handleAmountChange(formData.amount, e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-bold text-sm focus:ring-2 focus:ring-blinkit-green"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Amount Pending (₹)
+                  </label>
+                  <input
+                    type="number"
+                    disabled
+                    value={formData.amountPending}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 text-rose-600 dark:text-rose-400 font-black text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Payment Status
+                  </label>
+                  <select
+                    value={formData.paymentStatus}
+                    onChange={(e) => {
+                      const st = e.target.value;
+                      let rec = formData.amountReceived;
+                      let pend = formData.amountPending;
+                      if (st === 'Received') {
+                        rec = formData.amount;
+                        pend = 0;
+                      } else if (st === 'Pending') {
+                        rec = 0;
+                        pend = formData.amount;
+                      }
+                      setFormData({
+                        ...formData,
+                        paymentStatus: st,
+                        amountReceived: rec,
+                        amountPending: pend
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-blinkit-green"
+                  >
+                    <option value="Pending">Pending (Not Paid)</option>
+                    <option value="Received">Received (Full Paid)</option>
+                    <option value="Partial">Partial (Advance / Part Paid)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Payment Mode
+                  </label>
+                  <select
+                    value={formData.paymentMode}
+                    onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
+                  >
+                    <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
+                    <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Cash">Cash</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    UTR / Reference / Trans No.
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. UPI/626491823901/HDFC"
+                    value={formData.utrNumber}
+                    onChange={(e) => setFormData({ ...formData, utrNumber: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-blinkit-green"
+                  />
+                </div>
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Total Cleaning Amount (₹) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => handleAmountChange(e.target.value, formData.amountReceived)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-blinkit-green"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Amount Received (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.amountReceived}
-                  onChange={(e) => handleAmountChange(formData.amount, e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-bold text-sm focus:ring-2 focus:ring-blinkit-green"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Amount Pending (₹)
-                </label>
-                <input
-                  type="number"
-                  disabled
-                  value={formData.amountPending}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 text-rose-600 dark:text-rose-400 font-black text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Payment Status
-                </label>
-                <select
-                  value={formData.paymentStatus}
-                  onChange={(e) => {
-                    const st = e.target.value;
-                    let rec = formData.amountReceived;
-                    let pend = formData.amountPending;
-                    if (st === 'Received') {
-                      rec = formData.amount;
-                      pend = 0;
-                    } else if (st === 'Pending') {
-                      rec = 0;
-                      pend = formData.amount;
-                    }
-                    setFormData({
-                      ...formData,
-                      paymentStatus: st,
-                      amountReceived: rec,
-                      amountPending: pend
-                    });
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-blinkit-green"
-                >
-                  <option value="Pending">Pending (Not Paid)</option>
-                  <option value="Received">Received (Full Paid)</option>
-                  <option value="Partial">Partial (Advance / Part Paid)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Payment Mode
-                </label>
-                <select
-                  value={formData.paymentMode}
-                  onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
-                >
-                  <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
-                  <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Cash">Cash</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  UTR / Reference / Trans No.
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. UPI/626491823901/HDFC"
-                  value={formData.utrNumber}
-                  onChange={(e) => setFormData({ ...formData, utrNumber: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-blinkit-green"
-                />
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* SECTION 5: Photos Proofs (Before / In-Progress / After) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                 <Camera className="w-4 h-4 text-amber-500" />
-                <span>5. Deep Cleaning Photos Proofs ({formData.photos?.length || 0})</span>
+                <span>{isAdmin ? '5.' : '4.'} Deep Cleaning Photos Proofs ({formData.photos?.length || 0})</span>
               </div>
               
               {/* Category tabs */}
@@ -892,7 +924,7 @@ export default function CleaningEntryModal({
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                 <CheckSquare className="w-4 h-4 text-blinkit-green" />
-                <span>6. Vendor Scope of Work (Aapka Deep Cleaning Scope)</span>
+                <span>{isAdmin ? '6.' : '5.'} Vendor Scope of Work (Aapka Deep Cleaning Scope)</span>
               </div>
               <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-300/40">
                 {formData.scopeOfWork?.length || 0} Scope Items Selected
@@ -1110,7 +1142,7 @@ export default function CleaningEntryModal({
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                 <Wrench className="w-4 h-4 text-amber-500" />
-                <span>7. Machinery &amp; Chemical Checklist (Jo Equipment &amp; Chemicals Use Kiye)</span>
+                <span>{isAdmin ? '7.' : '6.'} Machinery &amp; Chemical Checklist (Jo Equipment &amp; Chemicals Use Kiye)</span>
               </div>
               <span className="text-[11px] font-semibold text-slate-400">
                 Audit Compliance &amp; Verification
@@ -1167,7 +1199,7 @@ export default function CleaningEntryModal({
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                 <PenTool className="w-4 h-4 text-indigo-500" />
-                <span>8. Store Manager Digital Signature &amp; Sign-Off</span>
+                <span>{isAdmin ? '8.' : '7.'} Store Manager Digital Signature &amp; Sign-Off</span>
               </div>
               <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-300/40">
                 PDF Certificate me embed hoga

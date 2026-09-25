@@ -20,7 +20,8 @@ export default function CleanerKhataModal({
   isOpen,
   onClose,
   cleaners = [],
-  cleanings = []
+  cleanings = [],
+  onOpenCleaners
 }) {
   const [selectedCleaner, setSelectedCleaner] = useState(null);
   const [isAdvanceFormOpen, setIsAdvanceFormOpen] = useState(false);
@@ -143,9 +144,25 @@ export default function CleanerKhataModal({
               
               {/* Left Column: Cleaners List */}
               <div className="md:col-span-1 space-y-2 border-r border-slate-100 dark:border-slate-800 pr-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  Staff Members ({cleaners.length})
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Staff Members ({cleaners.length})
+                  </span>
+                  {onOpenCleaners && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenCleaners();
+                      }}
+                      className="text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1"
+                      title="Manage Staff Roster / Add Cleaners"
+                    >
+                      <Users className="w-3 h-3" />
+                      <span>+ Manage Staff</span>
+                    </button>
+                  )}
+                </div>
 
                 <div className="space-y-1.5">
                   {cleaners.map(cln => {
@@ -367,8 +384,23 @@ export default function CleanerKhataModal({
 
             </div>
           ) : (
-            <div className="p-8 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-              Abhi tak koi cleaner register nahi kiya gaya hai. Pehle Cleaners modal se staff add karein.
+            <div className="p-8 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+              <Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+              <p className="font-semibold text-slate-600 dark:text-slate-300">
+                Abhi tak koi cleaner register nahi kiya gaya hai.
+              </p>
+              {onOpenCleaners && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenCleaners();
+                  }}
+                  className="mt-2 px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition"
+                >
+                  + Add Cleaners Team
+                </button>
+              )}
             </div>
           )}
 

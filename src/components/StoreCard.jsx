@@ -39,7 +39,8 @@ export default function StoreCard({
   onGenerateInvoice,
   onOpenStoreQR,
   onEdit,
-  onDelete
+  onDelete,
+  isAdmin = true
 }) {
   const checklist = cleaning.checklist || {};
   const checklistTotal = 8;
@@ -445,19 +446,21 @@ export default function StoreCard({
         </div>
 
         {/* Buttons Row 1: Primary Actions */}
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-1 min-w-0">
-          {/* Update Payment Button */}
-          <button
-            onClick={() => onUpdatePayment(cleaning)}
-            className={`px-1.5 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 min-w-0 ${
-              isReceived
-                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200'
-                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-            }`}
-          >
-            <IndianRupee className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-            <span className="truncate">{isReceived ? 'Pay Info' : 'Update Pay'}</span>
-          </button>
+        <div className={`grid ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 sm:gap-2 pt-1 min-w-0`}>
+          {/* Update Payment Button (Strictly Admin Only) */}
+          {isAdmin && (
+            <button
+              onClick={() => onUpdatePayment(cleaning)}
+              className={`px-1.5 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 min-w-0 ${
+                isReceived
+                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+              }`}
+            >
+              <IndianRupee className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+              <span className="truncate">{isReceived ? 'Pay Info' : 'Update Pay'}</span>
+            </button>
+          )}
 
           {/* PDF Report Button */}
           <button
