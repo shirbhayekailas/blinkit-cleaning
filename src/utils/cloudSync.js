@@ -217,12 +217,22 @@ export async function applyRemoteDataToLocalDB(data) {
   if (data.appSettings && typeof data.appSettings === 'object') {
     const s = data.appSettings;
     if (s.vendor_admin_id) localStorage.setItem('vendor_admin_id', s.vendor_admin_id);
-    if (s.vendor_admin_pin) localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
+    if (s.vendor_admin_pin) {
+      localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
+      if (s.vendor_admin_pin !== '1234') {
+        localStorage.setItem('admin_pin_changed', 'true');
+      }
+    }
     if (s.vendor_manager_id) localStorage.setItem('vendor_manager_id', s.vendor_manager_id);
     if (s.vendor_manager_pin) localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
     if (s.vendor_manager_name) localStorage.setItem('vendor_manager_name', s.vendor_manager_name);
     if (s.blinkit_client_id) localStorage.setItem('blinkit_client_id', s.blinkit_client_id);
-    if (s.blinkit_client_pin) localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
+    if (s.blinkit_client_pin) {
+      localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
+      if (s.blinkit_client_pin !== '5678') {
+        localStorage.setItem('client_pin_changed', 'true');
+      }
+    }
     if (s.blinkit_client_name) localStorage.setItem('blinkit_client_name', s.blinkit_client_name);
   }
 }

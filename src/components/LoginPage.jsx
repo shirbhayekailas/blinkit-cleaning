@@ -96,7 +96,7 @@ export default function LoginPage({
       const adminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
       const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
 
-      if (inputId.toLowerCase() === adminId && (inputPass === adminPin || inputPass === '1234')) {
+      if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
         await logUserLogin({
           role: 'admin',
           userName: 'Vendor Admin / Owner',

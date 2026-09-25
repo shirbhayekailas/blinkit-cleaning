@@ -569,9 +569,8 @@ export default function App() {
   // Check if admin is on default PIN and prompt for change
   useEffect(() => {
     if (currentUserRole === 'admin') {
-      const pinChanged = localStorage.getItem('admin_pin_changed') === 'true';
       const currentPin = localStorage.getItem('vendor_admin_pin') || '1234';
-      if (!pinChanged || currentPin === '1234') {
+      if (currentPin === '1234') {
         setChangePasswordConfig({
           role: 'admin',
           user: null,

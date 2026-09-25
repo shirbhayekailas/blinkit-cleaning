@@ -202,7 +202,7 @@ app.post('/api/auth/login', (req, res) => {
     // 1. Vendor Admin / Owner
     const adminId = (settings.vendor_admin_id || 'admin').toLowerCase();
     const adminPin = String(settings.vendor_admin_pin || '1234');
-    if (inputId.toLowerCase() === adminId && (inputPass === adminPin || inputPass === '1234')) {
+    if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
       logAttempt('admin', 'Vendor Admin / Owner', 'Success');
       return res.json({
         success: true,
@@ -217,7 +217,7 @@ app.post('/api/auth/login', (req, res) => {
     const managerId = (settings.vendor_manager_id || 'manager').toLowerCase();
     const managerPin = String(settings.vendor_manager_pin || '1234');
     const managerName = settings.vendor_manager_name || 'Operations Manager';
-    if (inputId.toLowerCase() === managerId && (inputPass === managerPin || inputPass === '1234')) {
+    if (inputId.toLowerCase() === managerId && inputPass === managerPin) {
       logAttempt('manager', managerName, 'Success');
       return res.json({
         success: true,
@@ -232,7 +232,7 @@ app.post('/api/auth/login', (req, res) => {
     const clientId = (settings.blinkit_client_id || 'client').toLowerCase();
     const clientPin = String(settings.blinkit_client_pin || '5678');
     const clientName = settings.blinkit_client_name || 'Blinkit City Operations Head';
-    if (inputId.toLowerCase() === clientId && (inputPass === clientPin || inputPass === '5678')) {
+    if (inputId.toLowerCase() === clientId && inputPass === clientPin) {
       logAttempt('client', clientName, 'Success');
       return res.json({
         success: true,
@@ -252,7 +252,7 @@ app.post('/api/auth/login', (req, res) => {
       )
     );
 
-    if (supervisor && (String(supervisor.pin) === inputPass || (inputPass === '1234' && !supervisor.hasChangedPin))) {
+    if (supervisor && String(supervisor.pin) === inputPass) {
       if (supervisor.active === false) {
         logAttempt('supervisor', supervisor.name, 'Failed', 'Deactivated account attempt');
         return res.status(403).json({
