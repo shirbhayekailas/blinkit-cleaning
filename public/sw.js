@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blinkit-clean-v1';
+const CACHE_NAME = 'blinkit-clean-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -8,7 +8,7 @@ const STATIC_ASSETS = [
   '/icons/icon-maskable.svg'
 ];
 
-// Install Event: Cache app shell
+// Install Event: Cache app shell & skip waiting immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event: Clear older caches
+// Activate Event: Clear all older caches & claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -32,55 +32,55 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Network-first with cache fallback for HTML, Cache-first with network fallback for assets
+// Fetch Event
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // Handle HTML navigation
+  // NEVER intercept or cache API requests (let network handle live database)
+  if (url.pathname.startsWith('/api')) {
+    return;
+  }
+
+  // Handle HTML navigation: Network-first, fallback to cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/index.html') || caches.match('/');
-      })
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/index.html') || caches.match('/');
+        })
     );
     return;
   }
 
-  // Handle static assets (JS, CSS, Images, Fonts)
+  // Handle static assets (JS, CSS, Images, Fonts): Network-first with cache fallback
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch in background to revalidate cache
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse.clone());
-            });
-          }
-        }).catch(() => {/* Offline, ignore */});
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
         return networkResponse;
-      }).catch(() => {
-        // Offline fallback for images
-        if (event.request.headers.get('accept')?.includes('image')) {
-          return caches.match('/icons/icon-192.svg');
-        }
-      });
-    })
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (event.request.headers.get('accept')?.includes('image')) {
+            return caches.match('/icons/icon-192.svg');
+          }
+        });
+      })
   );
 });

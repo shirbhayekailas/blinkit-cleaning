@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { performCloudSync, getApiUrl } from '../utils/cloudSync';
 
 export default function ChangePasswordModal({
   isOpen,
@@ -113,7 +113,7 @@ export default function ChangePasswordModal({
 
       // Sync updated PIN directly to server database
       try {
-        await fetch('/api/auth/change-pin', {
+        await fetch(getApiUrl('/api/auth/change-pin'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

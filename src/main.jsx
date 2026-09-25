@@ -138,6 +138,7 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
+        reg.update().catch(() => {});
         console.log('Blinkit PWA Service Worker registered:', reg.scope);
       })
       .catch((err) => {

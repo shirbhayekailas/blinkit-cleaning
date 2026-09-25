@@ -13,7 +13,7 @@ import {
   Laptop,
   Check
 } from 'lucide-react';
-import { getCloudConfig, saveCloudConfig, performCloudSync } from '../utils/cloudSync';
+import { getCloudConfig, saveCloudConfig, performCloudSync, getApiUrl } from '../utils/cloudSync';
 import { db } from '../db/db';
 
 export default function CloudSyncModal({ isOpen, onClose }) {
@@ -28,7 +28,7 @@ export default function CloudSyncModal({ isOpen, onClose }) {
 
   const checkServer = async () => {
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch(getApiUrl('/api/health'));
       if (res.ok) {
         const data = await res.json();
         setServerHealth(data);

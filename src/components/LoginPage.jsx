@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { db } from '../db/db';
 import { logUserLogin } from '../utils/auditLogger';
-import { applyRemoteDataToLocalDB, performCloudSync } from '../utils/cloudSync';
+import { applyRemoteDataToLocalDB, performCloudSync, getApiUrl } from '../utils/cloudSync';
 
 export default function LoginPage({
   onLoginSuccess,
@@ -58,7 +58,7 @@ export default function LoginPage({
         ? `${/Mobi/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop'} - ${navigator.userAgent.slice(0, 60)}`
         : 'Web Browser';
 
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })

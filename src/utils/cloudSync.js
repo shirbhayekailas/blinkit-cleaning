@@ -1,5 +1,21 @@
 import { db } from '../db/db';
 
+export const LIVE_BACKEND_URL = 'https://blinkit-cleaning-tracker-e9iy.onrender.com';
+
+/**
+ * Returns absolute API endpoint URL when running inside installed PWA, 
+ * static site, or localhost, so all devices always connect to the live backend.
+ */
+export function getApiUrl(endpoint) {
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  if (typeof window !== 'undefined' && window.location) {
+    if (window.location.hostname.includes('blinkit-cleaning-tracker-e9iy.onrender.com')) {
+      return clean;
+    }
+  }
+  return `${LIVE_BACKEND_URL}${clean}`;
+}
+
 const STORAGE_KEY = 'blinkit_cloud_sync_config';
 
 export function getCloudConfig() {
@@ -274,7 +290,7 @@ export async function performCloudSync() {
   // STRATEGY 1: Built-in Server Database (/api/sync)
   // -----------------------------------------------------------------
   try {
-    const res = await fetch('/api/sync', {
+    const res = await fetch(getApiUrl('/api/sync'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ updates: localData })
