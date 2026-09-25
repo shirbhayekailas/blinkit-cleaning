@@ -171,7 +171,7 @@ export default function UserAccessModal({
 
   return (
     <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[92vh] flex flex-col">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
@@ -224,10 +224,10 @@ export default function UserAccessModal({
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
 
           {/* ADMIN, MANAGER & CLIENT SYSTEM ACCOUNTS */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
             {/* Admin Master PIN Card */}
-            <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10 space-y-3">
+            <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10 space-y-3 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -241,7 +241,7 @@ export default function UserAccessModal({
 
                 {isAdminDefault ? (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200">
-                    Default PIN (Change Needed)
+                    Default PIN
                   </span>
                 ) : (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200">
@@ -250,46 +250,49 @@ export default function UserAccessModal({
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-4">
+              {/* Credential & Action Box */}
+              <div className="bg-white dark:bg-slate-800/90 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 shadow-2xs">
+                <div className="flex items-center justify-between gap-2">
                   <div>
                     <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
                     <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
                       {adminId}
                     </span>
                   </div>
-                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-750 hidden sm:block" />
-                  <div>
+
+                  <div className="text-right">
                     <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
-                    <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
-                      {showAdminPin ? adminPin : '••••'}
-                    </span>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
+                        {showAdminPin ? adminPin : '••••'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPin(!showAdminPin)}
+                        title={showAdminPin ? 'Hide PIN' : 'View PIN'}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                      >
+                        {showAdminPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdminPin(!showAdminPin)}
-                    title={showAdminPin ? 'Hide PIN' : 'View PIN'}
-                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
-                  >
-                    {showAdminPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <button
                     type="button"
                     onClick={() => onChangeAdminPin && onChangeAdminPin()}
-                    className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition"
+                    className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1.5 active:scale-98"
                   >
-                    Change PIN
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Change PIN</span>
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Operations Manager PIN Card */}
-            <div className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/20 dark:to-purple-950/10 space-y-3">
+            <div className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/20 dark:to-purple-950/10 space-y-3 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -312,86 +315,96 @@ export default function UserAccessModal({
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              {/* Credential & Action Box */}
+              <div className="bg-white dark:bg-slate-800/90 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 shadow-2xs">
                 {isEditingManagerPin ? (
-                  <div className="flex items-center gap-2 flex-1 mr-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={managerPinVal}
-                      onChange={(e) => setManagerPinVal(e.target.value)}
-                      className="w-24 px-2 py-1 text-sm font-mono border rounded-lg bg-slate-50 dark:bg-slate-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveManagerPin}
-                      className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingManagerPin(false)}
-                      className="p-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold block">Set New PIN (4-6 digits)</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={managerPinVal}
+                        onChange={(e) => setManagerPinVal(e.target.value)}
+                        className="flex-1 px-2.5 py-1 text-sm font-mono border rounded-lg bg-slate-50 dark:bg-slate-900 font-bold text-slate-900 dark:text-white"
+                        placeholder="New PIN"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveManagerPin}
+                        className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
+                        title="Save PIN"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingManagerPin(false)}
+                        className="p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-300 transition"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
-                      <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                        {managerId}
-                      </span>
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
+                        <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                          {managerId}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
+                            {showManagerPin ? managerPin : '••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowManagerPin(!showManagerPin)}
+                            title={showManagerPin ? 'Hide PIN' : 'View PIN'}
+                            className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                          >
+                            {showManagerPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-750 hidden sm:block" />
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
-                      <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
-                        {showManagerPin ? managerPin : '••••'}
-                      </span>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManagerPinVal(managerPin);
+                          setIsEditingManagerPin(true);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1 active:scale-98"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Change PIN</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleShareManagerWhatsApp}
+                        title="Send Manager Login on WhatsApp"
+                        className="p-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition flex items-center gap-1 shrink-0 active:scale-98"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span className="text-[11px]">Share</span>
+                      </button>
                     </div>
-                  </div>
-                )}
-
-                {!isEditingManagerPin && (
-                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={() => setShowManagerPin(!showManagerPin)}
-                      title={showManagerPin ? 'Hide PIN' : 'View PIN'}
-                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
-                    >
-                      {showManagerPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setManagerPinVal(managerPin);
-                        setIsEditingManagerPin(true);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition"
-                    >
-                      Change PIN
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleShareManagerWhatsApp}
-                      title="Send Manager Login on WhatsApp"
-                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
 
             {/* Blinkit Client View PIN Card */}
-            <div className="p-4 rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10 space-y-3">
+            <div className="p-4 rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10 space-y-3 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -407,80 +420,90 @@ export default function UserAccessModal({
                 </span>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              {/* Credential & Action Box */}
+              <div className="bg-white dark:bg-slate-800/90 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 shadow-2xs">
                 {isEditingClientPin ? (
-                  <div className="flex items-center gap-2 flex-1 mr-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={clientPinVal}
-                      onChange={(e) => setClientPinVal(e.target.value)}
-                      className="w-24 px-2 py-1 text-sm font-mono border rounded-lg bg-slate-50 dark:bg-slate-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveClientPin}
-                      className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingClientPin(false)}
-                      className="p-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold block">Set New PIN (4-6 digits)</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={clientPinVal}
+                        onChange={(e) => setClientPinVal(e.target.value)}
+                        className="flex-1 px-2.5 py-1 text-sm font-mono border rounded-lg bg-slate-50 dark:bg-slate-900 font-bold text-slate-900 dark:text-white"
+                        placeholder="New PIN"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveClientPin}
+                        className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
+                        title="Save PIN"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingClientPin(false)}
+                        className="p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-300 transition"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
-                      <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                        {clientId}
-                      </span>
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Login ID</span>
+                        <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                          {clientId}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
+                            {showClientPin ? clientPin : '••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowClientPin(!showClientPin)}
+                            title={showClientPin ? 'Hide PIN' : 'View PIN'}
+                            className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                          >
+                            {showClientPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-750 hidden sm:block" />
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Password (PIN)</span>
-                      <span className="font-mono text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-widest">
-                        {showClientPin ? clientPin : '••••'}
-                      </span>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClientPinVal(clientPin);
+                          setIsEditingClientPin(true);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs transition flex items-center justify-center gap-1 active:scale-98"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Change PIN</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleShareClientWhatsApp}
+                        title="Send Client Portal Login on WhatsApp"
+                        className="p-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition flex items-center gap-1 shrink-0 active:scale-98"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span className="text-[11px]">Share</span>
+                      </button>
                     </div>
-                  </div>
-                )}
-
-                {!isEditingClientPin && (
-                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={() => setShowClientPin(!showClientPin)}
-                      title={showClientPin ? 'Hide PIN' : 'View PIN'}
-                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition"
-                    >
-                      {showClientPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClientPinVal(clientPin);
-                        setIsEditingClientPin(true);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition"
-                    >
-                      Change PIN
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleShareClientWhatsApp}
-                      title="Send Client Portal Login on WhatsApp"
-                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -515,10 +538,10 @@ export default function UserAccessModal({
                 <button
                   type="button"
                   onClick={() => onOpenAddSupervisor && onOpenAddSupervisor()}
-                  className="px-3 py-1.5 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-xs shadow-xs transition flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 shrink-0"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Supervisor</span>
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Add Supervisor</span>
                 </button>
               </div>
             </div>
