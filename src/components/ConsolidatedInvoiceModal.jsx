@@ -26,17 +26,19 @@ export default function ConsolidatedInvoiceModal({
     monthLabel: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) + ' Deep Cleaning Cycle'
   });
 
-  const [vendorProfile, setVendorProfile] = useState({
-    companyName: 'My Deep Cleaning Services',
-    phone: '+91 98765 43210',
-    email: 'billing@mycleaningservices.com',
-    address: 'Industrial Area, Phase 2, New Delhi',
-    gstin: '07AAAAA0000A1Z5',
+  const DEFAULT_SK_PROFILE = {
+    companyName: 'SK ENTERPRISES',
+    phone: '09594023629',
+    email: 'skenterprises.clean@gmail.com',
+    address: '303, Panchsheel Chs Ltd., Plot No. 07, Sector -2, Taloja Phase -01, Navi Mumbai - 410208',
+    gstin: '27OQCPS0083R1ZU',
     bankName: 'HDFC Bank',
     accountNumber: '50200012345678',
     ifsc: 'HDFC0001234',
     upiId: 'cleanpro@hdfcbank'
-  });
+  };
+
+  const [vendorProfile, setVendorProfile] = useState(DEFAULT_SK_PROFILE);
 
   // Filter cleanings by selected month
   const monthCleanings = cleanings.filter(c => (c.cleaningDate || '').startsWith(selectedMonth));
@@ -50,7 +52,21 @@ export default function ConsolidatedInvoiceModal({
     try {
       const saved = localStorage.getItem('vendor_invoice_profile');
       if (saved) {
-        setVendorProfile(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (!parsed.companyName || parsed.companyName === 'My Deep Cleaning Services' || parsed.companyName === 'CleanPro Facilities Pvt Ltd') {
+          setVendorProfile({
+            ...DEFAULT_SK_PROFILE,
+            ...parsed,
+            companyName: 'SK ENTERPRISES',
+            phone: parsed.phone || '09594023629',
+            address: parsed.address || DEFAULT_SK_PROFILE.address,
+            gstin: parsed.gstin || '27OQCPS0083R1ZU'
+          });
+        } else {
+          setVendorProfile({ ...DEFAULT_SK_PROFILE, ...parsed });
+        }
+      } else {
+        setVendorProfile(DEFAULT_SK_PROFILE);
       }
     } catch (e) {
       console.warn('Profile read notice', e);

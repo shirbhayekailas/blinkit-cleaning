@@ -29,34 +29,72 @@ export function generateHygieneCertificate(cleaning) {
   doc.circle(12, height - 12, 3, 'F');
   doc.circle(width - 12, height - 12, 3, 'F');
 
-  // Top Brand Header Banner
-  doc.setFillColor(12, 131, 31); // Blinkit Green
-  doc.rect(20, 18, width - 40, 22, 'F');
+  // Top Brand Header Banner: SK ENTERPRISES
+  doc.setFillColor(15, 23, 42); // Dark Navy
+  doc.rect(20, 16, width - 40, 24, 'F');
+  doc.setFillColor(12, 131, 31); // Green Accent
+  doc.rect(20, 40, width - 40, 1.5, 'F');
 
-  doc.setTextColor(255, 255, 255);
+  // SK Logo Crest inside Header Banner
+  doc.setFillColor(30, 41, 59);
+  doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'F');
+  doc.setDrawColor(245, 158, 11);
+  doc.setLineWidth(0.7);
+  doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'S');
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('CERTIFICATE OF DEEP CLEANING & HYGIENE COMPLIANCE', width / 2, 28, { align: 'center' });
+  doc.setFontSize(12.5);
+  doc.setTextColor(248, 203, 70); // Gold
+  doc.text('SK', 34.5, 29.5, { align: 'center' });
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(4.5);
+  doc.setTextColor(203, 213, 225);
+  doc.text('FACILITY', 34.5, 34, { align: 'center' });
+
+  // Company Name & Address
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
   doc.setTextColor(248, 203, 70);
-  doc.text('BLINKIT DARK STORE FACILITY OPERATIONS - FOOD SAFETY AUDIT VERIFICATION', width / 2, 35, { align: 'center' });
+  doc.text('SK ENTERPRISES', 47, 25);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(226, 232, 240);
+  doc.text('303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai - 410208 | Ph: 09594023629', 47, 31);
+  doc.setFontSize(6.8);
+  doc.setTextColor(203, 213, 225);
+  doc.text('GSTIN: 27OQCPS0083R1ZU   |   State: Maharashtra (27)', 47, 36);
+
+  // Right Side: Certificate Title & Blinkit Dark Store Callout
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text('CERTIFICATE OF DEEP CLEANING & HYGIENE COMPLIANCE', width - 26, 24, { align: 'right' });
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(52, 211, 153);
+  doc.text('IN PARTNERSHIP WITH BLINKIT QUICK COMMERCE DARK STORE OPERATIONS', width - 26, 30, { align: 'right' });
 
   // Main Certificate Body
   doc.setTextColor(30, 41, 59);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.text('This is to officially certify that the following Blinkit Quick Commerce Dark Store:', width / 2, 53, { align: 'center' });
+  doc.setFontSize(10.5);
+  doc.text('This is to officially certify that the following Blinkit Quick Commerce Dark Store has been comprehensively deep cleaned by:', width / 2, 49, { align: 'center' });
+
+  // Vendor Callout
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11.5);
+  doc.setTextColor(217, 119, 6); // Amber
+  doc.text('SK ENTERPRISES (AUTHORIZED FACILITY MANAGEMENT VENDOR)', width / 2, 55, { align: 'center' });
 
   // Store Name & Code Callout
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setTextColor(12, 131, 31);
   doc.text(`${cleaning.storeName || 'Blinkit Dark Store'} (${cleaning.storeCode || 'BLK'})`, width / 2, 65, { align: 'center', maxWidth: width - 50 });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
   const fullAddress = `${cleaning.address || 'Standard Dark Store Facility'}${cleaning.city ? `, ${cleaning.city}` : ''}`;
   doc.text(fullAddress, width / 2, 72, { align: 'center', maxWidth: width - 60 });
@@ -151,7 +189,7 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('Certified Site Supervisor', 66, sigY + 9, { align: 'center' });
+  doc.text('Certified Site Supervisor - SK ENTERPRISES', 66, sigY + 9, { align: 'center' });
 
   // Center: Official Stamp Box
   const stampW = 60;
@@ -171,16 +209,16 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(12, 131, 31);
-  doc.text('BLINKIT VENDOR OPS', width / 2, stampY + 6.5, { align: 'center' });
+  doc.text('SK ENTERPRISES', width / 2, stampY + 6.5, { align: 'center' });
 
   doc.setFontSize(7.5);
   doc.setTextColor(180, 83, 9);
   doc.text('AUDIT VERIFIED & APPROVED', width / 2, stampY + 12, { align: 'center' });
 
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  doc.text(`ID: ${cleaning.storeCode || 'BLK'}-${cleanDate.replace(/-/g, '')}`, width / 2, stampY + 17.5, { align: 'center' });
+  doc.text(`Navi Mumbai | Ref: ${cleaning.storeCode || 'BLK'}-${cleanDate.replace(/-/g, '')}`, width / 2, stampY + 17.5, { align: 'center' });
 
   // Right: Operations Head
   doc.setDrawColor(148, 163, 184);
@@ -193,7 +231,7 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('Facility Management Division', width - 66, sigY + 9, { align: 'center' });
+  doc.text('SK ENTERPRISES (Facility Management)', width - 66, sigY + 9, { align: 'center' });
 
   // Save PDF
   doc.save(`Blinkit_${cleaning.storeCode || 'Store'}_Hygiene_Certificate.pdf`);

@@ -29,32 +29,75 @@ export function generateCleaningPDF(cleaning) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Header Background Banner
-    doc.setFillColor(248, 203, 70); // Blinkit Yellow
-    doc.rect(0, 0, pageWidth, 28, 'F');
+    // =============================================================
+    // OFFICIAL SK ENTERPRISES LETTERHEAD HEADER
+    // =============================================================
+    const bannerHeight = 36;
+    doc.setFillColor(15, 23, 42); // Dark Navy
+    doc.rect(0, 0, pageWidth, bannerHeight, 'F');
     
+    // Accent line at bottom of header banner
     doc.setFillColor(12, 131, 31); // Blinkit Green Accent
-    doc.rect(0, 28, pageWidth, 4, 'F');
+    doc.rect(0, bannerHeight, pageWidth, 2.5, 'F');
 
-    // Header Title
-    doc.setTextColor(17, 24, 39);
+    // SK ENTERPRISES Logo Crest / Emblem
+    const logoX = 14;
+    const logoY = 6.5;
+    const logoSize = 17;
+    doc.setFillColor(30, 41, 59); // Slate-800
+    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F');
+    doc.setDrawColor(245, 158, 11); // Amber-500 gold border
+    doc.setLineWidth(0.8);
+    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'S');
+
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('blinkit', 14, 18);
-    
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'normal');
-    doc.text('|  STORE DEEP CLEANING COMPLETION CERTIFICATE', 42, 17);
+    doc.setFontSize(12.5);
+    doc.setTextColor(248, 203, 70); // Gold
+    doc.text('SK', logoX + (logoSize / 2), logoY + 10.5, { align: 'center' });
 
-    // Document Metadata
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Doc Ref: DC-${cleaning.storeCode || 'BLK'}-${cleaning.cleaningDate || 'DATE'}`, 14, 38);
-    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, pageWidth - 14, 38, { align: 'right' });
+    doc.setFontSize(4.5);
+    doc.setTextColor(203, 213, 225);
+    doc.text('FACILITY', logoX + (logoSize / 2), logoY + 14.8, { align: 'center' });
+
+    // Company Name & Subtitle
+    const titleX = logoX + logoSize + 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(248, 203, 70); // Gold
+    doc.text('SK ENTERPRISES', titleX, 13.5);
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(148, 163, 184); // Slate-400
+    doc.text('FACILITY MANAGEMENT & COMMERCIAL DEEP CLEANING SERVICES', titleX, 18.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(226, 232, 240);
+    doc.text('303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai - 410208 | Ph: 09594023629', titleX, 24);
+    doc.setFontSize(6.5);
+    doc.setTextColor(203, 213, 225);
+    doc.text('GSTIN: 27OQCPS0083R1ZU   |   State: Maharashtra (27)', titleX, 29);
+
+    // Header Right: Document Title & Blinkit Dark Store Callout
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('STORE DEEP CLEANING COMPLETION REPORT', pageWidth - 14, 12.5, { align: 'right' });
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(248, 203, 70); // Yellow
+    doc.text('AUTHORIZED BLINKIT QUICK COMMERCE VENDOR', pageWidth - 14, 18, { align: 'right' });
+
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(203, 213, 225);
+    doc.text(`Doc Ref: DC-${cleaning.storeCode || 'BLK'}-${cleaning.cleaningDate || 'DATE'}`, pageWidth - 14, 24, { align: 'right' });
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, pageWidth - 14, 29, { align: 'right' });
 
     // Store & Audit Details Table
     runAutoTable(doc, {
-      startY: 42,
+      startY: bannerHeight + 5,
       head: [['Field / Parameter', 'Store & Cleaning Details']],
       body: [
         ['Store Code & Name', `${cleaning.storeCode || ''} - ${cleaning.storeName || ''}`],
@@ -63,14 +106,14 @@ export function generateCleaningPDF(cleaning) {
         ['Google Maps Location', cleaning.googleMapsUrl || 'Available in System Tracker'],
         ['Cleaning Date & Shift', `${cleaning.cleaningDate || ''}  |  ${cleaning.shift || 'Regular'}`],
         ['Cleaning Timings', `Start: ${cleaning.startTime || '--'}  |  End: ${cleaning.endTime || '--'}  (Duration: ${cleaning.durationHours || '0'} hrs)`],
-        ['Service Agency / Vendor', cleaning.teamVendor || 'In-House / Direct Team'],
+        ['Service Agency / Vendor', 'SK ENTERPRISES (Authorized Deep Cleaning Vendor)'],
         ['Supervisor on Site', `${cleaning.supervisorName || 'N/A'} (${cleaning.supervisorPhone || 'N/A'})`],
         ['Cleaning Team Members', `${cleaning.teamMembers || 'N/A'} (Headcount: ${cleaning.headcount || 1})`],
         ['Cleaning Status', `${(cleaning.status || 'COMPLETED').toUpperCase()}  (Rating: ${cleaning.rating || 5}/5 Stars)`]
       ],
       theme: 'grid',
       headStyles: { fillColor: [12, 131, 31], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 2.5 },
+      styles: { fontSize: 8.5, cellPadding: 2.2 },
       columnStyles: {
         0: { cellWidth: 55, fontStyle: 'bold', textColor: [51, 65, 85] },
         1: { cellWidth: 'auto' }
@@ -160,8 +203,8 @@ export function generateCleaningPDF(cleaning) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`Supervisor: ${cleaning.supervisorName || 'Vendor Supervisor'}`, 14, sigBoxY + 16);
-    doc.text('Cleaning Vendor Representative', 14, sigBoxY + 20);
+    doc.text(`Supervisor: ${cleaning.supervisorName || 'Site Supervisor'}`, 14, sigBoxY + 16);
+    doc.text('For SK ENTERPRISES (Field Operations)', 14, sigBoxY + 20);
 
     // Store Manager Sign Box with Digital Signature Image
     if (cleaning.managerSignature) {

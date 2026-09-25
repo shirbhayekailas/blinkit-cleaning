@@ -55,7 +55,7 @@ export default function CleaningEntryModal({
     startTime: '01:00',
     endTime: '05:30',
     durationHours: '4.5',
-    teamVendor: 'CleanPro Facilities Pvt Ltd',
+    teamVendor: 'SK ENTERPRISES',
     supervisorName: '',
     supervisorPhone: '',
     teamMembers: '',
@@ -252,7 +252,7 @@ export default function CleaningEntryModal({
       });
     } else {
       // Reset form
-      const savedVendor = localStorage.getItem('vendor_company_name') || 'My Deep Cleaning Services';
+      const savedVendor = localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES';
       setFormData({
         storeCode: 'BLK-',
         storeName: '',

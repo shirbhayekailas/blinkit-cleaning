@@ -22,11 +22,11 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const margin = 14;
     const contentWidth = pageWidth - (margin * 2); // 182 mm
 
-    const vendorName = vendorProfile.companyName || cleaning.teamVendor || 'CleanPro Facilities Pvt Ltd';
-    const vendorPhone = vendorProfile.phone || cleaning.supervisorPhone || '+91 98765 43210';
-    const vendorEmail = vendorProfile.email || '';
-    const vendorAddress = vendorProfile.address || 'Industrial Area, Phase 2, New Delhi';
-    const vendorGst = vendorProfile.gstin || vendorProfile.pan || '07AAAAA0000A1Z5';
+    const vendorName = vendorProfile.companyName || cleaning.teamVendor || 'SK ENTERPRISES';
+    const vendorPhone = vendorProfile.phone || '09594023629';
+    const vendorEmail = vendorProfile.email || 'skenterprises.clean@gmail.com';
+    const vendorAddress = vendorProfile.address || '303, Panchsheel Chs Ltd., Plot No. 07, Sector -2, Taloja Phase -01, Navi Mumbai - 410208';
+    const vendorGst = vendorProfile.gstin || vendorProfile.pan || '27OQCPS0083R1ZU';
     const bankName = vendorProfile.bankName || 'HDFC Bank';
     const bankAcc = vendorProfile.accountNumber || '50200012345678';
     const ifsc = vendorProfile.ifsc || 'HDFC0001234';
@@ -35,41 +35,77 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const cleanDateStr = cleaning.cleaningDate ? String(cleaning.cleaningDate).replace(/-/g, '') : new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const invoiceNo = `INV-${cleaning.storeCode || 'BLK'}-${cleanDateStr}`;
 
-    // Top Header Banner
-    const bannerHeight = 35;
-    doc.setFillColor(15, 23, 42); // Dark Navy
+    // =============================================================
+    // OFFICIAL SK ENTERPRISES LETTERHEAD HEADER
+    // =============================================================
+    const bannerHeight = 39;
+    doc.setFillColor(15, 23, 42); // Dark Slate / Navy
     doc.rect(0, 0, pageWidth, bannerHeight, 'F');
 
     // Accent line at bottom of header banner
     doc.setFillColor(12, 131, 31); // Blinkit Green Accent
-    doc.rect(0, bannerHeight, pageWidth, 2, 'F');
+    doc.rect(0, bannerHeight, pageWidth, 2.5, 'F');
 
-    // Vendor Name
-    doc.setTextColor(248, 203, 70); // Blinkit Yellow
+    // SK ENTERPRISES Company Logo Crest / Emblem
+    const logoX = margin;
+    const logoY = 7;
+    const logoSize = 18;
+    doc.setFillColor(30, 41, 59); // Slate-800
+    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F');
+    doc.setDrawColor(245, 158, 11); // Amber-500 gold border
+    doc.setLineWidth(0.8);
+    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(248, 203, 70); // Gold
+    doc.text('SK', logoX + (logoSize / 2), logoY + 11, { align: 'center' });
+
+    doc.setFontSize(5);
+    doc.setTextColor(203, 213, 225);
+    doc.text('FACILITY', logoX + (logoSize / 2), logoY + 15.5, { align: 'center' });
+
+    // Company Name & Tagline
+    const titleX = logoX + logoSize + 4;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(vendorName.toUpperCase(), margin, 14, { maxWidth: 120 });
+    doc.setTextColor(248, 203, 70); // Gold
+    doc.text('SK ENTERPRISES', titleX, 14);
 
-    // Header Right: Title
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(148, 163, 184); // Slate-400
+    doc.text('FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS', titleX, 19);
+
+    // Header Right: Document Title & Tax Tag
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
-    doc.text('TAX INVOICE / BILL', pageWidth - margin, 14, { align: 'right' });
+    doc.text('TAX INVOICE / BILL', pageWidth - margin, 13, { align: 'right' });
 
-    // Vendor Address with wrapping so it never cuts off
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
+    doc.setTextColor(52, 211, 153); // Emerald-400
+    doc.text('GST REG: 27OQCPS0083R1ZU', pageWidth - margin, 18, { align: 'right' });
+
+    // Letterhead Address & Contact Bar (Cleanly wrapped inside banner)
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(226, 232, 240);
+    doc.text(
+      '303, Panchsheel Chs Ltd., Plot No. 07, Sector -2, Taloja Phase -01, Navi Mumbai - 410208',
+      margin,
+      28,
+      { maxWidth: contentWidth }
+    );
 
-    const vendorAddressLines = doc.splitTextToSize(vendorAddress, contentWidth);
-    doc.text(vendorAddressLines, margin, 21);
-
-    const addressOffset = vendorAddressLines.length * 3.8;
-    const detailsY = Math.min(21 + addressOffset, bannerHeight - 4);
-    
-    let contactLine = `Ph: ${vendorPhone}   |   GSTIN / PAN: ${vendorGst}`;
-    if (vendorEmail) contactLine += `   |   Email: ${vendorEmail}`;
-    doc.text(contactLine, margin, detailsY, { maxWidth: contentWidth });
+    doc.setFontSize(7);
+    doc.setTextColor(203, 213, 225);
+    doc.text(
+      `Ph: ${vendorPhone}   |   GSTIN / PAN: ${vendorGst}   |   State: Maharashtra (Code: 27)${vendorEmail ? `   |   Email: ${vendorEmail}` : ''}`,
+      margin,
+      34,
+      { maxWidth: contentWidth }
+    );
 
     // -------------------------------------------------------------
     // Invoice Meta & Client Info (Two Clean, Non-Overlapping Columns)

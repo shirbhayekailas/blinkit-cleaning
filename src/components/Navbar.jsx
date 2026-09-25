@@ -27,7 +27,8 @@ import {
   Menu,
   X,
   Layers,
-  ChevronRight
+  ChevronRight,
+  MapPin
 } from 'lucide-react';
 
 export default function Navbar({
@@ -87,22 +88,24 @@ export default function Navbar({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
             
-            {/* Logo & Brand */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blinkit-yellow text-slate-950 font-black text-lg sm:text-xl shadow-xs border border-amber-300">
-                b
+            {/* Logo & Brand: SK ENTERPRISES + Blinkit Partner */}
+            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 text-amber-400 font-black text-base sm:text-lg shadow-md border-2 border-amber-400/80 shrink-0">
+                SK
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">
-                    blink<span className="text-blinkit-green">it</span>
+                  <span className="font-black text-sm sm:text-base tracking-tight text-slate-900 dark:text-white">
+                    SK ENTERPRISES
                   </span>
-                  <span className="hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300/40">
-                    DEEP CLEANING
+                  <span className="hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/60 items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                    <span>Blinkit Facility Partner</span>
                   </span>
                 </div>
-                <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 -mt-0.5 hidden sm:block truncate">
-                  Dark Store Hygiene, Timings &amp; Payment Tracker
+                <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 -mt-0.5 truncate flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-amber-500 shrink-0 hidden sm:inline" />
+                  <span>303, Sector-2, Taloja Phase-1, Navi Mumbai | 📞 09594023629</span>
                 </p>
               </div>
             </div>

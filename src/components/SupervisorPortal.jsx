@@ -270,7 +270,7 @@ export default function SupervisorPortal({
       startTime: stTime,
       endTime: enTime,
       durationHours: durHours,
-      teamVendor: localStorage.getItem('vendor_company_name') || 'CleanPro Facilities Pvt Ltd',
+      teamVendor: localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES',
       supervisorId: supervisor.id,
       supervisorName: supervisor.name,
       supervisorPhone: supervisor.phone,
