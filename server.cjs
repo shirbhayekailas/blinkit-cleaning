@@ -30,6 +30,8 @@ const DEFAULT_DB = {
   cleanerAdvances: [],
   storeIssues: [],
   loginLogs: [],
+  deletedStores: [],
+  deletedCleanings: [],
   appSettings: {
     vendor_admin_id: 'admin',
     vendor_admin_pin: '1234',
@@ -75,20 +77,63 @@ if (!fs.existsSync(DB_FILE)) {
 // INTELLIGENT RECORD MERGE HELPERS (Prevents ID collisions)
 // -------------------------------------------------------------
 
-function mergeCleanings(existing = [], incoming = []) {
+function isCleaningDeleted(c, deletedCleanings = []) {
+  if (!c || !deletedCleanings || deletedCleanings.length === 0) return false;
+  const cSyncId = c.syncId ? String(c.syncId) : null;
+  const cStoreCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
+  const cDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
+  const cId = c.id ? String(c.id) : null;
+
+  return deletedCleanings.some(d => {
+    if (!d) return false;
+    if (typeof d === 'string') {
+      if (cSyncId && d === cSyncId) return true;
+      if (cStoreCode && cDate && d === `${cStoreCode}_${cDate}`) return true;
+      if (cId && d === `id_${cId}`) return true;
+      return false;
+    }
+    if (d.syncId && cSyncId && String(d.syncId) === cSyncId) return true;
+    if (d.key) {
+      if (cSyncId && d.key === cSyncId) return true;
+      if (cStoreCode && cDate && d.key === `${cStoreCode}_${cDate}`) return true;
+      if (cId && d.key === `id_${cId}`) return true;
+    }
+    if (d.storeCode && d.cleaningDate && cStoreCode && cDate) {
+      if (String(d.storeCode).trim().toUpperCase() === cStoreCode && String(d.cleaningDate).trim() === cDate) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+function isStoreDeleted(s, deletedStores = []) {
+  if (!s || !deletedStores || deletedStores.length === 0) return false;
+  const code = (s.storeCode || '').trim().toUpperCase();
+  if (!code) return false;
+  return deletedStores.some(d => {
+    if (!d) return false;
+    const delCode = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
+    return delCode === code;
+  });
+}
+
+function mergeCleanings(existing = [], incoming = [], deletedCleanings = []) {
   const map = new Map();
   const getKey = (c) => {
     if (!c) return null;
     if (c.syncId) return String(c.syncId);
-    if (c.storeCode && c.cleaningDate) return `${c.storeCode}_${c.cleaningDate}`;
+    if (c.storeCode && c.cleaningDate) return `${String(c.storeCode).trim().toUpperCase()}_${String(c.cleaningDate).trim()}`;
     return c.id ? `id_${c.id}` : null;
   };
 
   for (const c of existing) {
+    if (isCleaningDeleted(c, deletedCleanings)) continue;
     const key = getKey(c);
     if (key) map.set(key, c);
   }
   for (const c of incoming) {
+    if (isCleaningDeleted(c, deletedCleanings)) continue;
     const key = getKey(c);
     if (!key) continue;
     const old = map.get(key);
@@ -105,12 +150,14 @@ function mergeCleanings(existing = [], incoming = []) {
   return Array.from(map.values());
 }
 
-function mergeStores(existing = [], incoming = []) {
+function mergeStores(existing = [], incoming = [], deletedStores = []) {
   const map = new Map();
   for (const s of existing) {
+    if (isStoreDeleted(s, deletedStores)) continue;
     if (s && s.storeCode) map.set(s.storeCode.trim().toUpperCase(), s);
   }
   for (const s of incoming) {
+    if (isStoreDeleted(s, deletedStores)) continue;
     if (!s || !s.storeCode) continue;
     const code = s.storeCode.trim().toUpperCase();
     const old = map.get(code);
@@ -321,14 +368,68 @@ app.post('/api/auth/change-pin', (req, res) => {
   }
 });
 
+app.post('/api/cleanings/delete', (req, res) => {
+  try {
+    const { id, syncId, storeCode, cleaningDate } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
+
+    const cleanCode = storeCode ? String(storeCode).trim().toUpperCase() : null;
+    const cleanDate = cleaningDate ? String(cleaningDate).trim() : null;
+    const key = syncId ? String(syncId) : (cleanCode && cleanDate ? `${cleanCode}_${cleanDate}` : (id ? `id_${id}` : null));
+
+    // Remove matching cleaning(s) from currentDB.cleanings
+    const beforeCount = (currentDB.cleanings || []).length;
+    currentDB.cleanings = (currentDB.cleanings || []).filter(c => {
+      if (!c) return false;
+      if (id && c.id && String(c.id) === String(id)) return false;
+      if (syncId && c.syncId && String(c.syncId) === String(syncId)) return false;
+      if (cleanCode && cleanDate && String(c.storeCode).trim().toUpperCase() === cleanCode && String(c.cleaningDate).trim() === cleanDate) return false;
+      return true;
+    });
+
+    const deletedCount = beforeCount - currentDB.cleanings.length;
+
+    // Add tombstone
+    if (key) {
+      currentDB.deletedCleanings.push({
+        key,
+        storeCode: cleanCode,
+        cleaningDate: cleanDate,
+        syncId: syncId || null,
+        id: id || null,
+        deletedAt: new Date().toISOString()
+      });
+      if (currentDB.deletedCleanings.length > 500) {
+        currentDB.deletedCleanings = currentDB.deletedCleanings.slice(-500);
+      }
+    }
+
+    writeDB(currentDB);
+
+    res.json({
+      success: true,
+      deletedCount,
+      message: 'Cleaning record successfully deleted from server database.',
+      cleanings: currentDB.cleanings,
+      deletedCleanings: currentDB.deletedCleanings
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete cleaning error: ' + err.message });
+  }
+});
+
 app.post('/api/stores/delete', (req, res) => {
   try {
-    const { storeCode } = req.body || {};
+    const { storeCode, deleteCleanings } = req.body || {};
     if (!storeCode) {
       return res.status(400).json({ success: false, message: 'Store code zaroori hai.' });
     }
 
     const currentDB = readDB();
+    if (!currentDB.deletedStores) currentDB.deletedStores = [];
+    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
+
     const cleanCode = String(storeCode).trim().toUpperCase();
 
     // Check if store has any cleaning records on server
@@ -336,7 +437,7 @@ app.post('/api/stores/delete', (req, res) => {
       c => c && String(c.storeCode).trim().toUpperCase() === cleanCode
     );
 
-    if (relatedCleanings.length > 0) {
+    if (relatedCleanings.length > 0 && !deleteCleanings) {
       return res.status(400).json({
         success: false,
         hasCleanings: true,
@@ -345,17 +446,47 @@ app.post('/api/stores/delete', (req, res) => {
       });
     }
 
+    // If deleteCleanings is requested, also remove and tombstone all its cleanings
+    if (deleteCleanings && relatedCleanings.length > 0) {
+      for (const c of relatedCleanings) {
+        const cKey = c.syncId ? String(c.syncId) : (c.cleaningDate ? `${cleanCode}_${c.cleaningDate}` : `id_${c.id}`);
+        currentDB.deletedCleanings.push({
+          key: cKey,
+          storeCode: cleanCode,
+          cleaningDate: c.cleaningDate,
+          syncId: c.syncId,
+          id: c.id,
+          deletedAt: new Date().toISOString()
+        });
+      }
+      currentDB.cleanings = (currentDB.cleanings || []).filter(
+        c => !c || String(c.storeCode).trim().toUpperCase() !== cleanCode
+      );
+    }
+
     // Permanently remove store from server database
     currentDB.stores = (currentDB.stores || []).filter(
       s => s && String(s.storeCode).trim().toUpperCase() !== cleanCode
     );
+
+    // Add tombstone for store
+    currentDB.deletedStores.push({
+      storeCode: cleanCode,
+      deletedAt: new Date().toISOString()
+    });
+    if (currentDB.deletedStores.length > 500) {
+      currentDB.deletedStores = currentDB.deletedStores.slice(-500);
+    }
 
     writeDB(currentDB);
 
     res.json({
       success: true,
       message: `Store ${cleanCode} successfully deleted from server database.`,
-      stores: currentDB.stores
+      stores: currentDB.stores,
+      cleanings: currentDB.cleanings,
+      deletedStores: currentDB.deletedStores,
+      deletedCleanings: currentDB.deletedCleanings
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server delete store error: ' + err.message });
@@ -399,9 +530,11 @@ app.post('/api/sync', (req, res) => {
     const clientPayload = req.body || {};
     const updates = clientPayload.updates || clientPayload.data || {};
     const currentDB = readDB();
+    if (!currentDB.deletedStores) currentDB.deletedStores = [];
+    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
 
-    const mergedCleanings = mergeCleanings(currentDB.cleanings, updates.cleanings || []);
-    const mergedStores = mergeStores(currentDB.stores, updates.stores || []);
+    const mergedCleanings = mergeCleanings(currentDB.cleanings, updates.cleanings || [], currentDB.deletedCleanings);
+    const mergedStores = mergeStores(currentDB.stores, updates.stores || [], currentDB.deletedStores);
     const mergedSupervisors = mergeSupervisors(currentDB.supervisors, updates.supervisors || []);
 
     const mergedCleaners = mergeGeneric(

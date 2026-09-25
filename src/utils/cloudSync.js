@@ -16,6 +16,42 @@ export function getApiUrl(endpoint) {
   return `${LIVE_BACKEND_URL}${clean}`;
 }
 
+export async function deleteCleaningOnServer(cleaning) {
+  try {
+    const res = await fetch(getApiUrl('/api/cleanings/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: cleaning.id,
+        syncId: cleaning.syncId,
+        storeCode: cleaning.storeCode,
+        cleaningDate: cleaning.cleaningDate
+      })
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('deleteCleaningOnServer error:', err);
+    return null;
+  }
+}
+
+export async function deleteStoreOnServer(storeCode, deleteCleanings = false) {
+  try {
+    const res = await fetch(getApiUrl('/api/stores/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeCode,
+        deleteCleanings
+      })
+    });
+    return await res.json().catch(() => ({}));
+  } catch (err) {
+    console.warn('deleteStoreOnServer error:', err);
+    return null;
+  }
+}
+
 const STORAGE_KEY = 'blinkit_cloud_sync_config';
 
 export function getCloudConfig() {
@@ -83,6 +119,36 @@ function toCamelCase(obj) {
   return res;
 }
 
+export function isCleaningDeleted(c, deletedCleanings = []) {
+  if (!c || !deletedCleanings || deletedCleanings.length === 0) return false;
+  const cSyncId = c.syncId ? String(c.syncId) : null;
+  const cStoreCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
+  const cDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
+  const cId = c.id ? String(c.id) : null;
+
+  return deletedCleanings.some(d => {
+    if (!d) return false;
+    if (typeof d === 'string') {
+      if (cSyncId && d === cSyncId) return true;
+      if (cStoreCode && cDate && d === `${cStoreCode}_${cDate}`) return true;
+      if (cId && d === `id_${cId}`) return true;
+      return false;
+    }
+    if (d.syncId && cSyncId && String(d.syncId) === cSyncId) return true;
+    if (d.key) {
+      if (cSyncId && d.key === cSyncId) return true;
+      if (cStoreCode && cDate && d.key === `${cStoreCode}_${cDate}`) return true;
+      if (cId && d.key === `id_${cId}`) return true;
+    }
+    if (d.storeCode && d.cleaningDate && cStoreCode && cDate) {
+      if (String(d.storeCode).trim().toUpperCase() === cStoreCode && String(d.cleaningDate).trim() === cDate) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
 /**
  * Intelligent local DB re-hydration from remote/server data.
  * Merges records cleanly by business keys to prevent ID collision.
@@ -90,10 +156,53 @@ function toCamelCase(obj) {
 export async function applyRemoteDataToLocalDB(data) {
   if (!data || typeof data !== 'object') return;
 
+  const deletedStores = Array.isArray(data.deletedStores) ? data.deletedStores : [];
+  const deletedCleanings = Array.isArray(data.deletedCleanings) ? data.deletedCleanings : [];
+
+  // 0a. Prune locally deleted cleanings using server tombstones
+  if (deletedCleanings.length > 0) {
+    for (const del of deletedCleanings) {
+      if (!del) continue;
+      if (del.syncId) {
+        await db.cleanings.where('syncId').equals(del.syncId).delete();
+      }
+      if (del.storeCode && del.cleaningDate) {
+        const sc = String(del.storeCode).trim().toUpperCase();
+        const cd = String(del.cleaningDate).trim();
+        const allC = await db.cleanings.toArray();
+        for (const it of allC) {
+          if (it.storeCode && String(it.storeCode).trim().toUpperCase() === sc && String(it.cleaningDate).trim() === cd) {
+            await db.cleanings.delete(it.id);
+          }
+        }
+      }
+    }
+  }
+
+  // 0b. Prune locally deleted stores using server tombstones
+  if (deletedStores.length > 0) {
+    for (const del of deletedStores) {
+      const sCode = typeof del === 'string' ? del : del.storeCode;
+      if (!sCode) continue;
+      const cleanCode = String(sCode).trim().toUpperCase();
+      const allStores = await db.stores.toArray();
+      for (const s of allStores) {
+        if (s.storeCode && String(s.storeCode).trim().toUpperCase() === cleanCode) {
+          await db.stores.delete(s.id);
+        }
+      }
+    }
+  }
+
   // 1. Stores (Key: storeCode)
   if (Array.isArray(data.stores) && data.stores.length > 0) {
+    const deletedStoreCodes = deletedStores.map(d => 
+      typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase()
+    );
     for (const s of data.stores) {
       if (!s || !s.storeCode) continue;
+      const cleanCode = String(s.storeCode).trim().toUpperCase();
+      if (deletedStoreCodes.includes(cleanCode)) continue;
       const existing = await db.stores.where('storeCode').equals(s.storeCode).first();
       if (existing) {
         await db.stores.put({ ...existing, ...s, id: existing.id });
@@ -108,6 +217,7 @@ export async function applyRemoteDataToLocalDB(data) {
   if (Array.isArray(data.cleanings) && data.cleanings.length > 0) {
     for (const c of data.cleanings) {
       if (!c) continue;
+      if (isCleaningDeleted(c, deletedCleanings)) continue;
       let existing = null;
       if (c.storeCode && c.cleaningDate) {
         existing = await db.cleanings

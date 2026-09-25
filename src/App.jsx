@@ -33,8 +33,7 @@ import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
-import { logUserLogout } from './utils/auditLogger';
-import { performCloudSync, getApiUrl } from './utils/cloudSync';
+import { performCloudSync, getApiUrl, deleteCleaningOnServer, deleteStoreOnServer } from './utils/cloudSync';
 import { 
   Building2, 
   Plus, 
@@ -361,10 +360,53 @@ export default function App() {
     }
   };
 
-  const handleDeleteCleaning = async (id) => {
-    if (confirm('Are you sure you want to delete this deep cleaning record?')) {
-      await db.cleanings.delete(id);
+  const handleDeleteCleaning = async (cleaningOrId) => {
+    try {
+      let cleaning = null;
+      if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
+        cleaning = cleaningOrId;
+      } else {
+        cleaning = await db.cleanings.get(cleaningOrId);
+      }
+      if (!cleaning) {
+        alert('Cleaning record nahi mila.');
+        return;
+      }
+
+      const confirmDelete = confirm(
+        `Kya aap sachme is deep cleaning record ko delete karna chahte hain?\n\n` +
+        `Store: ${cleaning.storeName || cleaning.storeCode}\n` +
+        `Date: ${cleaning.cleaningDate || '--'}\n` +
+        `Shift: ${cleaning.shift || 'N/A'}`
+      );
+      if (!confirmDelete) return;
+
+      // 1. Delete on server first (records tombstone so sync never resurrects it)
+      try {
+        await deleteCleaningOnServer(cleaning);
+      } catch (netErr) {
+        console.warn('Server delete cleaning call:', netErr);
+      }
+
+      // 2. Delete locally in Dexie
+      if (cleaning.id) {
+        await db.cleanings.delete(cleaning.id);
+      }
+      if (cleaning.storeCode && cleaning.cleaningDate) {
+        const matches = await db.cleanings
+          .where('storeCode')
+          .equals(cleaning.storeCode)
+          .and(c => c.cleaningDate === cleaning.cleaningDate)
+          .toArray();
+        for (const m of matches) {
+          await db.cleanings.delete(m.id);
+        }
+      }
+
       performCloudSync().catch(console.warn);
+      alert(`✅ Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) successfully delete ho gayi hai.`);
+    } catch (err) {
+      alert('Cleaning delete karne me error: ' + err.message);
     }
   };
 
@@ -421,35 +463,34 @@ export default function App() {
       }
 
       // Check if store has any cleaning entries in local database
-      const count = await db.cleanings
+      const relatedCleanings = await db.cleanings
         .where('storeCode')
         .equals(store.storeCode)
-        .count();
+        .toArray();
 
-      if (count > 0) {
-        alert(
-          `❌ Store Delete Nahi Ho Sakta!\n\n` +
+      let deleteCleanings = false;
+
+      if (relatedCleanings.length > 0) {
+        const confirmWithCleanings = confirm(
+          `⚠️ Store me Cleaning Entries Maujood Hain!\n\n` +
           `Store: ${store.storeName} (${store.storeCode})\n` +
-          `Is store ke database me ${count} cleaning record(s) maujood hain.\n\n` +
-          `Audit, GST Billing aur Proofs history maintain rakhne ke liye jis store me cleaning ho chuki hai, use delete nahi kiya ja sakta.`
+          `Is store ke database me ${relatedCleanings.length} cleaning record(s) maujood hain.\n\n` +
+          `Audit, GST Billing aur Proofs history maintain rakhne ke liye recommendation hai ki store delete na karein.\n\n` +
+          `👉 Kya aap sachme is Store aur iski sari (${relatedCleanings.length}) cleaning entries ko PERMANENTLY delete karna chahte hain?`
         );
-        return;
+        if (!confirmWithCleanings) return;
+        deleteCleanings = true;
+      } else {
+        const confirmDelete = confirm(
+          `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko Master Ledger se delete karna chahte hain?`
+        );
+        if (!confirmDelete) return;
       }
 
-      const confirmDelete = confirm(
-        `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko delete karna chahte hain?`
-      );
-      if (!confirmDelete) return;
-
-      // 1. Delete on server first
+      // 1. Delete on server first (records tombstone so sync never resurrects it)
       try {
-        const response = await fetch(getApiUrl('/api/stores/delete'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storeCode: store.storeCode })
-        });
-        const resData = await response.json().catch(() => ({}));
-        if (!response.ok || resData.hasCleanings) {
+        const resData = await deleteStoreOnServer(store.storeCode, deleteCleanings);
+        if (resData && !resData.success && !resData.stores) {
           alert(`❌ Server Notice: ${resData.message || 'Store delete nahi ho saka'}`);
           return;
         }
@@ -457,7 +498,14 @@ export default function App() {
         console.warn('Server delete call notice:', netErr.message);
       }
 
-      // 2. Delete locally in Dexie
+      // 2. If cleanings deletion confirmed, delete them locally from Dexie too
+      if (deleteCleanings && relatedCleanings.length > 0) {
+        for (const c of relatedCleanings) {
+          if (c.id) await db.cleanings.delete(c.id);
+        }
+      }
+
+      // 3. Delete store locally in Dexie
       if (store.id) {
         await db.stores.delete(store.id);
       } else {

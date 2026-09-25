@@ -148,7 +148,7 @@ export default function StoreCard({
               <Edit3 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => onDelete(cleaning.id)}
+              onClick={() => onDelete(cleaning)}
               title="Delete Entry"
               className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
             >
