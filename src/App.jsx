@@ -41,7 +41,8 @@ import {
   Layers, 
   Calendar, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  LogOut
 } from 'lucide-react';
 
 export default function App() {
@@ -586,31 +587,42 @@ export default function App() {
                 </p>
               </div>
 
-              {currentUserRole !== 'client' && (
-                <div className="flex items-center gap-2 self-start sm:self-center shrink-0 flex-wrap">
-                  <button
-                    onClick={() => {
-                      setEditingStore(null);
-                      setIsStoreModalOpen(true);
-                    }}
-                    className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5"
-                  >
-                    <Building2 className="w-4 h-4 text-blinkit-green" />
-                    <span>+ Add Store</span>
-                  </button>
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0 flex-wrap">
+                {currentUserRole !== 'client' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditingStore(null);
+                        setIsStoreModalOpen(true);
+                      }}
+                      className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5"
+                    >
+                      <Building2 className="w-4 h-4 text-blinkit-green" />
+                      <span>+ Add Store</span>
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      setEditingCleaning(null);
-                      setIsEntryModalOpen(true);
-                    }}
-                    className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 sm:gap-2 transform active:scale-95"
-                  >
-                    <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>New Cleaning</span>
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={() => {
+                        setEditingCleaning(null);
+                        setIsEntryModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 sm:gap-2 transform active:scale-95"
+                    >
+                      <Plus className="w-4 h-4 stroke-[3]" />
+                      <span>New Cleaning</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs sm:text-sm shadow-sm transition flex items-center gap-1.5 active:scale-95"
+                  title="Logout from session"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
 
         {/* VIEW 1: Cleaning Visits & Logs */}

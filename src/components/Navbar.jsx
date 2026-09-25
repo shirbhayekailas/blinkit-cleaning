@@ -307,12 +307,12 @@ export default function Navbar({
                 </button>
               )}
 
-              {/* Desktop Logout Button */}
+              {/* Logout Button (ALWAYS VISIBLE on Mobile & Desktop) */}
               {onLogout && (
                 <button
                   onClick={onLogout}
                   title="Logout to Login Screen"
-                  className="hidden sm:flex px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition items-center gap-1 border border-slate-200 dark:border-slate-800"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-black text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 hover:dark:bg-rose-900/60 border border-rose-200 dark:border-rose-900 shadow-2xs transition active:scale-95 shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Logout</span>
@@ -532,12 +532,23 @@ export default function Navbar({
                 </div>
               </div>
 
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {onLogout && (
+                  <button
+                    onClick={() => triggerMobileAction(onLogout)}
+                    className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 text-xs font-black flex items-center gap-1 shadow-2xs transition active:scale-95"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Logout</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Quick Add Actions */}

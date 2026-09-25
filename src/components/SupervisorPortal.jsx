@@ -380,10 +380,11 @@ export default function SupervisorPortal({
           <button
             type="button"
             onClick={onLogout}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+            title="Logout from Supervisor Session"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Switch / Exit</span>
+            <span>Logout</span>
           </button>
         </div>
       </div>
