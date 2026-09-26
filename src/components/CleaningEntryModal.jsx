@@ -118,6 +118,7 @@ export default function CleaningEntryModal({
   const [newCleanerPhone, setNewCleanerPhone] = useState('');
   const [newCleanerWage, setNewCleanerWage] = useState(500);
   const [isSavingCleaner, setIsSavingCleaner] = useState(false);
+  const [matchedStoreAlert, setMatchedStoreAlert] = useState(null);
 
   const handleQuickAddSupervisor = async (e) => {
     e?.preventDefault();
@@ -216,6 +217,64 @@ export default function CleaningEntryModal({
       ...prev,
       teamMembers: val,
       headcount: nextList.length || 1
+    }));
+  };
+
+  const handleSelectCleanerFromDropdown = (cleanerName) => {
+    if (!cleanerName) return;
+    const existing = (formData.teamMembers || '')
+      .split(',')
+      .map(n => n.trim())
+      .filter(Boolean);
+    if (!existing.some(m => m.toLowerCase() === cleanerName.toLowerCase())) {
+      const nextList = [...existing, cleanerName];
+      const val = nextList.join(', ');
+      setFormData(prev => ({
+        ...prev,
+        teamMembers: val,
+        headcount: nextList.length || 1
+      }));
+    }
+  };
+
+  const handleStoreCodeChange = (inputVal) => {
+    const code = inputVal.toUpperCase();
+    const clean = code.trim();
+
+    if (clean && stores && stores.length > 0) {
+      const match = stores.find(s => {
+        if (!s || !s.storeCode) return false;
+        const sCode = s.storeCode.trim().toUpperCase();
+        if (sCode === clean) return true;
+        const sClean = sCode.replace(/^BLK-/, '');
+        const inputClean = clean.replace(/^BLK-/, '');
+        return sClean === inputClean && inputClean.length >= 2;
+      });
+
+      if (match) {
+        setFormData(prev => ({
+          ...prev,
+          storeCode: match.storeCode || code,
+          storeName: match.storeName || prev.storeName,
+          address: match.address || prev.address,
+          city: match.city || prev.city,
+          googleMapsUrl: match.googleMapsUrl || prev.googleMapsUrl,
+          managerName: match.managerName || prev.managerName,
+          managerPhone: match.managerPhone || prev.managerPhone
+        }));
+        setMatchedStoreAlert({
+          storeName: match.storeName,
+          city: match.city || '',
+          managerName: match.managerName || ''
+        });
+        return;
+      }
+    }
+
+    setMatchedStoreAlert(null);
+    setFormData(prev => ({
+      ...prev,
+      storeCode: code
     }));
   };
 
@@ -601,6 +660,11 @@ export default function CleaningEntryModal({
                         managerName: s.managerName || '',
                         managerPhone: s.managerPhone || ''
                       }));
+                      setMatchedStoreAlert({
+                        storeName: s.storeName,
+                        city: s.city || '',
+                        managerName: s.managerName || ''
+                      });
                     }
                   }}
                   defaultValue=""
@@ -631,17 +695,39 @@ export default function CleaningEntryModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Store Code *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    Store Code *
+                  </label>
+                  {matchedStoreAlert && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-pulse">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      <span>Auto-Fetched</span>
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
+                  list="ledger-store-codes-datalist"
                   placeholder="e.g. BLK-DEL-042"
                   value={formData.storeCode}
-                  onChange={(e) => setFormData({ ...formData, storeCode: e.target.value.toUpperCase() })}
+                  onChange={(e) => handleStoreCodeChange(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-blinkit-green"
                 />
+                <datalist id="ledger-store-codes-datalist">
+                  {stores.map(s => (
+                    <option key={s.storeCode} value={s.storeCode}>
+                      {s.storeName} ({s.city || 'Hub'})
+                    </option>
+                  ))}
+                </datalist>
+                {matchedStoreAlert && (
+                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-semibold flex items-center gap-1">
+                    <span>⚡ Ledger Se Details Fetch Ho Gayi:</span>
+                    <strong className="underline">{matchedStoreAlert.storeName}</strong>
+                  </div>
+                )}
               </div>
 
               <div className="sm:col-span-2">
@@ -992,24 +1078,47 @@ export default function CleaningEntryModal({
             </div>
 
             {/* Cleaners Roster Quick-Select & Quick-Add */}
-            <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-emerald-950 dark:text-emerald-300">
-                    🧹 Cleaners Roster (Registered Cleaners par click karke select/deselect karein):
+            <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-emerald-950 dark:text-emerald-300 mb-1">
+                    🧹 Registered Cleaner Dropdown Se Select Karein:
                   </label>
-                  <span className="text-[11px] text-emerald-800 dark:text-emerald-400">
-                    Click karne par team list me naam jud jayega aur headcount auto-calculate hoga
-                  </span>
+                  <select
+                    onChange={(e) => {
+                      const selectedVal = e.target.value;
+                      if (!selectedVal) return;
+                      handleSelectCleanerFromDropdown(selectedVal);
+                      e.target.value = '';
+                    }}
+                    defaultValue=""
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                  >
+                    <option value="">-- Select Registered Cleaner from Dropdown --</option>
+                    {cleaners.map(cln => {
+                      const isSelected = (formData.teamMembers || '')
+                        .split(',')
+                        .map(n => n.trim().toLowerCase())
+                        .includes(cln.name.trim().toLowerCase());
+                      return (
+                        <option key={cln.id || cln.name} value={cln.name}>
+                          {isSelected ? '✓ ' : '+ '} {cln.name} {cln.phone ? `(${cln.phone})` : ''} {isSelected ? '(Already Selected)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCleaner(prev => !prev)}
-                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 transition flex items-center gap-1.5 shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  {showAddCleaner ? 'Cancel' : '+ Naya Cleaner Add Karein'}
-                </button>
+
+                <div className="shrink-0 self-start sm:self-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCleaner(prev => !prev)}
+                    className="text-xs font-bold px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 transition flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    {showAddCleaner ? 'Cancel' : '+ Naya Cleaner Add Karein'}
+                  </button>
+                </div>
               </div>
 
               {/* Inline Add Cleaner Form */}
