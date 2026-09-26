@@ -65,7 +65,8 @@ export default function Navbar({
   onOpenNightRoute,
   onOpenUserAccess,
   onChangeAdminPassword,
-  onOpenLoginLogs
+  onOpenLoginLogs,
+  onOpenCommandPalette
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -110,7 +111,7 @@ export default function Navbar({
               </div>
             </div>
 
-            {/* Desktop Search Bar */}
+            {/* Desktop Search Bar with Command Palette trigger */}
             <div className="flex-1 max-w-md hidden md:block">
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -118,15 +119,47 @@ export default function Navbar({
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search store name, code (BLK-...), city, manager..."
-                  className="w-full pl-10 pr-4 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-blinkit-green text-slate-800 dark:text-slate-100 placeholder-slate-400 transition"
+                  placeholder="Search store name, code (BLK-...), city..."
+                  className="w-full pl-10 pr-16 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-blinkit-green text-slate-800 dark:text-slate-100 placeholder-slate-400 transition"
                 />
+                <button
+                  type="button"
+                  onClick={onOpenCommandPalette}
+                  title="Press Ctrl+K or Cmd+K to launch Command Palette"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10px] font-mono font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition shadow-2xs flex items-center gap-0.5"
+                >
+                  <span>⌘K</span>
+                </button>
               </div>
             </div>
 
             {/* Desktop & Mobile Actions Row */}
             <div className="flex items-center gap-1.5 sm:gap-2">
               
+              {/* LIVE CLOUD STATUS PILL */}
+              <div 
+                onClick={onOpenCloudSync}
+                title="100% Server Database Active (Click to inspect sync & health)"
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/80 cursor-pointer shadow-2xs hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition active:scale-95"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="hidden lg:inline">Server Connected</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">5s Live Sync</span>
+              </div>
+
+              {/* Mobile Command Palette Button */}
+              <button
+                type="button"
+                onClick={onOpenCommandPalette}
+                title="Command Palette (Ctrl+K)"
+                className="md:hidden p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:text-slate-900 transition"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+
               {/* Role Switcher Pill */}
               <button
                 onClick={onOpenLogin}
@@ -540,6 +573,20 @@ export default function Navbar({
                 </button>
               </div>
             </div>
+
+            {/* Command Palette Button for Mobile */}
+            <button
+              onClick={() => triggerMobileAction(onOpenCommandPalette)}
+              className="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white font-bold text-xs flex items-center justify-between shadow-md active:scale-98 transition"
+            >
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-amber-400" />
+                <span>Universal Command Palette (⌘K)</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-lg bg-white/20 text-white font-mono">
+                Launch
+              </span>
+            </button>
 
             {/* Quick Add Actions */}
             {isOpsStaff && (

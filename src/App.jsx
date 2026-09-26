@@ -31,6 +31,10 @@ import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
+import ToastContainer, { toast } from './components/Toast';
+import ConfirmModal from './components/ConfirmModal';
+import CommandPalette from './components/CommandPalette';
+import OperationsPulseBar from './components/OperationsPulseBar';
 import * as api from './services/api';
 import { 
   Building2, 
@@ -141,6 +145,42 @@ export default function App() {
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
   const [historyStore, setHistoryStore] = useState(null);
+
+  // Command Palette & Confirmation Dialog
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    isDanger: false,
+    onConfirm: () => {}
+  });
+
+  const openConfirm = ({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', isDanger = false, onConfirm }) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      isDanger,
+      onConfirm
+    });
+  };
+
+  // Global Ctrl+K / Cmd+K keyboard shortcut listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
 
   // Mark this browser as initialized (no longer delete data - server sync handles it)
@@ -287,8 +327,12 @@ export default function App() {
       } else {
         await loadServerData();
       }
+      toast.success(
+        `Cleaning entry for ${cleaningData.storeName || cleaningData.storeCode} saved successfully!`,
+        'Record Saved'
+      );
     } catch (err) {
-      alert('Error saving record: ' + err.message);
+      toast.error('Error saving record: ' + err.message, 'Save Failed');
     }
   };
 
@@ -300,8 +344,12 @@ export default function App() {
       } else {
         await loadServerData();
       }
+      toast.success(
+        `Payment for ${updatedCleaning.storeName || updatedCleaning.storeCode} updated to ${updatedCleaning.paymentStatus}!`,
+        'Payment Updated'
+      );
     } catch (err) {
-      alert('Error updating payment: ' + err.message);
+      toast.error('Error updating payment: ' + err.message, 'Update Failed');
     }
   };
 
@@ -319,61 +367,68 @@ export default function App() {
       if (photoCleaning && photoCleaning.id === cleaningId) {
         setPhotoCleaning(prev => ({ ...prev, photos }));
       }
+      toast.success('Before/After photos saved successfully!', 'Photos Saved');
     } catch (err) {
-      alert('Error saving photos: ' + err.message);
+      toast.error('Error saving photos: ' + err.message, 'Photo Save Error');
     }
   };
 
   const handleDeleteCleaning = async (cleaningOrId) => {
-    try {
-      let cleaning = null;
-      if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
-        cleaning = cleaningOrId;
-      } else {
-        cleaning = cleanings.find(c => c.id === cleaningOrId);
-      }
-      if (!cleaning) {
-        alert('Cleaning record nahi mila.');
-        return;
-      }
-
-      const confirmDelete = confirm(
-        `Kya aap sachme is deep cleaning record ko PERMANENTLY delete karna chahte hain?\n\n` +
-        `Store: ${cleaning.storeName || cleaning.storeCode}\n` +
-        `Date: ${cleaning.cleaningDate || '--'}\n` +
-        `Shift: ${cleaning.shift || 'N/A'}`
-      );
-      if (!confirmDelete) return;
-
-      const result = await api.deleteCleaning(cleaning);
-      if (result && result.data) {
-        setServerData(prev => ({ ...prev, ...result.data }));
-      } else {
-        await loadServerData();
-      }
-      alert(`✅ Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) permanently delete ho gayi hai.`);
-    } catch (err) {
-      alert('Cleaning delete karne me error: ' + err.message);
+    let cleaning = null;
+    if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
+      cleaning = cleaningOrId;
+    } else {
+      cleaning = cleanings.find(c => c.id === cleaningOrId);
     }
+    if (!cleaning) {
+      toast.warning('Cleaning record nahi mila.');
+      return;
+    }
+
+    openConfirm({
+      title: 'Permanently Delete Cleaning Record',
+      message: `Kya aap sachme is deep cleaning record ko PERMANENTLY delete karna chahte hain?\n\nStore: ${cleaning.storeName || cleaning.storeCode}\nDate: ${cleaning.cleaningDate || '--'}\nShift: ${cleaning.shift || 'N/A'}`,
+      confirmText: 'Permanently Delete',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const result = await api.deleteCleaning(cleaning);
+          if (result && result.data) {
+            setServerData(prev => ({ ...prev, ...result.data }));
+          } else {
+            await loadServerData();
+          }
+          toast.success(
+            `Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) permanently delete ho gayi hai.`,
+            'Record Deleted'
+          );
+        } catch (err) {
+          toast.error('Cleaning delete karne me error: ' + err.message, 'Delete Failed');
+        }
+      }
+    });
   };
 
   const handleClearAllData = async () => {
-    const isConfirmed = confirm(
-      'Kya aap sachme sara Demo / Test Data delete karna chahte hain?\n\nIsse sare sample store records aur cleaning entries delete ho jayenge taaki aap fresh real entry kar sakein.'
-    );
-    if (!isConfirmed) return;
-
-    try {
-      const result = await api.clearAllData();
-      if (result && result.data) {
-        setServerData(prev => ({ ...prev, ...result.data }));
-      } else {
-        await loadServerData();
+    openConfirm({
+      title: 'Wipe All Demo / Test Records',
+      message: 'Kya aap sachme sara Demo / Test Data delete karna chahte hain?\n\nIsse sare sample store records aur cleaning entries delete ho jayenge taaki aap fresh real entry kar sakein.',
+      confirmText: 'Wipe Demo Data',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const result = await api.clearAllData();
+          if (result && result.data) {
+            setServerData(prev => ({ ...prev, ...result.data }));
+          } else {
+            await loadServerData();
+          }
+          toast.success('Sara demo data permanently delete ho gaya hai! Database ab 100% clean hai.', 'Database Reset');
+        } catch (err) {
+          toast.error('Error clearing data: ' + err.message, 'Reset Error');
+        }
       }
-      alert('Sara demo data permanently delete ho gaya hai! Ab database 100% clean hai. Aap apni real store entries shuru kar sakte hain.');
-    } catch (err) {
-      alert('Error clearing data: ' + err.message);
-    }
+    });
   };
 
   // Handlers for Store Master Ledger
@@ -385,57 +440,51 @@ export default function App() {
       } else {
         await loadServerData();
       }
+      toast.success(`Store "${storeData.storeName || storeData.storeCode}" master ledger me update ho gaya.`, 'Store Saved');
     } catch (err) {
-      alert('Error saving store to ledger: ' + err.message);
+      toast.error('Error saving store to ledger: ' + err.message, 'Save Failed');
     }
   };
 
   const handleDeleteStore = async (storeOrId) => {
-    try {
-      let store = null;
-      if (typeof storeOrId === 'object' && storeOrId !== null) {
-        store = storeOrId;
-      } else {
-        store = stores.find(s => s.id === storeOrId || s.storeCode === storeOrId);
-      }
-      if (!store) {
-        alert('Store record nahi mila.');
-        return;
-      }
-
-      const relatedCleanings = cleanings.filter(
-        c => c && String(c.storeCode).trim().toUpperCase() === String(store.storeCode).trim().toUpperCase()
-      );
-
-      let deleteCleanings = false;
-
-      if (relatedCleanings.length > 0) {
-        const confirmWithCleanings = confirm(
-          `⚠️ Store me Cleaning Entries Maujood Hain!\n\n` +
-          `Store: ${store.storeName} (${store.storeCode})\n` +
-          `Is store ke database me ${relatedCleanings.length} cleaning record(s) maujood hain.\n\n` +
-          `Audit, GST Billing aur Proofs history maintain rakhne ke liye recommendation hai ki store delete na karein.\n\n` +
-          `👉 Kya aap sachme is Store aur iski sari (${relatedCleanings.length}) cleaning entries ko PERMANENTLY delete karna chahte hain?`
-        );
-        if (!confirmWithCleanings) return;
-        deleteCleanings = true;
-      } else {
-        const confirmDelete = confirm(
-          `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko Master Ledger se PERMANENTLY delete karna chahte hain?`
-        );
-        if (!confirmDelete) return;
-      }
-
-      const result = await api.deleteStore(store.storeCode, deleteCleanings, true);
-      if (result && result.data) {
-        setServerData(prev => ({ ...prev, ...result.data }));
-      } else {
-        await loadServerData();
-      }
-      alert(`✅ Store "${store.storeName}" Master Ledger se permanently delete ho gaya hai.`);
-    } catch (err) {
-      alert('Store delete karne me error: ' + err.message);
+    let store = null;
+    if (typeof storeOrId === 'object' && storeOrId !== null) {
+      store = storeOrId;
+    } else {
+      store = stores.find(s => s.id === storeOrId || s.storeCode === storeOrId);
     }
+    if (!store) {
+      toast.warning('Store record nahi mila.');
+      return;
+    }
+
+    const relatedCleanings = cleanings.filter(
+      c => c && String(c.storeCode).trim().toUpperCase() === String(store.storeCode).trim().toUpperCase()
+    );
+
+    const hasCleanings = relatedCleanings.length > 0;
+
+    openConfirm({
+      title: hasCleanings ? 'Delete Store & Linked Cleanings' : 'Permanently Delete Store',
+      message: hasCleanings
+        ? `⚠️ Store me Cleaning Entries Maujood Hain!\n\nStore: ${store.storeName} (${store.storeCode})\nIs store ke database me ${relatedCleanings.length} cleaning record(s) maujood hain.\n\nKya aap sachme is Store aur iski sari (${relatedCleanings.length}) cleaning entries ko PERMANENTLY delete karna chahte hain?`
+        : `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko Master Ledger se PERMANENTLY delete karna chahte hain?`,
+      confirmText: 'Permanently Delete',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const result = await api.deleteStore(store.storeCode, hasCleanings, true);
+          if (result && result.data) {
+            setServerData(prev => ({ ...prev, ...result.data }));
+          } else {
+            await loadServerData();
+          }
+          toast.success(`Store "${store.storeName}" Master Ledger se permanently delete ho gaya.`, 'Store Deleted');
+        } catch (err) {
+          toast.error('Store delete karne me error: ' + err.message, 'Delete Failed');
+        }
+      }
+    });
   };
 
   const handleLogCleaningForStore = (store) => {
@@ -669,6 +718,7 @@ export default function App() {
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
         onOpenUserAccess={() => setIsUserAccessOpen(true)}
         onOpenLoginLogs={() => setIsLoginLogsOpen(true)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onChangeAdminPassword={() => {
           setChangePasswordConfig({
             role: 'admin',
@@ -693,6 +743,22 @@ export default function App() {
           />
         ) : (
           <>
+            {/* DAILY OPERATIONS PULSE BAR */}
+            {currentUserRole !== 'client' && (
+              <OperationsPulseBar
+                stores={stores}
+                cleanings={cleanings}
+                schedules={schedules}
+                issues={issues}
+                chemicals={chemicalStock}
+                onOpenSchedule={() => setIsScheduleModalOpen(true)}
+                onOpenIssues={() => setIsIssueModalOpen(true)}
+                onOpenChemicals={() => setIsChemicalModalOpen(true)}
+                onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
+                onOpenConsolidatedInvoice={() => setIsConsolidatedInvoiceOpen(true)}
+              />
+            )}
+
             {/* Welcome & Quick Overview Banner (Admin View) */}
             <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm min-w-0 ${
               currentUserRole === 'client'
@@ -1097,6 +1163,51 @@ export default function App() {
         }}
       />
 
+      {/* Universal Command Palette (Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        stores={stores}
+        cleanings={cleanings}
+        supervisors={supervisors}
+        cleaners={cleaners}
+        onOpenNewEntry={() => {
+          setEditingCleaning(null);
+          setIsEntryModalOpen(true);
+        }}
+        onOpenNewStore={() => {
+          setEditingStore(null);
+          setIsStoreModalOpen(true);
+        }}
+        onOpenSchedule={() => setIsScheduleModalOpen(true)}
+        onOpenChemicals={() => setIsChemicalModalOpen(true)}
+        onOpenKhata={() => setIsCleanerKhataOpen(true)}
+        onOpenIssues={() => setIsIssueModalOpen(true)}
+        onOpenConsolidatedInvoice={() => setIsConsolidatedInvoiceOpen(true)}
+        onOpenNightRoute={() => setIsNightRouteOpen(true)}
+        onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
+        onExportExcel={() => exportCleaningsToExcel(cleanings)}
+        onToggleDarkMode={() => setDarkMode(prev => !prev)}
+        darkMode={darkMode}
+        onViewStoreHistory={(s) => setHistoryStore(s)}
+        onLogCleaningForStore={handleLogCleaningForStore}
+      />
+
+      {/* Modern Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmText={confirmConfig.confirmText}
+        cancelText={confirmConfig.cancelText}
+        isDanger={confirmConfig.isDanger}
+      />
+
+      {/* Global Floating Toast Notifications */}
+      <ToastContainer />
+
       {/* SCREEN INACTIVITY WARNING MODAL */}
       {isIdleWarningOpen && currentUserRole && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
@@ -1142,8 +1253,10 @@ export default function App() {
       {/* Footer */}
       <footer className="mt-12 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Blinkit Dark Store Deep Cleaning Tracker &copy; 2026</span>
-          <span>IndexedDB Client-Side Offline Storage &bull; Instant PDF &amp; Excel Reports</span>
+          <span className="font-bold text-slate-700 dark:text-slate-300">
+            SK ENTERPRISES &bull; Facility Management &amp; Deep Cleaning Operations
+          </span>
+          <span>100% Server Cloud Database &bull; Real-Time Multi-Device Sync</span>
         </div>
       </footer>
 
