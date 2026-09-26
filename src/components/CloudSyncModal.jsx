@@ -14,7 +14,6 @@ import {
   Check
 } from 'lucide-react';
 import { getCloudConfig, saveCloudConfig, performCloudSync, getApiUrl } from '../utils/cloudSync';
-import { db } from '../db/db';
 
 export default function CloudSyncModal({ isOpen, onClose }) {
   const [config, setConfig] = useState(getCloudConfig());

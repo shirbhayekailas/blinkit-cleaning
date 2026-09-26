@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, seedInitialData } from './db/db';
 import Navbar from './components/Navbar';
 import DashboardStats from './components/DashboardStats';
 import StoreCard from './components/StoreCard';
@@ -33,7 +31,7 @@ import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
-import { performCloudSync, getApiUrl, deleteCleaningOnServer, deleteStoreOnServer, clearDemoDataOnServer } from './utils/cloudSync';
+import * as api from './services/api';
 import { 
   Building2, 
   Plus, 
@@ -154,26 +152,63 @@ export default function App() {
     }
   }, []);
 
-  // Automatic 2-Way Global Synchronization between Desktop, Mobile and Server
-  useEffect(() => {
-    // Initial sync on startup
-    performCloudSync().catch(console.warn);
+  // -------------------------------------------------------------
+  // 100% PURE SERVER-SIDE DATABASE STATE (No local storage ghosting)
+  // -------------------------------------------------------------
+  const [serverData, setServerData] = useState({
+    cleanings: [],
+    stores: [],
+    supervisors: [],
+    cleaners: [],
+    cleaningSchedules: [],
+    chemicalStock: [],
+    chemicalLogs: [],
+    cleanerAdvances: [],
+    storeIssues: [],
+    loginLogs: [],
+    appSettings: null
+  });
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-    // Periodic sync every 10 seconds so Desktop & Mobile stay in live sync
-    const syncInterval = setInterval(() => {
-      performCloudSync().catch(console.warn);
-    }, 10000);
+  // Fast function to fetch full state directly from server
+  const loadServerData = async () => {
+    try {
+      const data = await api.fetchServerState();
+      if (data) {
+        setServerData(prev => ({ ...prev, ...data }));
+        setIsDataLoaded(true);
+      }
+    } catch (err) {
+      console.warn('loadServerData notice:', err);
+    }
+  };
+
+  useEffect(() => {
+    // Purge legacy IndexedDB on startup so local browser storage never retains old ghost records
+    if (typeof window !== 'undefined' && window.indexedDB) {
+      try {
+        window.indexedDB.deleteDatabase('BlinkitDeepCleaningDB');
+      } catch (e) {}
+    }
+
+    // Initial load from server
+    loadServerData();
+
+    // Fast polling every 5 seconds so Desktop & Mobile stay in live sync
+    const syncInterval = setInterval(loadServerData, 5000);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        performCloudSync().catch(console.warn);
+        loadServerData();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', loadServerData);
 
     return () => {
       clearInterval(syncInterval);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', loadServerData);
     };
   }, []);
 
@@ -192,69 +227,17 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Reactive query from Dexie for cleanings (safe fallback)
-  const cleaningsData = useLiveQuery(async () => {
-    try {
-      const list = await db.cleanings.toArray();
-      return list.sort((a, b) => (b.cleaningDate || '').localeCompare(a.cleaningDate || ''));
-    } catch (e) {
-      console.error('Dexie cleanings query error:', e);
-      return [];
-    }
-  }, []);
-  const cleanings = Array.isArray(cleaningsData) ? cleaningsData : [];
-
-  // Reactive query from Dexie for stores master ledger (safe fallback)
-  const storesData = useLiveQuery(async () => {
-    try {
-      const list = await db.stores.toArray();
-      return list.sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || ''));
-    } catch (e) {
-      console.error('Dexie stores query error:', e);
-      return [];
-    }
-  }, []);
-  const stores = Array.isArray(storesData) ? storesData : [];
-
-  // Reactive query for supervisors
-  const supervisorsData = useLiveQuery(async () => {
-    try {
-      return await db.supervisors.toArray();
-    } catch (e) {
-      return [];
-    }
-  }, []);
-  const supervisors = Array.isArray(supervisorsData) ? supervisorsData : [];
-
-  // Reactive query for cleaners
-  const cleanersData = useLiveQuery(async () => {
-    try {
-      return await db.cleaners.toArray();
-    } catch (e) {
-      return [];
-    }
-  }, []);
-  const cleaners = Array.isArray(cleanersData) ? cleanersData : [];
-
-  // Reactive query for store issues / defects
-  const issuesData = useLiveQuery(async () => {
-    try {
-      return await db.storeIssues.toArray();
-    } catch (e) {
-      return [];
-    }
-  }, []);
-  const issues = Array.isArray(issuesData) ? issuesData : [];
-
-  // Reactive query for cleaning schedules
-  const schedulesData = useLiveQuery(async () => {
-    try {
-      return await db.cleaningSchedules.toArray();
-    } catch (e) {
-      return [];
-    }
-  }, []);
-  const schedules = Array.isArray(schedulesData) ? schedulesData : [];
+  // Derived state directly from serverData (sorted properly)
+  const cleanings = (serverData.cleanings || []).slice().sort((a, b) => (b.cleaningDate || '').localeCompare(a.cleaningDate || ''));
+  const stores = (serverData.stores || []).slice().sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || ''));
+  const supervisors = serverData.supervisors || [];
+  const cleaners = serverData.cleaners || [];
+  const issues = serverData.storeIssues || [];
+  const schedules = (serverData.cleaningSchedules || []).slice().sort((a, b) => (a.scheduledDate || '').localeCompare(b.scheduledDate || ''));
+  const chemicalStock = serverData.chemicalStock || [];
+  const chemicalLogs = serverData.chemicalLogs || [];
+  const cleanerAdvances = serverData.cleanerAdvances || [];
+  const loginLogs = serverData.loginLogs || [];
 
 
   // Filtered cleanings based on search, payment, status, cluster, and due cycle
@@ -298,33 +281,12 @@ export default function App() {
   // Handlers for Cleanings
   const handleSaveCleaning = async (cleaningData) => {
     try {
-      if (cleaningData.id) {
-        await db.cleanings.update(cleaningData.id, {
-          ...cleaningData,
-          updatedAt: new Date()
-        });
+      const result = await api.saveCleaning(cleaningData);
+      if (result && result.data) {
+        setServerData(prev => ({ ...prev, ...result.data }));
       } else {
-        await db.cleanings.add({
-          ...cleaningData,
-          createdAt: new Date()
-        });
-
-        // Also ensure store is registered in master stores ledger if not already there
-        const existingStore = await db.stores.where('storeCode').equals(cleaningData.storeCode).first();
-        if (!existingStore && cleaningData.storeCode && cleaningData.storeName) {
-          await db.stores.add({
-            storeCode: cleaningData.storeCode,
-            storeName: cleaningData.storeName,
-            address: cleaningData.address || '',
-            city: cleaningData.city || '',
-            googleMapsUrl: cleaningData.googleMapsUrl || '',
-            managerName: cleaningData.managerName || '',
-            managerPhone: cleaningData.managerPhone || '',
-            createdAt: new Date()
-          });
-        }
+        await loadServerData();
       }
-      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error saving record: ' + err.message);
     }
@@ -332,17 +294,12 @@ export default function App() {
 
   const handleUpdatePayment = async (updatedCleaning) => {
     try {
-      await db.cleanings.update(updatedCleaning.id, {
-        amountReceived: updatedCleaning.amountReceived,
-        amountPending: updatedCleaning.amountPending,
-        paymentStatus: updatedCleaning.paymentStatus,
-        paymentDate: updatedCleaning.paymentDate,
-        paymentMode: updatedCleaning.paymentMode,
-        utrNumber: updatedCleaning.utrNumber,
-        paymentNotes: updatedCleaning.paymentNotes,
-        updatedAt: new Date()
-      });
-      performCloudSync().catch(console.warn);
+      const result = await api.saveCleaning(updatedCleaning);
+      if (result && result.data) {
+        setServerData(prev => ({ ...prev, ...result.data }));
+      } else {
+        await loadServerData();
+      }
     } catch (err) {
       alert('Error updating payment: ' + err.message);
     }
@@ -350,11 +307,18 @@ export default function App() {
 
   const handleUpdatePhotos = async (cleaningId, photos) => {
     try {
-      await db.cleanings.update(cleaningId, { photos, updatedAt: new Date() });
+      const c = cleanings.find(item => item.id === cleaningId);
+      if (c) {
+        const result = await api.saveCleaning({ ...c, photos });
+        if (result && result.data) {
+          setServerData(prev => ({ ...prev, ...result.data }));
+        } else {
+          await loadServerData();
+        }
+      }
       if (photoCleaning && photoCleaning.id === cleaningId) {
         setPhotoCleaning(prev => ({ ...prev, photos }));
       }
-      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error saving photos: ' + err.message);
     }
@@ -366,7 +330,7 @@ export default function App() {
       if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
         cleaning = cleaningOrId;
       } else {
-        cleaning = await db.cleanings.get(cleaningOrId);
+        cleaning = cleanings.find(c => c.id === cleaningOrId);
       }
       if (!cleaning) {
         alert('Cleaning record nahi mila.');
@@ -374,37 +338,20 @@ export default function App() {
       }
 
       const confirmDelete = confirm(
-        `Kya aap sachme is deep cleaning record ko delete karna chahte hain?\n\n` +
+        `Kya aap sachme is deep cleaning record ko PERMANENTLY delete karna chahte hain?\n\n` +
         `Store: ${cleaning.storeName || cleaning.storeCode}\n` +
         `Date: ${cleaning.cleaningDate || '--'}\n` +
         `Shift: ${cleaning.shift || 'N/A'}`
       );
       if (!confirmDelete) return;
 
-      // 1. Delete on server first (records tombstone so sync never resurrects it)
-      try {
-        await deleteCleaningOnServer(cleaning);
-      } catch (netErr) {
-        console.warn('Server delete cleaning call:', netErr);
+      const result = await api.deleteCleaning(cleaning);
+      if (result && result.data) {
+        setServerData(prev => ({ ...prev, ...result.data }));
+      } else {
+        await loadServerData();
       }
-
-      // 2. Delete locally in Dexie
-      if (cleaning.id) {
-        await db.cleanings.delete(cleaning.id);
-      }
-      if (cleaning.storeCode && cleaning.cleaningDate) {
-        const matches = await db.cleanings
-          .where('storeCode')
-          .equals(cleaning.storeCode)
-          .and(c => c.cleaningDate === cleaning.cleaningDate)
-          .toArray();
-        for (const m of matches) {
-          await db.cleanings.delete(m.id);
-        }
-      }
-
-      performCloudSync().catch(console.warn);
-      alert(`✅ Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) successfully delete ho gayi hai.`);
+      alert(`✅ Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) permanently delete ho gayi hai.`);
     } catch (err) {
       alert('Cleaning delete karne me error: ' + err.message);
     }
@@ -412,16 +359,18 @@ export default function App() {
 
   const handleClearAllData = async () => {
     const isConfirmed = confirm(
-      'Kya aap sachme sara Demo Data delete karna chahte hain?\n\nIsse sare sample store records aur cleaning entries delete ho jayenge taaki aap fresh real entry kar sakein.'
+      'Kya aap sachme sara Demo / Test Data delete karna chahte hain?\n\nIsse sare sample store records aur cleaning entries delete ho jayenge taaki aap fresh real entry kar sakein.'
     );
     if (!isConfirmed) return;
 
     try {
-      await clearDemoDataOnServer();
-      await db.cleanings.clear();
-      await db.stores.clear();
-      performCloudSync().catch(console.warn);
-      alert('Sara demo data successfully delete ho gaya hai! Ab database 100% clean hai. Aap apni real store entries shuru kar sakte hain.');
+      const result = await api.clearAllData();
+      if (result && result.data) {
+        setServerData(prev => ({ ...prev, ...result.data }));
+      } else {
+        await loadServerData();
+      }
+      alert('Sara demo data permanently delete ho gaya hai! Ab database 100% clean hai. Aap apni real store entries shuru kar sakte hain.');
     } catch (err) {
       alert('Error clearing data: ' + err.message);
     }
@@ -430,18 +379,12 @@ export default function App() {
   // Handlers for Store Master Ledger
   const handleSaveStore = async (storeData) => {
     try {
-      if (storeData.id) {
-        await db.stores.update(storeData.id, {
-          ...storeData,
-          updatedAt: new Date()
-        });
+      const result = await api.saveStore(storeData);
+      if (result && result.data) {
+        setServerData(prev => ({ ...prev, ...result.data }));
       } else {
-        await db.stores.add({
-          ...storeData,
-          createdAt: new Date()
-        });
+        await loadServerData();
       }
-      performCloudSync().catch(console.warn);
     } catch (err) {
       alert('Error saving store to ledger: ' + err.message);
     }
@@ -453,21 +396,16 @@ export default function App() {
       if (typeof storeOrId === 'object' && storeOrId !== null) {
         store = storeOrId;
       } else {
-        store = await db.stores.get(storeOrId);
-      }
-      if (!store && typeof storeOrId === 'string') {
-        store = await db.stores.where('storeCode').equals(storeOrId).first();
+        store = stores.find(s => s.id === storeOrId || s.storeCode === storeOrId);
       }
       if (!store) {
         alert('Store record nahi mila.');
         return;
       }
 
-      // Check if store has any cleaning entries in local database
-      const relatedCleanings = await db.cleanings
-        .where('storeCode')
-        .equals(store.storeCode)
-        .toArray();
+      const relatedCleanings = cleanings.filter(
+        c => c && String(c.storeCode).trim().toUpperCase() === String(store.storeCode).trim().toUpperCase()
+      );
 
       let deleteCleanings = false;
 
@@ -483,38 +421,18 @@ export default function App() {
         deleteCleanings = true;
       } else {
         const confirmDelete = confirm(
-          `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko Master Ledger se delete karna chahte hain?`
+          `Kya aap sachme store "${store.storeName} (${store.storeCode})" ko Master Ledger se PERMANENTLY delete karna chahte hain?`
         );
         if (!confirmDelete) return;
       }
 
-      // 1. Delete on server first (records tombstone so sync never resurrects it)
-      try {
-        const resData = await deleteStoreOnServer(store.storeCode, deleteCleanings);
-        if (resData && !resData.success && !resData.stores) {
-          alert(`❌ Server Notice: ${resData.message || 'Store delete nahi ho saka'}`);
-          return;
-        }
-      } catch (netErr) {
-        console.warn('Server delete call notice:', netErr.message);
-      }
-
-      // 2. If cleanings deletion confirmed, delete them locally from Dexie too
-      if (deleteCleanings && relatedCleanings.length > 0) {
-        for (const c of relatedCleanings) {
-          if (c.id) await db.cleanings.delete(c.id);
-        }
-      }
-
-      // 3. Delete store locally in Dexie
-      if (store.id) {
-        await db.stores.delete(store.id);
+      const result = await api.deleteStore(store.storeCode, deleteCleanings, true);
+      if (result && result.data) {
+        setServerData(prev => ({ ...prev, ...result.data }));
       } else {
-        await db.stores.where('storeCode').equals(store.storeCode).delete();
+        await loadServerData();
       }
-
-      performCloudSync().catch(console.warn);
-      alert(`✅ Store "${store.storeName}" Master Ledger se successfully delete ho gaya hai.`);
+      alert(`✅ Store "${store.storeName}" Master Ledger se permanently delete ho gaya hai.`);
     } catch (err) {
       alert('Store delete karne me error: ' + err.message);
     }
@@ -984,12 +902,14 @@ export default function App() {
         onClose={() => setIsSupervisorModalOpen(false)}
         supervisors={supervisors}
         stores={stores}
+        onSupervisorUpdated={loadServerData}
       />
 
       <CleanerRosterModal
         isOpen={isCleanerModalOpen}
         onClose={() => setIsCleanerModalOpen(false)}
         cleaners={cleaners}
+        onCleanerUpdated={loadServerData}
       />
 
       <IssueReportModal
@@ -997,6 +917,7 @@ export default function App() {
         onClose={() => setIsIssueModalOpen(false)}
         issues={issues}
         stores={stores}
+        onIssueUpdated={loadServerData}
       />
 
       <CleaningEntryModal
@@ -1077,6 +998,9 @@ export default function App() {
         onClose={() => setIsChemicalModalOpen(false)}
         stores={stores}
         supervisors={supervisors}
+        chemicals={chemicalStock}
+        logs={chemicalLogs}
+        onChemicalUpdated={loadServerData}
       />
 
       <CleanerKhataModal
@@ -1084,10 +1008,12 @@ export default function App() {
         onClose={() => setIsCleanerKhataOpen(false)}
         cleaners={cleaners}
         cleanings={cleanings}
+        advances={cleanerAdvances}
         onOpenCleaners={() => {
           setIsCleanerKhataOpen(false);
           setIsCleanerModalOpen(true);
         }}
+        onAdvanceUpdated={loadServerData}
       />
 
       <ScheduleCalendarModal
@@ -1095,6 +1021,8 @@ export default function App() {
         onClose={() => setIsScheduleModalOpen(false)}
         stores={stores}
         supervisors={supervisors}
+        schedules={schedules}
+        onScheduleUpdated={loadServerData}
       />
 
       <CloudSyncModal
@@ -1124,13 +1052,14 @@ export default function App() {
       <BackupModal
         isOpen={isBackupOpen}
         onClose={() => setIsBackupOpen(false)}
-        onDataRestored={() => {}}
+        onDataRestored={loadServerData}
       />
 
       <UserAccessModal
         isOpen={isUserAccessOpen}
         onClose={() => setIsUserAccessOpen(false)}
         supervisors={supervisors}
+        onSupervisorUpdated={loadServerData}
         onOpenAddSupervisor={() => {
           setIsUserAccessOpen(false);
           setIsSupervisorModalOpen(true);
@@ -1153,6 +1082,8 @@ export default function App() {
         isOpen={isLoginLogsOpen}
         onClose={() => setIsLoginLogsOpen(false)}
         currentUserRole={currentUserRole}
+        logs={loginLogs}
+        onLogsCleared={loadServerData}
       />
 
       <ChangePasswordModal
@@ -1161,7 +1092,9 @@ export default function App() {
         role={changePasswordConfig.role}
         user={changePasswordConfig.user}
         isFirstLogin={changePasswordConfig.isFirstLogin}
-        onSuccess={() => {}}
+        onSuccess={() => {
+          loadServerData();
+        }}
       />
 
       {/* SCREEN INACTIVITY WARNING MODAL */}

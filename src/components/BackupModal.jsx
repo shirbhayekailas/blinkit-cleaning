@@ -8,7 +8,7 @@ import {
   CheckCircle2, 
   RefreshCw 
 } from 'lucide-react';
-import { db } from '../db/db';
+import { fetchServerState, saveCleaning, saveStore } from '../services/api';
 
 export default function BackupModal({
   isOpen,
@@ -22,17 +22,17 @@ export default function BackupModal({
 
   const handleExportBackup = async () => {
     try {
-      const cleanings = await db.cleanings.toArray();
+      const serverState = await fetchServerState();
       const backupData = {
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
-        cleanings
+        serverState
       };
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Blinkit_DeepCleaning_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `SK_Enterprises_Cleaning_Backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -49,14 +49,26 @@ export default function BackupModal({
       try {
         setRestoring(true);
         const data = JSON.parse(event.target.result);
-        if (!data.cleanings || !Array.isArray(data.cleanings)) {
+        const state = data.serverState || data;
+        const cleanings = state.cleanings || [];
+        const stores = state.stores || [];
+
+        if (!Array.isArray(cleanings) && !Array.isArray(stores)) {
           throw new Error('Invalid backup file format.');
         }
-        
-        await db.cleanings.clear();
-        await db.cleanings.bulkAdd(data.cleanings);
-        setMessage(`Successfully restored ${data.cleanings.length} store cleaning records!`);
-        onDataRestored();
+
+        // Restore stores first
+        for (const st of stores) {
+          await saveStore(st);
+        }
+
+        // Restore cleanings
+        for (const cln of cleanings) {
+          await saveCleaning(cln);
+        }
+
+        setMessage(`Successfully restored ${stores.length} stores & ${cleanings.length} cleaning records directly to server!`);
+        if (onDataRestored) onDataRestored();
       } catch (err) {
         alert('Restore failed: ' + err.message);
       } finally {

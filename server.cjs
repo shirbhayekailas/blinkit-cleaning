@@ -430,76 +430,227 @@ app.post('/api/auth/change-pin', (req, res) => {
   }
 });
 
+// -------------------------------------------------------------
+// PURE SERVER-SIDE DATABASE CRUD ENDPOINTS (No local storage ghosting)
+// -------------------------------------------------------------
+
+// 1. Get complete server database state
+app.get('/api/state', (req, res) => {
+  const currentDB = readDB();
+  res.json({
+    success: true,
+    serverTime: new Date().toISOString(),
+    data: currentDB
+  });
+});
+
+app.get('/api/sync', (req, res) => {
+  const currentDB = readDB();
+  res.json({
+    success: true,
+    serverTime: new Date().toISOString(),
+    data: currentDB
+  });
+});
+
+app.post('/api/sync', (req, res) => {
+  const currentDB = readDB();
+  res.json({
+    success: true,
+    message: 'Server Database: 100% Server-First Source of Truth',
+    serverTime: new Date().toISOString(),
+    data: currentDB
+  });
+});
+
+// 2. Cleanings CRUD
+app.post('/api/cleanings', (req, res) => {
+  try {
+    const cleaningData = req.body || {};
+    if (!cleaningData.storeCode && !cleaningData.storeName) {
+      return res.status(400).json({ success: false, message: 'Store code ya store name zaroori hai.' });
+    }
+
+    const currentDB = readDB();
+    if (!currentDB.cleanings) currentDB.cleanings = [];
+    if (!currentDB.stores) currentDB.stores = [];
+
+    const nowIso = new Date().toISOString();
+    let updatedRecord = null;
+
+    const targetId = cleaningData.id ? String(cleaningData.id) : null;
+    const targetSyncId = cleaningData.syncId ? String(cleaningData.syncId) : null;
+    const targetCode = cleaningData.storeCode ? String(cleaningData.storeCode).trim().toUpperCase() : null;
+    const targetDate = cleaningData.cleaningDate ? String(cleaningData.cleaningDate).trim() : null;
+
+    let index = -1;
+    if (targetId) {
+      index = currentDB.cleanings.findIndex(c => c && String(c.id) === targetId);
+    }
+    if (index === -1 && targetSyncId) {
+      index = currentDB.cleanings.findIndex(c => c && c.syncId && String(c.syncId) === targetSyncId);
+    }
+    if (index === -1 && targetCode && targetDate) {
+      index = currentDB.cleanings.findIndex(c => 
+        c && c.storeCode && c.cleaningDate &&
+        String(c.storeCode).trim().toUpperCase() === targetCode &&
+        String(c.cleaningDate).trim() === targetDate
+      );
+    }
+
+    if (index !== -1) {
+      updatedRecord = {
+        ...currentDB.cleanings[index],
+        ...cleaningData,
+        id: currentDB.cleanings[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.cleanings[index] = updatedRecord;
+    } else {
+      const newId = cleaningData.id || Date.now();
+      updatedRecord = {
+        ...cleaningData,
+        id: newId,
+        createdAt: cleaningData.createdAt || nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.cleanings.unshift(updatedRecord);
+    }
+
+    // Auto-register store in stores ledger if not exists
+    if (targetCode && cleaningData.storeName) {
+      const storeExists = currentDB.stores.some(s => s && String(s.storeCode).trim().toUpperCase() === targetCode);
+      if (!storeExists) {
+        currentDB.stores.push({
+          id: Date.now() + 1,
+          storeCode: cleaningData.storeCode,
+          storeName: cleaningData.storeName,
+          address: cleaningData.address || '',
+          city: cleaningData.city || '',
+          googleMapsUrl: cleaningData.googleMapsUrl || '',
+          managerName: cleaningData.managerName || '',
+          managerPhone: cleaningData.managerPhone || '',
+          createdAt: nowIso
+        });
+      }
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      message: 'Cleaning record successfully saved to server database.',
+      cleaning: updatedRecord,
+      cleanings: currentDB.cleanings,
+      stores: currentDB.stores,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save cleaning error: ' + err.message });
+  }
+});
+
 app.post('/api/cleanings/delete', (req, res) => {
   try {
     const { id, syncId, storeCode, cleaningDate } = req.body || {};
     const currentDB = readDB();
-    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
+    if (!currentDB.cleanings) currentDB.cleanings = [];
 
     const cleanCode = storeCode ? String(storeCode).trim().toUpperCase() : null;
     const cleanDate = cleaningDate ? String(cleaningDate).trim() : null;
-    const key = syncId ? String(syncId) : (cleanCode && cleanDate ? `${cleanCode}_${cleanDate}` : (id ? `id_${id}` : null));
 
-    // Remove matching cleaning(s) from currentDB.cleanings
-    const beforeCount = (currentDB.cleanings || []).length;
-    currentDB.cleanings = (currentDB.cleanings || []).filter(c => {
+    currentDB.cleanings = currentDB.cleanings.filter(c => {
       if (!c) return false;
-      if (id && c.id && String(c.id) === String(id)) return false;
+      if (id && String(c.id) === String(id)) return false;
       if (syncId && c.syncId && String(c.syncId) === String(syncId)) return false;
       if (cleanCode && cleanDate && String(c.storeCode).trim().toUpperCase() === cleanCode && String(c.cleaningDate).trim() === cleanDate) return false;
       return true;
     });
 
-    const deletedCount = beforeCount - currentDB.cleanings.length;
-
-    // Add tombstone
-    if (key) {
-      currentDB.deletedCleanings.push({
-        key,
-        storeCode: cleanCode,
-        cleaningDate: cleanDate,
-        syncId: syncId || null,
-        id: id || null,
-        deletedAt: new Date().toISOString()
-      });
-      if (currentDB.deletedCleanings.length > 500) {
-        currentDB.deletedCleanings = currentDB.deletedCleanings.slice(-500);
-      }
-    }
-
     writeDB(currentDB);
-
     res.json({
       success: true,
-      deletedCount,
-      message: 'Cleaning record successfully deleted from server database.',
+      message: 'Cleaning record permanently deleted from server database.',
       cleanings: currentDB.cleanings,
-      deletedCleanings: currentDB.deletedCleanings
+      data: currentDB
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server delete cleaning error: ' + err.message });
   }
 });
 
+// 3. Stores CRUD
+app.post('/api/stores', (req, res) => {
+  try {
+    const storeData = req.body || {};
+    if (!storeData.storeCode || !storeData.storeName) {
+      return res.status(400).json({ success: false, message: 'Store code aur Store name zaroori hai.' });
+    }
+
+    const currentDB = readDB();
+    if (!currentDB.stores) currentDB.stores = [];
+
+    const nowIso = new Date().toISOString();
+    const cleanCode = String(storeData.storeCode).trim().toUpperCase();
+    const targetId = storeData.id ? String(storeData.id) : null;
+
+    let index = currentDB.stores.findIndex(s => s && String(s.storeCode).trim().toUpperCase() === cleanCode);
+    if (index === -1 && targetId) {
+      index = currentDB.stores.findIndex(s => s && String(s.id) === targetId);
+    }
+
+    let savedStore = null;
+    if (index !== -1) {
+      savedStore = {
+        ...currentDB.stores[index],
+        ...storeData,
+        storeCode: storeData.storeCode.trim(),
+        id: currentDB.stores[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.stores[index] = savedStore;
+    } else {
+      savedStore = {
+        ...storeData,
+        storeCode: storeData.storeCode.trim(),
+        id: storeData.id || Date.now(),
+        createdAt: storeData.createdAt || nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.stores.push(savedStore);
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      message: 'Store master ledger me update ho gaya.',
+      store: savedStore,
+      stores: currentDB.stores,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save store error: ' + err.message });
+  }
+});
+
 app.post('/api/stores/delete', (req, res) => {
   try {
-    const { storeCode, deleteCleanings } = req.body || {};
+    const { storeCode, deleteCleanings, force } = req.body || {};
     if (!storeCode) {
       return res.status(400).json({ success: false, message: 'Store code zaroori hai.' });
     }
 
     const currentDB = readDB();
-    if (!currentDB.deletedStores) currentDB.deletedStores = [];
-    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
+    if (!currentDB.stores) currentDB.stores = [];
+    if (!currentDB.cleanings) currentDB.cleanings = [];
 
     const cleanCode = String(storeCode).trim().toUpperCase();
 
-    // Check if store has any cleaning records on server
-    const relatedCleanings = (currentDB.cleanings || []).filter(
+    // Check if store has any cleaning records
+    const relatedCleanings = currentDB.cleanings.filter(
       c => c && String(c.storeCode).trim().toUpperCase() === cleanCode
     );
 
-    if (relatedCleanings.length > 0 && !deleteCleanings) {
+    if (relatedCleanings.length > 0 && !deleteCleanings && !force) {
       return res.status(400).json({
         success: false,
         hasCleanings: true,
@@ -508,50 +659,418 @@ app.post('/api/stores/delete', (req, res) => {
       });
     }
 
-    // If deleteCleanings is requested, also remove and tombstone all its cleanings
-    if (deleteCleanings && relatedCleanings.length > 0) {
-      for (const c of relatedCleanings) {
-        const cKey = c.syncId ? String(c.syncId) : (c.cleaningDate ? `${cleanCode}_${c.cleaningDate}` : `id_${c.id}`);
-        currentDB.deletedCleanings.push({
-          key: cKey,
-          storeCode: cleanCode,
-          cleaningDate: c.cleaningDate,
-          syncId: c.syncId,
-          id: c.id,
-          deletedAt: new Date().toISOString()
-        });
-      }
-      currentDB.cleanings = (currentDB.cleanings || []).filter(
+    // Delete cleanings if requested or forced
+    if (deleteCleanings || force) {
+      currentDB.cleanings = currentDB.cleanings.filter(
         c => !c || String(c.storeCode).trim().toUpperCase() !== cleanCode
       );
     }
 
-    // Permanently remove store from server database
-    currentDB.stores = (currentDB.stores || []).filter(
-      s => s && String(s.storeCode).trim().toUpperCase() !== cleanCode
+    // Delete store
+    currentDB.stores = currentDB.stores.filter(
+      s => !s || String(s.storeCode).trim().toUpperCase() !== cleanCode
     );
 
-    // Add tombstone for store
-    currentDB.deletedStores.push({
-      storeCode: cleanCode,
-      deletedAt: new Date().toISOString()
-    });
-    if (currentDB.deletedStores.length > 500) {
-      currentDB.deletedStores = currentDB.deletedStores.slice(-500);
+    // Delete related schedules
+    if (currentDB.cleaningSchedules) {
+      currentDB.cleaningSchedules = currentDB.cleaningSchedules.filter(
+        sch => !sch || String(sch.storeCode).trim().toUpperCase() !== cleanCode
+      );
     }
 
     writeDB(currentDB);
-
     res.json({
       success: true,
-      message: `Store ${cleanCode} successfully deleted from server database.`,
+      message: `Store ${cleanCode} permanently deleted from server database.`,
       stores: currentDB.stores,
       cleanings: currentDB.cleanings,
-      deletedStores: currentDB.deletedStores,
-      deletedCleanings: currentDB.deletedCleanings
+      data: currentDB
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server delete store error: ' + err.message });
+  }
+});
+
+// 4. Supervisors CRUD
+app.post('/api/supervisors', (req, res) => {
+  try {
+    const supData = req.body || {};
+    if (!supData.name || !supData.phone) {
+      return res.status(400).json({ success: false, message: 'Supervisor name aur phone zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.supervisors) currentDB.supervisors = [];
+
+    const nowIso = new Date().toISOString();
+    const cleanPhone = String(supData.phone).trim().replace(/[^0-9]/g, '');
+    const targetId = supData.id ? String(supData.id) : null;
+
+    let index = currentDB.supervisors.findIndex(s => s && String(s.phone).trim().replace(/[^0-9]/g, '') === cleanPhone);
+    if (index === -1 && targetId) {
+      index = currentDB.supervisors.findIndex(s => s && String(s.id) === targetId);
+    }
+
+    let savedSup = null;
+    if (index !== -1) {
+      savedSup = {
+        ...currentDB.supervisors[index],
+        ...supData,
+        phone: cleanPhone,
+        id: currentDB.supervisors[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.supervisors[index] = savedSup;
+    } else {
+      savedSup = {
+        ...supData,
+        phone: cleanPhone,
+        id: supData.id || Date.now(),
+        pin: supData.pin || '1234',
+        active: supData.active !== false,
+        createdAt: supData.createdAt || nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.supervisors.push(savedSup);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, supervisor: savedSup, supervisors: currentDB.supervisors, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save supervisor error: ' + err.message });
+  }
+});
+
+app.post('/api/supervisors/delete', (req, res) => {
+  try {
+    const { id, phone } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.supervisors) currentDB.supervisors = [];
+
+    const cleanPhone = phone ? String(phone).trim().replace(/[^0-9]/g, '') : null;
+
+    currentDB.supervisors = currentDB.supervisors.filter(s => {
+      if (!s) return false;
+      if (id && String(s.id) === String(id)) return false;
+      if (cleanPhone && String(s.phone).trim().replace(/[^0-9]/g, '') === cleanPhone) return false;
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, supervisors: currentDB.supervisors, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete supervisor error: ' + err.message });
+  }
+});
+
+// 5. Cleaners CRUD
+app.post('/api/cleaners', (req, res) => {
+  try {
+    const clnData = req.body || {};
+    if (!clnData.name) {
+      return res.status(400).json({ success: false, message: 'Cleaner name zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.cleaners) currentDB.cleaners = [];
+
+    const nowIso = new Date().toISOString();
+    const cleanName = String(clnData.name).trim().toLowerCase();
+    const cleanPhone = clnData.phone ? String(clnData.phone).trim() : '';
+    const targetId = clnData.id ? String(clnData.id) : null;
+
+    let index = -1;
+    if (targetId) {
+      index = currentDB.cleaners.findIndex(c => c && String(c.id) === targetId);
+    }
+    if (index === -1 && cleanPhone) {
+      index = currentDB.cleaners.findIndex(c => c && c.phone && String(c.phone).trim() === cleanPhone);
+    }
+    if (index === -1) {
+      index = currentDB.cleaners.findIndex(c => c && c.name && String(c.name).trim().toLowerCase() === cleanName);
+    }
+
+    let savedCln = null;
+    if (index !== -1) {
+      savedCln = {
+        ...currentDB.cleaners[index],
+        ...clnData,
+        id: currentDB.cleaners[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.cleaners[index] = savedCln;
+    } else {
+      savedCln = {
+        ...clnData,
+        id: clnData.id || Date.now(),
+        active: clnData.active !== false,
+        createdAt: clnData.createdAt || nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.cleaners.push(savedCln);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, cleaner: savedCln, cleaners: currentDB.cleaners, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save cleaner error: ' + err.message });
+  }
+});
+
+app.post('/api/cleaners/delete', (req, res) => {
+  try {
+    const { id, name, phone } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.cleaners) currentDB.cleaners = [];
+
+    const cleanPhone = phone ? String(phone).trim() : null;
+    const cleanName = name ? String(name).trim().toLowerCase() : null;
+
+    currentDB.cleaners = currentDB.cleaners.filter(c => {
+      if (!c) return false;
+      if (id && String(c.id) === String(id)) return false;
+      if (cleanPhone && c.phone && String(c.phone).trim() === cleanPhone) return false;
+      if (cleanName && c.name && String(c.name).trim().toLowerCase() === cleanName) return false;
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, cleaners: currentDB.cleaners, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete cleaner error: ' + err.message });
+  }
+});
+
+// 6. Cleaning Schedules CRUD
+app.post('/api/schedules', (req, res) => {
+  try {
+    const schData = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.cleaningSchedules) currentDB.cleaningSchedules = [];
+
+    const nowIso = new Date().toISOString();
+    const targetId = schData.id ? String(schData.id) : null;
+
+    let index = -1;
+    if (targetId) {
+      index = currentDB.cleaningSchedules.findIndex(s => s && String(s.id) === targetId);
+    }
+
+    let savedSch = null;
+    if (index !== -1) {
+      savedSch = {
+        ...currentDB.cleaningSchedules[index],
+        ...schData,
+        id: currentDB.cleaningSchedules[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.cleaningSchedules[index] = savedSch;
+    } else {
+      savedSch = {
+        ...schData,
+        id: schData.id || Date.now(),
+        createdAt: schData.createdAt || nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.cleaningSchedules.push(savedSch);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, schedule: savedSch, cleaningSchedules: currentDB.cleaningSchedules, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save schedule error: ' + err.message });
+  }
+});
+
+app.post('/api/schedules/delete', (req, res) => {
+  try {
+    const { id, storeCode, scheduledDate } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.cleaningSchedules) currentDB.cleaningSchedules = [];
+
+    const sc = storeCode ? String(storeCode).trim().toUpperCase() : null;
+    const sd = scheduledDate ? String(scheduledDate).trim() : null;
+
+    currentDB.cleaningSchedules = currentDB.cleaningSchedules.filter(s => {
+      if (!s) return false;
+      if (id && String(s.id) === String(id)) return false;
+      if (sc && sd && String(s.storeCode).trim().toUpperCase() === sc && String(s.scheduledDate).trim() === sd) return false;
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, cleaningSchedules: currentDB.cleaningSchedules, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete schedule error: ' + err.message });
+  }
+});
+
+// 7. Chemical Stock & Logs
+app.post('/api/chemicals/stock', (req, res) => {
+  try {
+    const itemData = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.chemicalStock) currentDB.chemicalStock = [];
+
+    const nowIso = new Date().toISOString();
+    const targetName = (itemData.itemName || '').trim().toLowerCase();
+    const targetId = itemData.id ? String(itemData.id) : null;
+
+    let index = -1;
+    if (targetId) {
+      index = currentDB.chemicalStock.findIndex(c => c && String(c.id) === targetId);
+    }
+    if (index === -1 && targetName) {
+      index = currentDB.chemicalStock.findIndex(c => c && (c.itemName || '').trim().toLowerCase() === targetName);
+    }
+
+    let saved = null;
+    if (index !== -1) {
+      saved = {
+        ...currentDB.chemicalStock[index],
+        ...itemData,
+        id: currentDB.chemicalStock[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.chemicalStock[index] = saved;
+    } else {
+      saved = {
+        ...itemData,
+        id: itemData.id || Date.now(),
+        updatedAt: nowIso
+      };
+      currentDB.chemicalStock.push(saved);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, chemicalStock: currentDB.chemicalStock, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/chemicals/log', (req, res) => {
+  try {
+    const logData = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.chemicalLogs) currentDB.chemicalLogs = [];
+
+    const newLog = {
+      ...logData,
+      id: logData.id || Date.now(),
+      createdAt: new Date().toISOString()
+    };
+    currentDB.chemicalLogs.unshift(newLog);
+
+    writeDB(currentDB);
+    res.json({ success: true, chemicalLogs: currentDB.chemicalLogs, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 8. Cleaner Advances
+app.post('/api/advances', (req, res) => {
+  try {
+    const advData = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.cleanerAdvances) currentDB.cleanerAdvances = [];
+
+    const newAdv = {
+      ...advData,
+      id: advData.id || Date.now(),
+      createdAt: new Date().toISOString()
+    };
+    currentDB.cleanerAdvances.unshift(newAdv);
+
+    writeDB(currentDB);
+    res.json({ success: true, cleanerAdvances: currentDB.cleanerAdvances, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/advances/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.cleanerAdvances) currentDB.cleanerAdvances = [];
+
+    currentDB.cleanerAdvances = currentDB.cleanerAdvances.filter(a => a && String(a.id) !== String(id));
+    writeDB(currentDB);
+    res.json({ success: true, cleanerAdvances: currentDB.cleanerAdvances, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete advance error: ' + err.message });
+  }
+});
+
+// 9. Store Issues / Defects
+app.post('/api/issues', (req, res) => {
+  try {
+    const issueData = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.storeIssues) currentDB.storeIssues = [];
+
+    const targetId = issueData.id ? String(issueData.id) : null;
+    let index = -1;
+    if (targetId) {
+      index = currentDB.storeIssues.findIndex(i => i && String(i.id) === targetId);
+    }
+
+    let saved = null;
+    if (index !== -1) {
+      saved = {
+        ...currentDB.storeIssues[index],
+        ...issueData,
+        id: currentDB.storeIssues[index].id,
+        updatedAt: new Date().toISOString()
+      };
+      currentDB.storeIssues[index] = saved;
+    } else {
+      saved = {
+        ...issueData,
+        id: issueData.id || Date.now(),
+        reportedAt: issueData.reportedAt || new Date().toISOString()
+      };
+      currentDB.storeIssues.unshift(saved);
+    }
+
+    writeDB(currentDB);
+    res.json({ success: true, storeIssues: currentDB.storeIssues, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/issues/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.storeIssues) currentDB.storeIssues = [];
+    currentDB.storeIssues = currentDB.storeIssues.filter(i => i && String(i.id) !== String(id));
+    writeDB(currentDB);
+    res.json({ success: true, storeIssues: currentDB.storeIssues, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 10. Login Logs & Audit Trail
+app.post('/api/logs/add', (req, res) => {
+  try {
+    const logEntry = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.loginLogs) currentDB.loginLogs = [];
+    currentDB.loginLogs.unshift({
+      ...logEntry,
+      id: logEntry.id || Date.now(),
+      timestamp: logEntry.timestamp || new Date().toISOString()
+    });
+    if (currentDB.loginLogs.length > 500) {
+      currentDB.loginLogs = currentDB.loginLogs.slice(0, 500);
+    }
+    writeDB(currentDB);
+    res.json({ success: true, loginLogs: currentDB.loginLogs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -564,158 +1083,36 @@ app.post('/api/logs/clear', (req, res) => {
     res.json({
       success: true,
       message: 'Login audit logs successfully cleared from server.',
-      logsClearedAt: currentDB.logsClearedAt
+      loginLogs: [],
+      data: currentDB
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server clear logs error: ' + err.message });
   }
 });
 
-app.post('/api/supervisors/delete', (req, res) => {
-  try {
-    const { id, phone, name } = req.body || {};
-    const currentDB = readDB();
-    if (!currentDB.deletedSupervisors) currentDB.deletedSupervisors = [];
-
-    const cleanPhone = phone ? String(phone).trim() : null;
-
-    currentDB.supervisors = (currentDB.supervisors || []).filter(s => {
-      if (!s) return false;
-      if (id && s.id && String(s.id) === String(id)) return false;
-      if (cleanPhone && s.phone && String(s.phone).trim() === cleanPhone) return false;
-      return true;
-    });
-
-    currentDB.deletedSupervisors.push({
-      id: id || null,
-      phone: cleanPhone,
-      name: name || null,
-      deletedAt: new Date().toISOString()
-    });
-    if (currentDB.deletedSupervisors.length > 500) {
-      currentDB.deletedSupervisors = currentDB.deletedSupervisors.slice(-500);
-    }
-
-    writeDB(currentDB);
-    res.json({ success: true, supervisors: currentDB.supervisors, deletedSupervisors: currentDB.deletedSupervisors });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server delete supervisor error: ' + err.message });
-  }
-});
-
-app.post('/api/cleaners/delete', (req, res) => {
-  try {
-    const { id, name, phone } = req.body || {};
-    const currentDB = readDB();
-    if (!currentDB.deletedCleaners) currentDB.deletedCleaners = [];
-
-    const cleanPhone = phone ? String(phone).trim() : null;
-    const cleanName = name ? String(name).trim().toLowerCase() : null;
-
-    currentDB.cleaners = (currentDB.cleaners || []).filter(c => {
-      if (!c) return false;
-      if (id && c.id && String(c.id) === String(id)) return false;
-      if (cleanPhone && c.phone && String(c.phone).trim() === cleanPhone) return false;
-      if (cleanName && c.name && String(c.name).trim().toLowerCase() === cleanName) return false;
-      return true;
-    });
-
-    currentDB.deletedCleaners.push({
-      id: id || null,
-      phone: cleanPhone,
-      name: cleanName,
-      deletedAt: new Date().toISOString()
-    });
-    if (currentDB.deletedCleaners.length > 500) {
-      currentDB.deletedCleaners = currentDB.deletedCleaners.slice(-500);
-    }
-
-    writeDB(currentDB);
-    res.json({ success: true, cleaners: currentDB.cleaners, deletedCleaners: currentDB.deletedCleaners });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server delete cleaner error: ' + err.message });
-  }
-});
-
-app.post('/api/schedules/delete', (req, res) => {
-  try {
-    const { id, storeCode, scheduledDate } = req.body || {};
-    const currentDB = readDB();
-    if (!currentDB.deletedSchedules) currentDB.deletedSchedules = [];
-
-    const sc = storeCode ? String(storeCode).trim().toUpperCase() : null;
-    const sd = scheduledDate ? String(scheduledDate).trim() : null;
-
-    currentDB.cleaningSchedules = (currentDB.cleaningSchedules || []).filter(s => {
-      if (!s) return false;
-      if (id && s.id && String(s.id) === String(id)) return false;
-      if (sc && sd && String(s.storeCode).trim().toUpperCase() === sc && String(s.scheduledDate).trim() === sd) return false;
-      return true;
-    });
-
-    currentDB.deletedSchedules.push({
-      id: id || null,
-      storeCode: sc,
-      scheduledDate: sd,
-      deletedAt: new Date().toISOString()
-    });
-    if (currentDB.deletedSchedules.length > 500) {
-      currentDB.deletedSchedules = currentDB.deletedSchedules.slice(-500);
-    }
-
-    writeDB(currentDB);
-    res.json({ success: true, cleaningSchedules: currentDB.cleaningSchedules, deletedSchedules: currentDB.deletedSchedules });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server delete schedule error: ' + err.message });
-  }
-});
-
-app.post('/api/advances/delete', (req, res) => {
-  try {
-    const { id, cleanerId, advanceDate } = req.body || {};
-    const currentDB = readDB();
-    if (!currentDB.deletedAdvances) currentDB.deletedAdvances = [];
-
-    currentDB.cleanerAdvances = (currentDB.cleanerAdvances || []).filter(a => {
-      if (!a) return false;
-      if (id && a.id && String(a.id) === String(id)) return false;
-      return true;
-    });
-
-    currentDB.deletedAdvances.push({
-      id: id || null,
-      cleanerId: cleanerId || null,
-      advanceDate: advanceDate || null,
-      deletedAt: new Date().toISOString()
-    });
-    if (currentDB.deletedAdvances.length > 500) {
-      currentDB.deletedAdvances = currentDB.deletedAdvances.slice(-500);
-    }
-
-    writeDB(currentDB);
-    res.json({ success: true, cleanerAdvances: currentDB.cleanerAdvances, deletedAdvances: currentDB.deletedAdvances });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server delete advance error: ' + err.message });
-  }
-});
-
+// 11. Complete Clean / Reset Data
 app.post('/api/demo/clear', (req, res) => {
   try {
     const currentDB = readDB();
-    const demoCodes = ['BLK-TEST-001', 'BLK-GURGAON-42', 'BLK-', 'BLK-009'];
-    currentDB.stores = (currentDB.stores || []).filter(s => s && !demoCodes.includes(String(s.storeCode).trim().toUpperCase()));
-    currentDB.cleanings = (currentDB.cleanings || []).filter(c => c && !demoCodes.includes(String(c.storeCode).trim().toUpperCase()));
+    currentDB.cleanings = [];
+    currentDB.stores = [];
+    currentDB.cleaningSchedules = [];
+    currentDB.storeIssues = [];
+    currentDB.chemicalLogs = [];
+    currentDB.cleanerAdvances = [];
     writeDB(currentDB);
-    res.json({ success: true, message: 'Demo data cleared from server database.' });
+    res.json({
+      success: true,
+      message: 'Server database 100% clean ho gaya hai. Ab aap apni real store entries kar sakte hain.',
+      data: currentDB
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server clear demo error: ' + err.message });
   }
 });
 
-// -------------------------------------------------------------
-// API ROUTES
-// -------------------------------------------------------------
-
+// 12. Server Health Check
 app.get('/api/health', (req, res) => {
   const db = readDB();
   res.json({
@@ -733,128 +1130,6 @@ app.get('/api/health', (req, res) => {
       loginLogs: db.loginLogs?.length || 0
     }
   });
-});
-
-app.get('/api/sync', (req, res) => {
-  const db = readDB();
-  res.json({
-    success: true,
-    serverTime: new Date().toISOString(),
-    data: db
-  });
-});
-
-app.post('/api/sync', (req, res) => {
-  try {
-    const clientPayload = req.body || {};
-    const updates = clientPayload.updates || clientPayload.data || {};
-    const currentDB = readDB();
-    if (!currentDB.deletedStores) currentDB.deletedStores = [];
-    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
-    if (!currentDB.deletedSupervisors) currentDB.deletedSupervisors = [];
-    if (!currentDB.deletedCleaners) currentDB.deletedCleaners = [];
-    if (!currentDB.deletedSchedules) currentDB.deletedSchedules = [];
-    if (!currentDB.deletedAdvances) currentDB.deletedAdvances = [];
-
-    const mergedCleanings = mergeCleanings(currentDB.cleanings, updates.cleanings || [], currentDB.deletedCleanings);
-    const mergedStores = mergeStores(currentDB.stores, updates.stores || [], currentDB.deletedStores);
-    const mergedSupervisors = mergeSupervisors(currentDB.supervisors, updates.supervisors || [], currentDB.deletedSupervisors);
-
-    const mergedCleaners = mergeGeneric(
-      currentDB.cleaners, 
-      updates.cleaners || [], 
-      (c) => c.phone ? `cln_${c.phone}` : (c.id ? `id_${c.id}` : c.name),
-      (c) => isCleanerDeleted(c, currentDB.deletedCleaners)
-    );
-
-    const mergedSchedules = mergeGeneric(
-      currentDB.cleaningSchedules, 
-      updates.cleaningSchedules || [], 
-      (s) => s.storeCode && s.scheduledDate ? `${s.storeCode}_${s.scheduledDate}_${s.shift || ''}` : `id_${s.id}`,
-      (s) => isScheduleDeleted(s, currentDB.deletedSchedules)
-    );
-
-    const mergedChemicalStock = mergeGeneric(
-      currentDB.chemicalStock, 
-      updates.chemicalStock || [], 
-      (c) => c.itemName ? c.itemName.trim().toLowerCase() : `id_${c.id}`
-    );
-
-    const mergedChemicalLogs = mergeGeneric(
-      currentDB.chemicalLogs, 
-      updates.chemicalLogs || [], 
-      (l) => l.id ? `id_${l.id}` : `${l.chemicalId}_${l.logDate}_${l.quantity}`
-    );
-
-    const mergedAdvances = mergeGeneric(
-      currentDB.cleanerAdvances, 
-      updates.cleanerAdvances || [], 
-      (a) => a.id ? `id_${a.id}` : `${a.cleanerId}_${a.advanceDate}_${a.amount}`,
-      (a) => isAdvanceDeleted(a, currentDB.deletedAdvances)
-    );
-
-    const mergedIssues = mergeGeneric(
-      currentDB.storeIssues, 
-      updates.storeIssues || [], 
-      (i) => i.id ? `id_${i.id}` : `${i.storeCode}_${i.reportedAt}`
-    );
-
-    // Login logs: ignore any incoming logs older than or equal to logsClearedAt
-    const logsClearedTime = new Date(currentDB.logsClearedAt || 0).getTime();
-    const filteredIncomingLogs = (updates.loginLogs || []).filter(l => {
-      if (!l || !l.timestamp) return false;
-      return new Date(l.timestamp).getTime() > logsClearedTime;
-    });
-
-    const mergedLoginLogs = mergeGeneric(
-      currentDB.loginLogs, 
-      filteredIncomingLogs, 
-      (l) => l.timestamp && l.loginId ? `${l.timestamp}_${l.loginId}` : `id_${l.id}`
-    );
-
-    // Merge appSettings (login credentials) - incoming overwrites existing
-    const mergedSettings = {
-      ...(currentDB.appSettings || DEFAULT_DB.appSettings),
-      ...(updates.appSettings || {})
-    };
-
-    const updatedDB = {
-      ...currentDB,
-      cleanings: mergedCleanings,
-      stores: mergedStores,
-      supervisors: mergedSupervisors,
-      cleaners: mergedCleaners,
-      cleaningSchedules: mergedSchedules,
-      chemicalStock: mergedChemicalStock,
-      chemicalLogs: mergedChemicalLogs,
-      cleanerAdvances: mergedAdvances,
-      storeIssues: mergedIssues,
-      loginLogs: mergedLoginLogs,
-      deletedStores: currentDB.deletedStores || [],
-      deletedCleanings: currentDB.deletedCleanings || [],
-      deletedSupervisors: currentDB.deletedSupervisors || [],
-      deletedCleaners: currentDB.deletedCleaners || [],
-      deletedSchedules: currentDB.deletedSchedules || [],
-      deletedAdvances: currentDB.deletedAdvances || [],
-      logsClearedAt: currentDB.logsClearedAt || null,
-      appSettings: mergedSettings
-    };
-
-    writeDB(updatedDB);
-
-    res.json({
-      success: true,
-      message: 'Global sync completed successfully',
-      serverTime: new Date().toISOString(),
-      data: updatedDB
-    });
-  } catch (err) {
-    console.error('Error during /api/sync:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Server sync error: ' + err.message
-    });
-  }
 });
 
 // SPA static serving

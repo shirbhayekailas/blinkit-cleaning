@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { 
   X, 
   History, 
@@ -18,32 +17,19 @@ import {
   Calendar,
   Sparkles
 } from 'lucide-react';
-import { db } from '../db/db';
+import { clearLoginLogs } from '../services/api';
 import { exportLoginLogsToCSV } from '../utils/auditLogger';
-import { clearLoginLogsOnServer, performCloudSync } from '../utils/cloudSync';
 
 export default function LoginLogsModal({
   isOpen,
   onClose,
-  currentUserRole = 'admin'
+  currentUserRole = 'admin',
+  logs = [],
+  onLogsCleared
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'admin' | 'manager' | 'supervisor' | 'client' | 'failed'
   const [timeFilter, setTimeFilter] = useState('all'); // 'all' | 'today' | 'week'
-
-  // Reactive query of login logs from Dexie
-  const logsData = useLiveQuery(async () => {
-    try {
-      if (!db.loginLogs) return [];
-      const list = await db.loginLogs.toArray();
-      return list.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
-    } catch (e) {
-      console.error('Dexie loginLogs query error:', e);
-      return [];
-    }
-  }, []);
-
-  const logs = Array.isArray(logsData) ? logsData : [];
 
   // Close on Escape key press
   React.useEffect(() => {
@@ -103,11 +89,8 @@ export default function LoginLogsModal({
 
     if (confirm('Kya aap sach me sare Login Audit Logs delete karna chahte hain?')) {
       try {
-        await clearLoginLogsOnServer();
-        if (db.loginLogs) {
-          await db.loginLogs.clear();
-        }
-        performCloudSync().catch(() => {});
+        await clearLoginLogs();
+        if (onLogsCleared) onLogsCleared();
         alert('✅ Sare Login Audit Logs permanently clear ho gaye hain.');
       } catch (err) {
         alert('Error clearing logs: ' + err.message);

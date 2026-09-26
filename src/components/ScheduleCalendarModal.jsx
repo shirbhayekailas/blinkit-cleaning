@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { 
   X, 
   Calendar, 
@@ -13,15 +12,16 @@ import {
   AlertCircle,
   Play
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync, deleteScheduleOnServer } from '../utils/cloudSync';
+import { saveSchedule, deleteSchedule } from '../services/api';
 
 export default function ScheduleCalendarModal({
   isOpen,
   onClose,
   stores = [],
   supervisors = [],
-  onStartShiftForStore
+  schedules = [],
+  onStartShiftForStore,
+  onScheduleUpdated
 }) {
   const [isScheduling, setIsScheduling] = useState(false);
   const todayStr = new Date().toISOString().split('T')[0];
@@ -36,17 +36,6 @@ export default function ScheduleCalendarModal({
     notes: ''
   });
 
-  // Query schedules from Dexie
-  const schedulesData = useLiveQuery(async () => {
-    try {
-      const list = await db.cleaningSchedules.toArray();
-      return list.sort((a, b) => (a.scheduledDate || '').localeCompare(b.scheduledDate || ''));
-    } catch {
-      return [];
-    }
-  }, []);
-  const schedules = Array.isArray(schedulesData) ? schedulesData : [];
-
   if (!isOpen) return null;
 
   const handleSaveSchedule = async (e) => {
@@ -60,7 +49,7 @@ export default function ScheduleCalendarModal({
     const sup = supervisors.find(s => s.id === Number(newSchedule.supervisorId));
 
     try {
-      await db.cleaningSchedules.add({
+      await saveSchedule({
         storeCode: newSchedule.storeCode,
         storeName: st?.storeName || 'Dark Store',
         city: st?.city || 'Delhi NCR',
@@ -71,8 +60,8 @@ export default function ScheduleCalendarModal({
         supervisorName: sup ? sup.name : 'Not assigned',
         expectedCleaners: Number(newSchedule.expectedCleaners) || 4,
         notes: newSchedule.notes.trim(),
-        status: 'Scheduled', // 'Scheduled' | 'Completed' | 'Cancelled'
-        createdAt: new Date()
+        status: 'Scheduled',
+        createdAt: new Date().toISOString()
       });
 
       setIsScheduling(false);
@@ -84,26 +73,33 @@ export default function ScheduleCalendarModal({
         expectedCleaners: 4,
         notes: ''
       });
+      if (onScheduleUpdated) onScheduleUpdated();
       alert('Shift successfully scheduled!');
-      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error scheduling shift: ' + err.message);
     }
   };
 
   const handleUpdateStatus = async (id, status) => {
-    await db.cleaningSchedules.update(id, { status });
-    performCloudSync().catch(() => {});
+    try {
+      const sch = schedules.find(s => s.id === id);
+      if (sch) {
+        await saveSchedule({ ...sch, status });
+        if (onScheduleUpdated) onScheduleUpdated();
+      }
+    } catch (e) {
+      console.warn('Update status error:', e);
+    }
   };
 
   const handleDeleteSchedule = async (id) => {
     if (confirm('Delete this schedule entry?')) {
-      const sch = schedules.find(s => s.id === id);
-      if (sch) {
-        await deleteScheduleOnServer(sch);
+      try {
+        await deleteSchedule(id);
+        if (onScheduleUpdated) onScheduleUpdated();
+      } catch (err) {
+        alert('Error deleting schedule: ' + err.message);
       }
-      await db.cleaningSchedules.delete(id);
-      performCloudSync().catch(() => {});
     }
   };
 

@@ -9,13 +9,13 @@ import {
   Trash2,
   HardHat
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync, deleteCleanerOnServer } from '../utils/cloudSync';
+import { saveCleaner, deleteCleaner } from '../services/api';
 
 export default function CleanerRosterModal({
   isOpen,
   onClose,
-  cleaners = []
+  cleaners = [],
+  onCleanerUpdated
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [currentCleaner, setCurrentCleaner] = useState({
@@ -50,26 +50,17 @@ export default function CleanerRosterModal({
     }
 
     try {
-      if (currentCleaner.id) {
-        await db.cleaners.update(currentCleaner.id, {
-          name: currentCleaner.name.trim(),
-          phone: (currentCleaner.phone || '').trim(),
-          dailyWage: Number(currentCleaner.dailyWage) || 500,
-          role: currentCleaner.role || 'Deep Cleaner',
-          updatedAt: new Date()
-        });
-      } else {
-        await db.cleaners.add({
-          name: currentCleaner.name.trim(),
-          phone: (currentCleaner.phone || '').trim(),
-          dailyWage: Number(currentCleaner.dailyWage) || 500,
-          role: currentCleaner.role || 'Deep Cleaner',
-          active: true,
-          createdAt: new Date()
-        });
-      }
+      await saveCleaner({
+        id: currentCleaner.id,
+        name: currentCleaner.name.trim(),
+        phone: (currentCleaner.phone || '').trim(),
+        dailyWage: Number(currentCleaner.dailyWage) || 500,
+        role: currentCleaner.role || 'Deep Cleaner',
+        active: true
+      });
       setIsEditing(false);
-      performCloudSync().catch(() => {});
+      if (onCleanerUpdated) onCleanerUpdated();
+      alert('Cleaner roster successfully saved!');
     } catch (err) {
       alert('Error saving cleaner: ' + err.message);
     }
@@ -77,11 +68,12 @@ export default function CleanerRosterModal({
 
   const handleDelete = async (cln) => {
     if (confirm(`Are you sure you want to remove cleaner "${cln?.name || 'this cleaner'}" from the roster?`)) {
-      await deleteCleanerOnServer(cln);
-      if (cln?.id) {
-        await db.cleaners.delete(cln.id);
+      try {
+        await deleteCleaner(cln);
+        if (onCleanerUpdated) onCleanerUpdated();
+      } catch (err) {
+        alert('Error deleting cleaner: ' + err.message);
       }
-      performCloudSync().catch(() => {});
     }
   };
 

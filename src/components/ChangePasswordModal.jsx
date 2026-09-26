@@ -12,8 +12,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { db } from '../db/db';
-import { performCloudSync, getApiUrl } from '../utils/cloudSync';
+import { changePin } from '../services/api';
 
 export default function ChangePasswordModal({
   isOpen,
@@ -89,12 +88,6 @@ export default function ChangePasswordModal({
         localStorage.setItem('blinkit_client_pin', cleanNewPin);
         localStorage.setItem('client_pin_changed', 'true');
       } else if (role === 'supervisor' && user?.id) {
-        await db.supervisors.update(user.id, {
-          pin: cleanNewPin,
-          hasChangedPin: true,
-          lastPinChange: new Date()
-        });
-        
         // Also update local storage session if currently logged in
         const currentSaved = localStorage.getItem('blinkit_supervisor');
         if (currentSaved) {
@@ -113,19 +106,10 @@ export default function ChangePasswordModal({
 
       // Sync updated PIN directly to server database
       try {
-        await fetch(getApiUrl('/api/auth/change-pin'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            role,
-            newPin: cleanNewPin,
-            userId: user?.id || user?.phone
-          })
-        });
+        await changePin(role, cleanNewPin, user?.id || user?.phone);
       } catch (err) {
         console.warn('Could not update PIN on server directly:', err);
       }
-      performCloudSync().catch(() => {});
 
       // Celebrate
       try {

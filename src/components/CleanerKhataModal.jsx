@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { 
   X, 
   Users, 
@@ -14,15 +13,16 @@ import {
   History,
   Trash2
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync, deleteAdvanceOnServer } from '../utils/cloudSync';
+import { saveAdvance, deleteAdvance } from '../services/api';
 
 export default function CleanerKhataModal({
   isOpen,
   onClose,
   cleaners = [],
   cleanings = [],
-  onOpenCleaners
+  advances = [],
+  onOpenCleaners,
+  onAdvanceUpdated
 }) {
   const [selectedCleaner, setSelectedCleaner] = useState(null);
   const [isAdvanceFormOpen, setIsAdvanceFormOpen] = useState(false);
@@ -30,16 +30,6 @@ export default function CleanerKhataModal({
   const [advanceDate, setAdvanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [remarks, setRemarks] = useState('');
-
-  // Live query for all cleaner advances/payouts
-  const advancesData = useLiveQuery(async () => {
-    try {
-      return await db.cleanerAdvances.toArray();
-    } catch {
-      return [];
-    }
-  }, []);
-  const advances = Array.isArray(advancesData) ? advancesData : [];
 
   if (!isOpen) return null;
 
@@ -83,21 +73,21 @@ export default function CleanerKhataModal({
     }
 
     try {
-      await db.cleanerAdvances.add({
+      await saveAdvance({
         cleanerId: selectedCleaner.id,
         cleanerName: selectedCleaner.name,
         amount: Number(advanceAmount),
         date: advanceDate,
         paymentMode,
         remarks: remarks.trim(),
-        createdAt: new Date()
+        createdAt: new Date().toISOString()
       });
 
       setAdvanceAmount('');
       setRemarks('');
       setIsAdvanceFormOpen(false);
+      if (onAdvanceUpdated) onAdvanceUpdated();
       alert(`₹${advanceAmount} payout successfully recorded for ${selectedCleaner.name}!`);
-      performCloudSync().catch(() => {});
     } catch (err) {
       alert('Error recording payout: ' + err.message);
     }
@@ -105,12 +95,12 @@ export default function CleanerKhataModal({
 
   const handleDeleteAdvance = async (advanceId) => {
     if (confirm('Are you sure you want to delete this payment record?')) {
-      const adv = advances.find(a => a.id === advanceId);
-      if (adv) {
-        await deleteAdvanceOnServer(adv);
+      try {
+        await deleteAdvance(advanceId);
+        if (onAdvanceUpdated) onAdvanceUpdated();
+      } catch (err) {
+        alert('Error deleting payout: ' + err.message);
       }
-      await db.cleanerAdvances.delete(advanceId);
-      performCloudSync().catch(() => {});
     }
   };
 

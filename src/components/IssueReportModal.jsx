@@ -10,14 +10,14 @@ import {
   MessageSquare,
   Clock
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { saveIssue } from '../services/api';
 
 export default function IssueReportModal({
   isOpen,
   onClose,
   issues = [],
-  stores = []
+  stores = [],
+  onIssueUpdated
 }) {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'Open' | 'Resolved'
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -31,11 +31,12 @@ export default function IssueReportModal({
   const handleToggleStatus = async (issue) => {
     try {
       const newStatus = issue.status === 'Resolved' ? 'Open' : 'Resolved';
-      await db.storeIssues.update(issue.id, {
+      await saveIssue({
+        ...issue,
         status: newStatus,
-        resolvedAt: newStatus === 'Resolved' ? new Date() : null
+        resolvedAt: newStatus === 'Resolved' ? new Date().toISOString() : null
       });
-      performCloudSync().catch(() => {});
+      if (onIssueUpdated) onIssueUpdated();
     } catch (err) {
       alert('Error updating status: ' + err.message);
     }

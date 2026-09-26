@@ -14,14 +14,14 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync, deleteSupervisorOnServer } from '../utils/cloudSync';
+import { saveSupervisor, deleteSupervisor } from '../services/api';
 
 export default function SupervisorManagementModal({
   isOpen,
   onClose,
   supervisors = [],
-  stores = []
+  stores = [],
+  onSupervisorUpdated
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [visiblePins, setVisiblePins] = useState({});
@@ -60,26 +60,17 @@ export default function SupervisorManagementModal({
     }
 
     try {
-      if (currentSupervisor.id) {
-        await db.supervisors.update(currentSupervisor.id, {
-          name: currentSupervisor.name.trim(),
-          phone: currentSupervisor.phone.trim().replace(/[^0-9]/g, ''),
-          pin: currentSupervisor.pin.trim(),
-          assignedStoreCodes: currentSupervisor.assignedStoreCodes || [],
-          updatedAt: new Date()
-        });
-      } else {
-        await db.supervisors.add({
-          name: currentSupervisor.name.trim(),
-          phone: currentSupervisor.phone.trim().replace(/[^0-9]/g, ''),
-          pin: currentSupervisor.pin.trim(),
-          assignedStoreCodes: currentSupervisor.assignedStoreCodes || [],
-          active: true,
-          createdAt: new Date()
-        });
-      }
+      await saveSupervisor({
+        id: currentSupervisor.id,
+        name: currentSupervisor.name.trim(),
+        phone: currentSupervisor.phone.trim().replace(/[^0-9]/g, ''),
+        pin: currentSupervisor.pin.trim(),
+        assignedStoreCodes: currentSupervisor.assignedStoreCodes || [],
+        active: true
+      });
       setIsEditing(false);
-      performCloudSync().catch(() => {});
+      if (onSupervisorUpdated) onSupervisorUpdated();
+      alert('Supervisor successfully saved!');
     } catch (err) {
       alert('Error saving supervisor: ' + err.message);
     }
@@ -87,11 +78,12 @@ export default function SupervisorManagementModal({
 
   const handleDelete = async (sup) => {
     if (confirm(`Are you sure you want to delete supervisor "${sup?.name || 'this supervisor'}"?`)) {
-      await deleteSupervisorOnServer(sup);
-      if (sup?.id) {
-        await db.supervisors.delete(sup.id);
+      try {
+        await deleteSupervisor(sup);
+        if (onSupervisorUpdated) onSupervisorUpdated();
+      } catch (err) {
+        alert('Error deleting supervisor: ' + err.message);
       }
-      performCloudSync().catch(() => {});
     }
   };
 

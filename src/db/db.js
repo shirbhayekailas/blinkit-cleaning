@@ -1,5 +1,14 @@
 import Dexie from 'dexie';
 
+// Purge legacy IndexedDB on startup so local browser storage never retains old ghost records
+if (typeof window !== 'undefined' && window.indexedDB) {
+  try {
+    window.indexedDB.deleteDatabase('BlinkitDeepCleaningDB');
+  } catch (e) {
+    console.warn('Notice clearing legacy IndexedDB:', e);
+  }
+}
+
 export const db = new Dexie('BlinkitDeepCleaningDB');
 
 db.version(1).stores({

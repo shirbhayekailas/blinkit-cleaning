@@ -33,8 +33,7 @@ import { shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
 import AudioRecorder from './AudioRecorder';
 import SpeechToTextInput from './SpeechToTextInput';
 import QRScannerModal from './QRScannerModal';
-import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { saveCleaning, saveIssue } from '../services/api';
 
 export default function SupervisorPortal({
   supervisor,
@@ -305,11 +304,12 @@ export default function SupervisorPortal({
     };
 
     try {
-      const cleaningId = await db.cleanings.add(cleaningRecord);
+      const saveRes = await saveCleaning(cleaningRecord);
+      const cleaningId = saveRes?.cleaning?.id || Date.now();
 
-      // If defect/issue was flagged, save to db.storeIssues
+      // If defect/issue was flagged, save to server storeIssues
       if (hasIssue && issueDesc.trim()) {
-        await db.storeIssues.add({
+        await saveIssue({
           cleaningId,
           storeCode: selectedStore.storeCode,
           storeName: selectedStore.storeName,
@@ -317,14 +317,13 @@ export default function SupervisorPortal({
           description: issueDesc.trim(),
           photoUrl: issuePhoto || '',
           status: 'Open',
-          reportedAt: new Date(),
+          reportedAt: new Date().toISOString(),
           supervisorName: supervisor.name
         });
       }
 
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.7 } });
       alert(`✅ Cleaning shift submitted successfully for ${selectedStore.storeName}!`);
-      performCloudSync().catch(() => {});
       
       // Reset form
       setSelectedStoreCode('');

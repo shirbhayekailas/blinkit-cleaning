@@ -19,8 +19,7 @@ import {
   Sparkles,
   History
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { changePin, saveSupervisor } from '../services/api';
 
 export default function UserAccessModal({
   isOpen,
@@ -28,7 +27,8 @@ export default function UserAccessModal({
   supervisors = [],
   onOpenAddSupervisor,
   onChangeAdminPin,
-  onOpenLoginLogs
+  onOpenLoginLogs,
+  onSupervisorUpdated
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -82,13 +82,10 @@ export default function UserAccessModal({
     }
 
     try {
-      await db.supervisors.update(supId, {
-        pin: tempPin.trim(),
-        hasChangedPin: true,
-        updatedAt: new Date()
-      });
+      await changePin('supervisor', tempPin.trim(), supId);
       setEditingSupId(null);
-      performCloudSync().catch(() => {});
+      if (onSupervisorUpdated) onSupervisorUpdated();
+      alert('Supervisor PIN successfully update ho gaya!');
     } catch (err) {
       alert('PIN save karne me error: ' + err.message);
     }
@@ -97,12 +94,9 @@ export default function UserAccessModal({
   const handleResetSupPin = async (sup) => {
     if (confirm(`${sup.name} ka PIN reset karke default '1234' karna chahte hain?`)) {
       try {
-        await db.supervisors.update(sup.id, {
-          pin: '1234',
-          hasChangedPin: false,
-          updatedAt: new Date()
-        });
-        performCloudSync().catch(() => {});
+        await changePin('supervisor', '1234', sup.id);
+        if (onSupervisorUpdated) onSupervisorUpdated();
+        alert('PIN reset ho gaya!');
       } catch (err) {
         alert('Error: ' + err.message);
       }

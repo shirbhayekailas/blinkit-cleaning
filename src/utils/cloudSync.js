@@ -606,45 +606,18 @@ export async function applyRemoteDataToLocalDB(data) {
 export async function performCloudSync() {
   const config = getCloudConfig();
 
-  // Gather current local database state
-  const localData = {
-    cleanings: await db.cleanings.toArray(),
-    stores: await db.stores.toArray(),
-    supervisors: await db.supervisors.toArray(),
-    cleaners: await db.cleaners.toArray(),
-    cleaningSchedules: await db.cleaningSchedules.toArray(),
-    chemicalStock: await db.chemicalStock.toArray(),
-    chemicalLogs: await db.chemicalLogs.toArray(),
-    cleanerAdvances: await db.cleanerAdvances.toArray(),
-    storeIssues: await db.storeIssues.toArray(),
-    loginLogs: db.loginLogs ? await db.loginLogs.toArray() : [],
-    appSettings: {
-      vendor_admin_id: localStorage.getItem('vendor_admin_id') || 'admin',
-      vendor_admin_pin: localStorage.getItem('vendor_admin_pin') || '1234',
-      vendor_manager_id: localStorage.getItem('vendor_manager_id') || 'manager',
-      vendor_manager_pin: localStorage.getItem('vendor_manager_pin') || '1234',
-      vendor_manager_name: localStorage.getItem('vendor_manager_name') || 'Operations Manager',
-      blinkit_client_id: localStorage.getItem('blinkit_client_id') || 'client',
-      blinkit_client_pin: localStorage.getItem('blinkit_client_pin') || '5678',
-      blinkit_client_name: localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head'
-    }
-  };
-
   // -----------------------------------------------------------------
-  // STRATEGY 1: Built-in Server Database (/api/sync)
+  // STRATEGY 1: Pure Server Database Fetch (/api/state)
   // -----------------------------------------------------------------
   try {
-    const res = await fetch(getApiUrl('/api/sync'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates: localData })
+    const res = await fetch(getApiUrl('/api/state'), {
+      method: 'GET',
+      headers: { 'Cache-Control': 'no-cache' }
     });
 
     if (res.ok) {
       const result = await res.json();
       if (result.success && result.data) {
-        await applyRemoteDataToLocalDB(result.data);
-
         // Sync login credentials from server to this browser's localStorage
         if (result.data.appSettings) {
           const s = result.data.appSettings;
@@ -667,12 +640,13 @@ export async function performCloudSync() {
         return {
           success: true,
           mode: 'server',
+          data: result.data,
           message: 'Server Database: Live Synced! Desktop and Mobile are in sync.'
         };
       }
     }
   } catch (serverErr) {
-    console.warn('Server API not reachable directly (may be static deploy or offline):', serverErr.message);
+    console.warn('Server API not reachable directly:', serverErr.message);
   }
 
   // -----------------------------------------------------------------

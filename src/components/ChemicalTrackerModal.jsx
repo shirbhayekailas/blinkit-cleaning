@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { 
   X, 
   FlaskConical, 
@@ -13,8 +12,7 @@ import {
   ArrowDownRight, 
   ArrowUpRight 
 } from 'lucide-react';
-import { db } from '../db/db';
-import { performCloudSync } from '../utils/cloudSync';
+import { saveChemicalStock, addChemicalLog } from '../services/api';
 
 const DEFAULT_CHEMICALS = [
   { itemName: 'Industrial Alkaline Degreaser (Floor Deep Clean)', unit: 'Liters', totalStock: 50, alertThreshold: 15 },
@@ -28,7 +26,10 @@ export default function ChemicalTrackerModal({
   isOpen,
   onClose,
   stores = [],
-  supervisors = []
+  supervisors = [],
+  chemicals = [],
+  logs = [],
+  onChemicalUpdated
 }) {
   const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'action' | 'logs'
   const [actionType, setActionType] = useState('issue'); // 'add' | 'issue'
@@ -38,45 +39,22 @@ export default function ChemicalTrackerModal({
   const [targetSupervisorName, setTargetSupervisorName] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Live queries from Dexie
-  const chemicalStockData = useLiveQuery(async () => {
-    try {
-      return await db.chemicalStock.toArray();
-    } catch {
-      return [];
-    }
-  }, []);
-  const chemicals = Array.isArray(chemicalStockData) ? chemicalStockData : [];
-
-  const chemicalLogsData = useLiveQuery(async () => {
-    try {
-      const list = await db.chemicalLogs.toArray();
-      return list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-    } catch {
-      return [];
-    }
-  }, []);
-  const logs = Array.isArray(chemicalLogsData) ? chemicalLogsData : [];
-
-  // Seed default chemicals if table is empty
+  // Seed default chemicals if list is empty
   useEffect(() => {
     const checkAndSeed = async () => {
       try {
-        const count = await db.chemicalStock.count();
-        if (count === 0) {
+        if (chemicals.length === 0) {
           for (const item of DEFAULT_CHEMICALS) {
-            await db.chemicalStock.add({
-              ...item,
-              updatedAt: new Date()
-            });
+            await saveChemicalStock(item);
           }
+          if (onChemicalUpdated) onChemicalUpdated();
         }
       } catch (e) {
         console.warn('Chemical seed notice', e);
       }
     };
-    if (isOpen) checkAndSeed();
-  }, [isOpen]);
+    if (isOpen && chemicals.length === 0) checkAndSeed();
+  }, [isOpen, chemicals.length]);
 
   if (!isOpen) return null;
 
@@ -89,7 +67,7 @@ export default function ChemicalTrackerModal({
     }
 
     try {
-      const chem = await db.chemicalStock.get(Number(selectedChemicalId));
+      const chem = chemicals.find(c => String(c.id) === String(selectedChemicalId));
       if (!chem) return;
 
       if (actionType === 'issue' && chem.totalStock < qtyNum) {
@@ -99,12 +77,12 @@ export default function ChemicalTrackerModal({
 
       const newStock = actionType === 'add' ? chem.totalStock + qtyNum : chem.totalStock - qtyNum;
 
-      await db.chemicalStock.update(chem.id, {
-        totalStock: newStock,
-        updatedAt: new Date()
+      await saveChemicalStock({
+        ...chem,
+        totalStock: newStock
       });
 
-      await db.chemicalLogs.add({
+      await addChemicalLog({
         chemicalId: chem.id,
         itemName: chem.itemName,
         type: actionType, // 'add' or 'issue'
@@ -119,7 +97,7 @@ export default function ChemicalTrackerModal({
       // Reset form
       setQuantity('');
       setNotes('');
-      performCloudSync().catch(() => {});
+      if (onChemicalUpdated) onChemicalUpdated();
       setActiveTab('inventory');
       alert(`Chemical stock successfully updated! New balance: ${newStock} ${chem.unit}`);
     } catch (err) {

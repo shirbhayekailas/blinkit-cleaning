@@ -26,7 +26,7 @@ import {
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
 import { addWatermarkToPhoto } from '../utils/photoWatermark';
-import { db } from '../db/db';
+import { saveCleaner } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
 
 export default function CleaningEntryModal({
@@ -168,8 +168,7 @@ export default function CleaningEntryModal({
         active: true,
         createdAt: new Date().toISOString()
       };
-      await db.cleaners.add(newCleaner);
-      performCloudSync().catch(console.warn);
+      await saveCleaner(newCleaner);
 
       // Auto-add cleaner to team members
       const existingMembers = (formData.teamMembers || '')
