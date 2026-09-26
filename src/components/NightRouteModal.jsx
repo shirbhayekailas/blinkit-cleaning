@@ -25,7 +25,7 @@ export default function NightRouteModal({ isOpen, onClose, schedules = [], store
 
   // Build Google Maps Multi-Stop Navigation URL
   const destinations = routeStores
-    .map(s => encodeURIComponent(s.address || s.storeName + ', ' + (s.city || 'Delhi NCR')))
+    .map(s => encodeURIComponent(s.address || (s.storeName + (s.city ? ', ' + s.city : ''))))
     .filter(Boolean);
 
   const googleMapsUrl = destinations.length > 1

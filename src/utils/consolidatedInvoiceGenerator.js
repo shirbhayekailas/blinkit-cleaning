@@ -160,7 +160,7 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     const bodyRows = cleanings.map((c, idx) => [
       idx + 1,
       c.storeCode || `BLK-${idx + 1}`,
-      `${c.storeName || 'Blinkit Dark Store'} (${c.city || 'Delhi NCR'})`,
+      `${c.storeName || 'Blinkit Dark Store'}${c.city ? ` (${c.city})` : ''}`,
       c.cleaningDate || '--',
       'SAC 998533',
       `Rs. ${Number(c.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`

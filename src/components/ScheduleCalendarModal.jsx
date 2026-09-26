@@ -52,7 +52,7 @@ export default function ScheduleCalendarModal({
       await saveSchedule({
         storeCode: newSchedule.storeCode,
         storeName: st?.storeName || 'Dark Store',
-        city: st?.city || 'Delhi NCR',
+        city: st?.city || '',
         address: st?.address || '',
         scheduledDate: newSchedule.scheduledDate,
         shift: newSchedule.shift,

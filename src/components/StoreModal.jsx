@@ -20,7 +20,7 @@ export default function StoreModal({
     storeCode: 'BLK-',
     storeName: '',
     address: '',
-    city: 'Delhi NCR',
+    city: '',
     googleMapsUrl: '',
     managerName: '',
     managerPhone: ''
@@ -34,7 +34,7 @@ export default function StoreModal({
         storeCode: 'BLK-',
         storeName: '',
         address: '',
-        city: 'Delhi NCR',
+        city: '',
         googleMapsUrl: '',
         managerName: '',
         managerPhone: ''
@@ -140,7 +140,7 @@ export default function StoreModal({
               </label>
               <input
                 type="text"
-                placeholder="e.g. South Delhi"
+                placeholder="e.g. Mumbai, Pune, Delhi NCR, etc."
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"

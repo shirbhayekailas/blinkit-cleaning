@@ -492,7 +492,7 @@ export default function App() {
       storeCode: store.storeCode,
       storeName: store.storeName,
       address: store.address || '',
-      city: store.city || 'Delhi NCR',
+      city: store.city || '',
       googleMapsUrl: store.googleMapsUrl || '',
       managerName: store.managerName || '',
       managerPhone: store.managerPhone || '',

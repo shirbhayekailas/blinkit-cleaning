@@ -52,6 +52,20 @@ export default function OperationsPulseBar({
   const totalPending = Math.max(0, totalBilled - totalReceived);
   const collectionPercent = totalBilled > 0 ? Math.round((totalReceived / totalBilled) * 100) : 100;
 
+  // 5. Dynamic city-wise fleet calculation
+  const allCities = Array.from(
+    new Set([
+      ...stores.map(s => (s.city || '').trim()),
+      ...cleanings.map(c => (c.city || '').trim())
+    ].filter(Boolean))
+  );
+
+  const citySummary = allCities.length === 0
+    ? 'Across Fleet'
+    : allCities.length === 1
+      ? `Across ${allCities[0]}`
+      : `${allCities.length} Cities (${allCities.slice(0, 2).join(', ')}${allCities.length > 2 ? '...' : ''})`;
+
   return (
     <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-indigo-950 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 border-y sm:border border-slate-800/80 sm:rounded-3xl shadow-xl p-3 sm:p-4 text-white">
       
@@ -67,7 +81,7 @@ export default function OperationsPulseBar({
           </span>
           <span className="text-slate-400">•</span>
           <span className="text-slate-300 font-medium hidden sm:inline">
-            SK Enterprises Dark Store Fleet
+            SK Enterprises Fleet {allCities.length > 0 ? `• ${allCities.join(', ')}` : ''}
           </span>
         </div>
 
@@ -92,7 +106,9 @@ export default function OperationsPulseBar({
             <Building2 className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="text-lg sm:text-xl font-black text-white">{stores.length}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5 truncate">Across Delhi NCR</div>
+          <div className="text-[10px] text-slate-400 mt-0.5 truncate" title={allCities.join(', ')}>
+            {citySummary}
+          </div>
         </div>
 
         {/* KPI 2: Tonight's Shifts */}

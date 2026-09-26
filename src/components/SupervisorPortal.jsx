@@ -259,7 +259,7 @@ export default function SupervisorPortal({
       storeCode: selectedStore.storeCode,
       storeName: selectedStore.storeName,
       address: selectedStore.address || '',
-      city: selectedStore.city || 'Delhi NCR',
+      city: selectedStore.city || '',
       googleMapsUrl: selectedStore.googleMapsUrl || '',
       managerName: selectedStore.managerName || '',
       managerPhone: selectedStore.managerPhone || '',
