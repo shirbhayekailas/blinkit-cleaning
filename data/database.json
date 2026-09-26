@@ -4,7 +4,72 @@
   "supervisors": [],
   "cleaners": [],
   "cleaningSchedules": [],
-  "chemicalStock": [],
+  "chemicalStock": [
+    {
+      "id": "chem_01",
+      "itemName": "Industrial Heavy Duty Floor Degreaser",
+      "category": "Floor Care",
+      "unit": "Liters",
+      "totalStock": 50,
+      "alertThreshold": 15
+    },
+    {
+      "id": "chem_02",
+      "itemName": "TASKI R2 Multi-Surface Hygienic Cleaner",
+      "category": "General Cleaning",
+      "unit": "Liters",
+      "totalStock": 40,
+      "alertThreshold": 10
+    },
+    {
+      "id": "chem_03",
+      "itemName": "Cold Storage Food-Safe Sanitizer (-20°C Chiller Safe)",
+      "category": "Cold Chain",
+      "unit": "Liters",
+      "totalStock": 30,
+      "alertThreshold": 10
+    },
+    {
+      "id": "chem_04",
+      "itemName": "TASKI R6 Heavy Duty Toilet & Descaler",
+      "category": "Washroom Care",
+      "unit": "Liters",
+      "totalStock": 25,
+      "alertThreshold": 8
+    },
+    {
+      "id": "chem_05",
+      "itemName": "TASKI R3 Glass & Shutter Cleaner",
+      "category": "Glass & Surface",
+      "unit": "Liters",
+      "totalStock": 20,
+      "alertThreshold": 5
+    },
+    {
+      "id": "chem_06",
+      "itemName": "Single Disc 17\" Scrubbing Pads (Red / Black)",
+      "category": "Machine Consumables",
+      "unit": "Pads (Pcs)",
+      "totalStock": 24,
+      "alertThreshold": 6
+    },
+    {
+      "id": "chem_07",
+      "itemName": "Chlorine Disinfection Granules / Tablets",
+      "category": "Disinfection",
+      "unit": "Kg",
+      "totalStock": 15,
+      "alertThreshold": 5
+    },
+    {
+      "id": "chem_08",
+      "itemName": "Metal Rust Remover & Anti-Corrosion Treatment",
+      "category": "Maintenance",
+      "unit": "Liters",
+      "totalStock": 10,
+      "alertThreshold": 4
+    }
+  ],
   "chemicalLogs": [],
   "cleanerAdvances": [],
   "storeIssues": [],
@@ -32,5 +97,5 @@
     "blinkit_client_pin_changed": false,
     "blinkit_client_name": "Blinkit City Operations Head"
   },
-  "lastUpdated": "2026-09-26T08:55:00.000Z"
+  "lastUpdated": "2026-09-26T04:15:00.000Z"
 }

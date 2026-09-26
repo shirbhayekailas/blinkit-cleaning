@@ -28,13 +28,24 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+const STANDARD_CHEMICALS = [
+  { id: 'chem_01', itemName: 'Industrial Heavy Duty Floor Degreaser', category: 'Floor Care', unit: 'Liters', totalStock: 50, alertThreshold: 15 },
+  { id: 'chem_02', itemName: 'TASKI R2 Multi-Surface Hygienic Cleaner', category: 'General Cleaning', unit: 'Liters', totalStock: 40, alertThreshold: 10 },
+  { id: 'chem_03', itemName: 'Cold Storage Food-Safe Sanitizer (-20°C Chiller Safe)', category: 'Cold Chain', unit: 'Liters', totalStock: 30, alertThreshold: 10 },
+  { id: 'chem_04', itemName: 'TASKI R6 Heavy Duty Toilet & Descaler', category: 'Washroom Care', unit: 'Liters', totalStock: 25, alertThreshold: 8 },
+  { id: 'chem_05', itemName: 'TASKI R3 Glass & Shutter Cleaner', category: 'Glass & Surface', unit: 'Liters', totalStock: 20, alertThreshold: 5 },
+  { id: 'chem_06', itemName: 'Single Disc 17" Scrubbing Pads (Red / Black)', category: 'Machine Consumables', unit: 'Pads (Pcs)', totalStock: 24, alertThreshold: 6 },
+  { id: 'chem_07', itemName: 'Chlorine Disinfection Granules / Tablets', category: 'Disinfection', unit: 'Kg', totalStock: 15, alertThreshold: 5 },
+  { id: 'chem_08', itemName: 'Metal Rust Remover & Anti-Corrosion Treatment', category: 'Maintenance', unit: 'Liters', totalStock: 10, alertThreshold: 4 }
+];
+
 const DEFAULT_DB = {
   cleanings: [],
   stores: [],
   supervisors: [],
   cleaners: [],
   cleaningSchedules: [],
-  chemicalStock: [],
+  chemicalStock: [...STANDARD_CHEMICALS],
   chemicalLogs: [],
   cleanerAdvances: [],
   storeIssues: [],
@@ -72,6 +83,20 @@ function readDB() {
       const parsed = JSON.parse(content);
       const merged = { ...DEFAULT_DB, ...parsed };
       if (!merged.appSettings) merged.appSettings = { ...DEFAULT_DB.appSettings };
+
+      // Ensure chemicalStock has standard items if empty or only 1 item
+      if (!Array.isArray(merged.chemicalStock) || merged.chemicalStock.length <= 1) {
+        if (!Array.isArray(merged.chemicalStock)) merged.chemicalStock = [];
+        for (const std of STANDARD_CHEMICALS) {
+          const exists = merged.chemicalStock.some(c => 
+            (c && c.id && String(c.id) === String(std.id)) ||
+            (c && c.itemName && c.itemName.trim().toLowerCase() === std.itemName.trim().toLowerCase())
+          );
+          if (!exists) {
+            merged.chemicalStock.push({ ...std });
+          }
+        }
+      }
 
       // Environment variables always take precedence if explicitly configured in Render/hosting
       if (process.env.ADMIN_ID) merged.appSettings.vendor_admin_id = process.env.ADMIN_ID;
@@ -666,6 +691,46 @@ app.post('/api/cleanings', (req, res) => {
       }
     }
 
+    // Auto-deduct chemical usage from chemical inventory if chemicalsUsed is provided
+    if (Array.isArray(cleaningData.chemicalsUsed) && cleaningData.chemicalsUsed.length > 0) {
+      if (!currentDB.chemicalStock) currentDB.chemicalStock = [];
+      if (!currentDB.chemicalLogs) currentDB.chemicalLogs = [];
+
+      cleaningData.chemicalsUsed.forEach(used => {
+        if (!used || !used.quantity) return;
+        const qty = Number(used.quantity);
+        if (isNaN(qty) || qty <= 0) return;
+
+        const chemIdx = currentDB.chemicalStock.findIndex(c => 
+          (used.chemicalId && String(c.id) === String(used.chemicalId)) ||
+          (used.itemName && c.itemName && String(c.itemName).trim().toLowerCase() === String(used.itemName).trim().toLowerCase())
+        );
+
+        if (chemIdx !== -1) {
+          const currentItem = currentDB.chemicalStock[chemIdx];
+          const prevStock = Number(currentItem.totalStock ?? currentItem.quantity ?? 0);
+          const newStock = Math.max(0, +(prevStock - qty).toFixed(2));
+          currentDB.chemicalStock[chemIdx].totalStock = newStock;
+          currentDB.chemicalStock[chemIdx].quantity = newStock;
+          currentDB.chemicalStock[chemIdx].updatedAt = nowIso;
+
+          // Record transaction log in chemicalLogs
+          currentDB.chemicalLogs.unshift({
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            chemicalId: currentItem.id,
+            itemName: currentItem.itemName,
+            type: 'issue',
+            quantity: qty,
+            unit: currentItem.unit || used.unit || 'Liters',
+            storeCode: cleaningData.storeCode || '',
+            supervisorName: cleaningData.supervisorName || '',
+            date: cleaningData.cleaningDate || nowIso,
+            notes: `Auto-deducted: Cleaning visit at ${cleaningData.storeName || cleaningData.storeCode || 'Store'}`
+          });
+        }
+      });
+    }
+
     writeDB(currentDB);
     res.json({
       success: true,
@@ -1095,6 +1160,63 @@ app.post('/api/chemicals/log', (req, res) => {
     res.json({ success: true, chemicalLogs: currentDB.chemicalLogs, data: currentDB });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/chemicals/delete', (req, res) => {
+  try {
+    const { id, itemName } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.chemicalStock) currentDB.chemicalStock = [];
+
+    const targetId = id ? String(id) : null;
+    const targetName = itemName ? String(itemName).trim().toLowerCase() : null;
+
+    currentDB.chemicalStock = currentDB.chemicalStock.filter(c => {
+      if (!c) return false;
+      if (targetId && String(c.id) === targetId) return false;
+      if (targetName && c.itemName && String(c.itemName).trim().toLowerCase() === targetName) return false;
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      message: 'Chemical item successfully deleted from catalog.',
+      chemicalStock: currentDB.chemicalStock,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete chemical error: ' + err.message });
+  }
+});
+
+app.post('/api/chemicals/seed', (req, res) => {
+  try {
+    const currentDB = readDB();
+    if (!currentDB.chemicalStock) currentDB.chemicalStock = [];
+
+    let addedCount = 0;
+    for (const std of STANDARD_CHEMICALS) {
+      const exists = currentDB.chemicalStock.some(c => 
+        (c && c.id && String(c.id) === String(std.id)) ||
+        (c && c.itemName && c.itemName.trim().toLowerCase() === std.itemName.trim().toLowerCase())
+      );
+      if (!exists) {
+        currentDB.chemicalStock.push({ ...std });
+        addedCount++;
+      }
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      message: `Standard Blinkit chemical catalog synchronized (${addedCount} new items added).`,
+      chemicalStock: currentDB.chemicalStock,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server seed chemicals error: ' + err.message });
   }
 });
 

@@ -1055,6 +1055,7 @@ export default function App() {
         stores={stores}
         supervisors={supervisors}
         cleaners={cleaners}
+        chemicals={chemicalStock}
         currentUserRole={currentUserRole}
         onAddNewStore={() => {
           setEditingStore(null);

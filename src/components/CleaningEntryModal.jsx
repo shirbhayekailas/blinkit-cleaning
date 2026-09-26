@@ -21,7 +21,8 @@ import {
   Plus,
   Check,
   UserCheck,
-  HardHat
+  HardHat,
+  FlaskConical
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
@@ -37,6 +38,7 @@ export default function CleaningEntryModal({
   stores = [],
   supervisors = [],
   cleaners = [],
+  chemicals = [],
   onAddNewStore,
   currentUserRole = 'admin'
 }) {
@@ -96,7 +98,8 @@ export default function CleaningEntryModal({
     },
     managerSignature: '',
     remarks: '',
-    photos: []
+    photos: [],
+    chemicalsUsed: initialData?.chemicalsUsed || []
   });
 
   const [customScopeInput, setCustomScopeInput] = useState('');
@@ -247,7 +250,8 @@ export default function CleaningEntryModal({
           ppeKit: true
         },
         managerSignature: initialData.managerSignature || '',
-        photos: initialData.photos || []
+        photos: initialData.photos || [],
+        chemicalsUsed: initialData.chemicalsUsed || []
       });
     } else {
       // Reset form
@@ -307,10 +311,88 @@ export default function CleaningEntryModal({
         },
         managerSignature: '',
         remarks: '',
-        photos: []
+        photos: [],
+        chemicalsUsed: []
       });
     }
   }, [initialData, isOpen]);
+
+  // Chemical Rows Handlers
+  const handleAddChemicalRow = () => {
+    const firstChem = chemicals && chemicals[0];
+    setFormData(prev => ({
+      ...prev,
+      chemicalsUsed: [
+        ...(prev.chemicalsUsed || []),
+        {
+          chemicalId: firstChem ? firstChem.id : '',
+          itemName: firstChem ? firstChem.itemName : '',
+          quantity: 1,
+          unit: firstChem ? (firstChem.unit || 'Liters') : 'Liters'
+        }
+      ]
+    }));
+  };
+
+  const handleUpdateChemicalRow = (index, field, value) => {
+    setFormData(prev => {
+      const list = [...(prev.chemicalsUsed || [])];
+      if (!list[index]) return prev;
+      if (field === 'chemicalId') {
+        const found = (chemicals || []).find(c => String(c.id) === String(value));
+        list[index] = {
+          ...list[index],
+          chemicalId: value,
+          itemName: found ? found.itemName : list[index].itemName,
+          unit: found ? (found.unit || 'Liters') : (list[index].unit || 'Liters')
+        };
+      } else {
+        list[index] = {
+          ...list[index],
+          [field]: value
+        };
+      }
+      return { ...prev, chemicalsUsed: list };
+    });
+  };
+
+  const handleRemoveChemicalRow = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      chemicalsUsed: (prev.chemicalsUsed || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAddStandardChemicalPack = () => {
+    const clist = chemicals || [];
+    const degreaser = clist.find(c => (c.itemName || '').toLowerCase().includes('degreaser')) || { id: 'chem_01', itemName: 'Industrial Heavy Duty Floor Degreaser', unit: 'Liters' };
+    const sanitizer = clist.find(c => (c.itemName || '').toLowerCase().includes('sanitizer')) || { id: 'chem_03', itemName: 'Cold Storage Food-Safe Sanitizer', unit: 'Liters' };
+    const descaler = clist.find(c => (c.itemName || '').toLowerCase().includes('descaler') || (c.itemName || '').toLowerCase().includes('toilet')) || { id: 'chem_04', itemName: 'TASKI R6 Heavy Duty Toilet & Descaler', unit: 'Liters' };
+
+    setFormData(prev => ({
+      ...prev,
+      chemicalsUsed: [
+        {
+          chemicalId: degreaser.id,
+          itemName: degreaser.itemName,
+          quantity: 2,
+          unit: degreaser.unit || 'Liters'
+        },
+        {
+          chemicalId: sanitizer.id,
+          itemName: sanitizer.itemName,
+          quantity: 1,
+          unit: sanitizer.unit || 'Liters'
+        },
+        {
+          chemicalId: descaler.id,
+          itemName: descaler.itemName,
+          quantity: 0.5,
+          unit: descaler.unit || 'Liters'
+        }
+      ]
+    }));
+  };
 
   // Auto-calculate duration when start and end times change
   const calculateDuration = (start, end) => {
@@ -1477,12 +1559,156 @@ export default function CleaningEntryModal({
             </div>
           </div>
 
+          {/* SECTION: Chemicals & Consumables Consumed (Konsa aur Kitna Chemical Use Huwa) */}
+          <div className="space-y-3 p-4 rounded-3xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200/80 dark:border-purple-900/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-purple-200/60 dark:border-purple-900/40 gap-2">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white font-extrabold text-sm">
+                <FlaskConical className="w-4 h-4 text-purple-600" />
+                <span>🧪 Chemicals &amp; Consumables Used (Kitna aur Konsa Chemical Use Huwa)</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleAddStandardChemicalPack}
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 border border-purple-300/60 dark:border-purple-700/60 hover:bg-purple-200 transition flex items-center gap-1.5 shadow-2xs"
+                  title="Degreaser (2L) + Sanitizer (1L) + Descaler (0.5L) auto-add karein"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>⚡ 1-Click Standard 3-Chemical Pack</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddChemicalRow}
+                  className="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Chemical Item</span>
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Is store cleaning me use huye chemicals select karein aur unki exact consumption quantity enter karein. Record save hone par inventory se automatic stock deduct ho jayega.
+            </p>
+
+            {/* Dynamic Chemical Rows */}
+            {formData.chemicalsUsed && formData.chemicalsUsed.length > 0 ? (
+              <div className="space-y-2.5">
+                {formData.chemicalsUsed.map((row, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-purple-200 dark:border-purple-900/40 shadow-xs flex flex-col sm:flex-row sm:items-center gap-3 animate-in fade-in duration-150"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Select Chemical Item #{idx + 1} *
+                      </label>
+                      <select
+                        required
+                        value={row.chemicalId || ''}
+                        onChange={(e) => handleUpdateChemicalRow(idx, 'chemicalId', e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">-- Select Chemical --</option>
+                        {chemicals.map((c) => {
+                          const stock = Number(c.totalStock ?? c.quantity ?? 0);
+                          return (
+                            <option key={c.id} value={c.id}>
+                              {c.itemName} (In Stock: {stock} {c.unit || 'Liters'})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="w-full sm:w-36">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Quantity Used *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.05"
+                        required
+                        placeholder="e.g. 2.5"
+                        value={row.quantity || ''}
+                        onChange={(e) => handleUpdateChemicalRow(idx, 'quantity', e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white font-black text-center focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="w-full sm:w-28">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Unit
+                      </label>
+                      <input
+                        type="text"
+                        disabled
+                        value={row.unit || 'Liters'}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-center"
+                      />
+                    </div>
+
+                    <div className="self-end sm:self-center pt-2 sm:pt-5">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveChemicalRow(idx)}
+                        className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        title="Remove this chemical row"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-purple-100/60 dark:bg-purple-900/40 border border-purple-200/80 dark:border-purple-800/60 text-xs">
+                  <span className="font-bold text-purple-950 dark:text-purple-200">
+                    Total Chemicals Configured: <span className="font-black text-purple-700 dark:text-purple-300">{formData.chemicalsUsed.length} Types</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddChemicalRow}
+                    className="text-xs font-bold text-purple-700 dark:text-purple-300 hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Another Chemical</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 text-center rounded-2xl border border-dashed border-purple-200 dark:border-purple-900/50 bg-white/50 dark:bg-slate-850/50 space-y-2.5">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Is cleaning me use huye chemicals abhi select nahi kiye gaye hain.
+                </div>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleAddStandardChemicalPack}
+                    className="px-3.5 py-2 text-xs font-bold rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>+ Add Standard 3-Chemical Pack (Degreaser + Sanitizer + Descaler)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddChemicalRow}
+                    className="px-3.5 py-2 text-xs font-bold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-purple-600" />
+                    <span>+ Choose Custom Chemical</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* SECTION 7: Equipment & Chemical Checklist */}
           <div className="space-y-3">
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                 <Wrench className="w-4 h-4 text-amber-500" />
-                <span>{isAdmin ? '7.' : '6.'} Machinery &amp; Chemical Checklist (Jo Equipment &amp; Chemicals Use Kiye)</span>
+                <span>{isAdmin ? '7.' : '6.'} Machinery &amp; Equipment Checklist</span>
               </div>
               <span className="text-[11px] font-semibold text-slate-400">
                 Audit Compliance &amp; Verification

@@ -269,6 +269,38 @@ export async function addChemicalLog(logData) {
   }
 }
 
+export async function deleteChemicalStock(idOrItem) {
+  try {
+    const payload = typeof idOrItem === 'object' && idOrItem !== null
+      ? { id: idOrItem.id, itemName: idOrItem.itemName }
+      : { id: idOrItem };
+
+    const res = await fetch(getApiUrl('/api/chemicals/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteChemicalStock error:', err);
+    throw err;
+  }
+}
+
+export async function seedStandardChemicals() {
+  try {
+    const res = await fetch(getApiUrl('/api/chemicals/seed'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('seedStandardChemicals error:', err);
+    throw err;
+  }
+}
+
 // -------------------------------------------------------------
 // CLEANER ADVANCES / KHATA
 // -------------------------------------------------------------

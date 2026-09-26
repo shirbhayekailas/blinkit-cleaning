@@ -21,7 +21,8 @@ import {
   Bell,
   Columns,
   Award,
-  QrCode
+  QrCode,
+  FlaskConical
 } from 'lucide-react';
 import { 
   formatPaymentReminderWhatsApp, 
@@ -341,6 +342,28 @@ export default function StoreCard({
             })}
           </div>
         </div>
+
+        {/* Chemicals & Consumables Badges */}
+        {cleaning.chemicalsUsed && cleaning.chemicalsUsed.length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-purple-700 dark:text-purple-300">
+              <span className="font-bold flex items-center gap-1">
+                <FlaskConical className="w-3.5 h-3.5" /> Chemicals Used ({cleaning.chemicalsUsed.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {cleaning.chemicalsUsed.map((chem, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60"
+                >
+                  <span>🧪 {chem.itemName || chem.name}:</span>
+                  <span className="text-purple-950 dark:text-purple-100 font-extrabold">{chem.quantity} {chem.unit || 'L'}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quality Rating */}
         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-850/50 border border-slate-100 dark:border-slate-700/40 text-xs">
