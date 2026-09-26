@@ -9,5 +9,28 @@
   "cleanerAdvances": [],
   "storeIssues": [],
   "loginLogs": [],
-  "lastUpdated": "2026-09-25T11:41:39.905Z"
+  "deletedStores": [],
+  "deletedCleanings": [],
+  "deletedSupervisors": [],
+  "deletedCleaners": [],
+  "deletedSchedules": [],
+  "deletedAdvances": [],
+  "logsClearedAt": null,
+  "appSettings": {
+    "vendor_admin_id": "admin",
+    "vendor_admin_pin": "1234",
+    "admin_pin_updated_at": null,
+    "admin_pin_changed": false,
+    "vendor_manager_id": "manager",
+    "vendor_manager_pin": "1234",
+    "manager_pin_updated_at": null,
+    "manager_pin_changed": false,
+    "vendor_manager_name": "Operations Manager",
+    "blinkit_client_id": "client",
+    "blinkit_client_pin": "5678",
+    "blinkit_client_pin_updated_at": null,
+    "blinkit_client_pin_changed": false,
+    "blinkit_client_name": "Blinkit City Operations Head"
+  },
+  "lastUpdated": "2026-09-26T08:45:00.000Z"
 }

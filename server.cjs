@@ -47,13 +47,19 @@ const DEFAULT_DB = {
   deletedAdvances: [],
   logsClearedAt: null,
   appSettings: {
-    vendor_admin_id: 'admin',
-    vendor_admin_pin: '1234',
-    vendor_manager_id: 'manager',
-    vendor_manager_pin: '1234',
-    vendor_manager_name: 'Operations Manager',
-    blinkit_client_id: 'client',
-    blinkit_client_pin: '5678',
+    vendor_admin_id: process.env.ADMIN_ID || 'admin',
+    vendor_admin_pin: process.env.ADMIN_PIN || '1234',
+    admin_pin_updated_at: null,
+    admin_pin_changed: !!process.env.ADMIN_PIN,
+    vendor_manager_id: process.env.MANAGER_ID || 'manager',
+    vendor_manager_pin: process.env.MANAGER_PIN || '1234',
+    manager_pin_updated_at: null,
+    manager_pin_changed: !!process.env.MANAGER_PIN,
+    vendor_manager_name: process.env.MANAGER_NAME || 'Operations Manager',
+    blinkit_client_id: process.env.CLIENT_ID || 'client',
+    blinkit_client_pin: process.env.CLIENT_PIN || '5678',
+    client_pin_updated_at: null,
+    client_pin_changed: !!process.env.CLIENT_PIN,
     blinkit_client_name: 'Blinkit City Operations Head'
   },
   lastUpdated: new Date().toISOString()
@@ -64,12 +70,47 @@ function readDB() {
     if (fs.existsSync(DB_FILE)) {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(content);
-      return { ...DEFAULT_DB, ...parsed };
+      const merged = { ...DEFAULT_DB, ...parsed };
+      if (!merged.appSettings) merged.appSettings = { ...DEFAULT_DB.appSettings };
+
+      // Environment variables always take precedence if explicitly configured in Render/hosting
+      if (process.env.ADMIN_ID) merged.appSettings.vendor_admin_id = process.env.ADMIN_ID;
+      if (process.env.ADMIN_PIN) {
+        merged.appSettings.vendor_admin_pin = process.env.ADMIN_PIN;
+        merged.appSettings.admin_pin_changed = true;
+      }
+      if (process.env.MANAGER_ID) merged.appSettings.vendor_manager_id = process.env.MANAGER_ID;
+      if (process.env.MANAGER_PIN) {
+        merged.appSettings.vendor_manager_pin = process.env.MANAGER_PIN;
+        merged.appSettings.manager_pin_changed = true;
+      }
+      if (process.env.CLIENT_ID) merged.appSettings.blinkit_client_id = process.env.CLIENT_ID;
+      if (process.env.CLIENT_PIN) {
+        merged.appSettings.blinkit_client_pin = process.env.CLIENT_PIN;
+        merged.appSettings.client_pin_changed = true;
+      }
+      return merged;
     }
   } catch (err) {
     console.error('Error reading database file:', err);
   }
-  return { ...DEFAULT_DB };
+  const fallback = { ...DEFAULT_DB };
+  if (process.env.ADMIN_ID) fallback.appSettings.vendor_admin_id = process.env.ADMIN_ID;
+  if (process.env.ADMIN_PIN) {
+    fallback.appSettings.vendor_admin_pin = process.env.ADMIN_PIN;
+    fallback.appSettings.admin_pin_changed = true;
+  }
+  if (process.env.MANAGER_ID) fallback.appSettings.vendor_manager_id = process.env.MANAGER_ID;
+  if (process.env.MANAGER_PIN) {
+    fallback.appSettings.vendor_manager_pin = process.env.MANAGER_PIN;
+    fallback.appSettings.manager_pin_changed = true;
+  }
+  if (process.env.CLIENT_ID) fallback.appSettings.blinkit_client_id = process.env.CLIENT_ID;
+  if (process.env.CLIENT_PIN) {
+    fallback.appSettings.blinkit_client_pin = process.env.CLIENT_PIN;
+    fallback.appSettings.client_pin_changed = true;
+  }
+  return fallback;
 }
 
 function writeDB(data) {
@@ -403,7 +444,7 @@ app.post('/api/auth/login', (req, res) => {
 
 app.post('/api/auth/change-pin', (req, res) => {
   try {
-    const { role, newPin, userId } = req.body || {};
+    const { role, newPin, userId, updatedAt } = req.body || {};
     if (!newPin || String(newPin).trim().length < 4) {
       return res.status(400).json({ success: false, message: 'PIN kam se kam 4 digits ka hona chahiye.' });
     }
@@ -412,17 +453,24 @@ app.post('/api/auth/change-pin', (req, res) => {
     if (!currentDB.appSettings) currentDB.appSettings = { ...DEFAULT_DB.appSettings };
 
     const cleanPin = String(newPin).trim();
+    const nowIso = updatedAt || new Date().toISOString();
 
     if (role === 'admin') {
       currentDB.appSettings.vendor_admin_pin = cleanPin;
+      currentDB.appSettings.admin_pin_updated_at = nowIso;
+      currentDB.appSettings.admin_pin_changed = true;
     } else if (role === 'manager') {
       currentDB.appSettings.vendor_manager_pin = cleanPin;
+      currentDB.appSettings.manager_pin_updated_at = nowIso;
+      currentDB.appSettings.manager_pin_changed = true;
     } else if (role === 'client') {
       currentDB.appSettings.blinkit_client_pin = cleanPin;
+      currentDB.appSettings.client_pin_updated_at = nowIso;
+      currentDB.appSettings.client_pin_changed = true;
     } else if (role === 'supervisor' && userId) {
       currentDB.supervisors = (currentDB.supervisors || []).map(s => {
         if (s.id === userId || String(s.phone) === String(userId)) {
-          return { ...s, pin: cleanPin, hasChangedPin: true, updatedAt: new Date().toISOString() };
+          return { ...s, pin: cleanPin, hasChangedPin: true, updatedAt: nowIso };
         }
         return s;
       });
@@ -436,6 +484,69 @@ app.post('/api/auth/change-pin', (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server change PIN error: ' + err.message });
+  }
+});
+
+// Smart Self-Healing Credential Synchronization
+// Ensures custom passwords survive container redeploys, cold starts, and device switches
+app.post('/api/auth/sync-credentials', (req, res) => {
+  try {
+    const {
+      clientAdminPin, clientAdminPinUpdatedAt, clientAdminPinChanged,
+      clientManagerPin, clientManagerPinUpdatedAt, clientManagerPinChanged,
+      clientClientPin, clientClientPinUpdatedAt, clientClientPinChanged
+    } = req.body || {};
+
+    const currentDB = readDB();
+    if (!currentDB.appSettings) currentDB.appSettings = { ...DEFAULT_DB.appSettings };
+    let changed = false;
+
+    // 1. Admin PIN
+    if (clientAdminPin && clientAdminPinChanged && !process.env.ADMIN_PIN) {
+      const serverPin = currentDB.appSettings.vendor_admin_pin;
+      const isServerDefault = !serverPin || serverPin === '1234';
+      if (isServerDefault || (clientAdminPinUpdatedAt && (!currentDB.appSettings.admin_pin_updated_at || clientAdminPinUpdatedAt > currentDB.appSettings.admin_pin_updated_at))) {
+        currentDB.appSettings.vendor_admin_pin = String(clientAdminPin).trim();
+        currentDB.appSettings.admin_pin_updated_at = clientAdminPinUpdatedAt || new Date().toISOString();
+        currentDB.appSettings.admin_pin_changed = true;
+        changed = true;
+      }
+    }
+
+    // 2. Manager PIN
+    if (clientManagerPin && clientManagerPinChanged && !process.env.MANAGER_PIN) {
+      const serverPin = currentDB.appSettings.vendor_manager_pin;
+      const isServerDefault = !serverPin || serverPin === '1234';
+      if (isServerDefault || (clientManagerPinUpdatedAt && (!currentDB.appSettings.manager_pin_updated_at || clientManagerPinUpdatedAt > currentDB.appSettings.manager_pin_updated_at))) {
+        currentDB.appSettings.vendor_manager_pin = String(clientManagerPin).trim();
+        currentDB.appSettings.manager_pin_updated_at = clientManagerPinUpdatedAt || new Date().toISOString();
+        currentDB.appSettings.manager_pin_changed = true;
+        changed = true;
+      }
+    }
+
+    // 3. Client PIN
+    if (clientClientPin && clientClientPinChanged && !process.env.CLIENT_PIN) {
+      const serverPin = currentDB.appSettings.blinkit_client_pin;
+      const isServerDefault = !serverPin || serverPin === '5678';
+      if (isServerDefault || (clientClientPinUpdatedAt && (!currentDB.appSettings.client_pin_updated_at || clientClientPinUpdatedAt > currentDB.appSettings.client_pin_updated_at))) {
+        currentDB.appSettings.blinkit_client_pin = String(clientClientPin).trim();
+        currentDB.appSettings.client_pin_updated_at = clientClientPinUpdatedAt || new Date().toISOString();
+        currentDB.appSettings.client_pin_changed = true;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      writeDB(currentDB);
+    }
+
+    res.json({
+      success: true,
+      appSettings: currentDB.appSettings
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'sync-credentials error: ' + err.message });
   }
 });
 

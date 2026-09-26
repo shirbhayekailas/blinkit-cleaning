@@ -20,6 +20,7 @@ import {
   History
 } from 'lucide-react';
 import { changePin, saveSupervisor } from '../services/api';
+import { performCloudSync } from '../utils/cloudSync';
 
 export default function UserAccessModal({
   isOpen,
@@ -103,24 +104,41 @@ export default function UserAccessModal({
     }
   };
 
-  const handleSaveClientPin = () => {
+  const handleSaveClientPin = async () => {
     if (!clientPinVal || clientPinVal.trim().length < 4) {
       alert('Client PIN kam se kam 4 digits ka hona chahiye.');
       return;
     }
-    localStorage.setItem('blinkit_client_pin', clientPinVal.trim());
+    const cleanPin = clientPinVal.trim();
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('blinkit_client_pin', cleanPin);
     localStorage.setItem('client_pin_changed', 'true');
+    localStorage.setItem('client_pin_updated_at', nowIso);
     setIsEditingClientPin(false);
+    try {
+      await changePin('client', cleanPin, null, nowIso);
+    } catch (e) {
+      console.warn('Error saving client pin to server:', e);
+    }
     performCloudSync().catch(() => {});
   };
 
-  const handleSaveManagerPin = () => {
+  const handleSaveManagerPin = async () => {
     if (!managerPinVal || managerPinVal.trim().length < 4) {
       alert('Manager PIN kam se kam 4 digits ka hona chahiye.');
       return;
     }
-    localStorage.setItem('vendor_manager_pin', managerPinVal.trim());
+    const cleanPin = managerPinVal.trim();
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('vendor_manager_pin', cleanPin);
+    localStorage.setItem('manager_pin_changed', 'true');
+    localStorage.setItem('manager_pin_updated_at', nowIso);
     setIsEditingManagerPin(false);
+    try {
+      await changePin('manager', cleanPin, null, nowIso);
+    } catch (e) {
+      console.warn('Error saving manager pin to server:', e);
+    }
     performCloudSync().catch(() => {});
   };
 

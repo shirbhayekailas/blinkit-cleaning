@@ -394,12 +394,12 @@ export async function login(loginId, password, deviceInfo) {
   }
 }
 
-export async function changePin(role, newPin, userId = null) {
+export async function changePin(role, newPin, userId = null, updatedAt = null) {
   try {
     const res = await fetch(getApiUrl('/api/auth/change-pin'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, newPin, userId })
+      body: JSON.stringify({ role, newPin, userId, updatedAt: updatedAt || new Date().toISOString() })
     });
     return await res.json();
   } catch (err) {
@@ -407,3 +407,18 @@ export async function changePin(role, newPin, userId = null) {
     throw err;
   }
 }
+
+export async function syncCredentials(credentials) {
+  try {
+    const res = await fetch(getApiUrl('/api/auth/sync-credentials'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('syncCredentials warning:', err);
+    return null;
+  }
+}
+

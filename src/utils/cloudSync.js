@@ -575,25 +575,89 @@ export async function applyRemoteDataToLocalDB(data) {
 
   // 9. App Settings / Login Credentials Sync
   if (data.appSettings && typeof data.appSettings === 'object') {
-    const s = data.appSettings;
-    if (s.vendor_admin_id) localStorage.setItem('vendor_admin_id', s.vendor_admin_id);
-    if (s.vendor_admin_pin) {
-      localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
-      if (s.vendor_admin_pin !== '1234') {
-        localStorage.setItem('admin_pin_changed', 'true');
-      }
-    }
-    if (s.vendor_manager_id) localStorage.setItem('vendor_manager_id', s.vendor_manager_id);
-    if (s.vendor_manager_pin) localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
-    if (s.vendor_manager_name) localStorage.setItem('vendor_manager_name', s.vendor_manager_name);
-    if (s.blinkit_client_id) localStorage.setItem('blinkit_client_id', s.blinkit_client_id);
-    if (s.blinkit_client_pin) {
-      localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
-      if (s.blinkit_client_pin !== '5678') {
-        localStorage.setItem('client_pin_changed', 'true');
-      }
-    }
-    if (s.blinkit_client_name) localStorage.setItem('blinkit_client_name', s.blinkit_client_name);
+    syncSmartCredentials(data.appSettings);
+  }
+}
+
+/**
+ * Smart Self-Healing Credentials Sync:
+ * Protects user's custom PINs against server restarts & redeploys.
+ * NEVER overwrites user's changed PIN with default 1234/5678.
+ * Auto-restores custom PINs to newly redeployed server instances.
+ */
+export function syncSmartCredentials(s) {
+  if (!s || typeof s !== 'object') return;
+
+  if (s.vendor_admin_id) localStorage.setItem('vendor_admin_id', s.vendor_admin_id);
+  if (s.vendor_manager_id) localStorage.setItem('vendor_manager_id', s.vendor_manager_id);
+  if (s.vendor_manager_name) localStorage.setItem('vendor_manager_name', s.vendor_manager_name);
+  if (s.blinkit_client_id) localStorage.setItem('blinkit_client_id', s.blinkit_client_id);
+  if (s.blinkit_client_name) localStorage.setItem('blinkit_client_name', s.blinkit_client_name);
+
+  // 1. ADMIN PIN PROTECTION & AUTO-HEALING
+  const localAdminPin = localStorage.getItem('vendor_admin_pin');
+  const adminChanged = localStorage.getItem('admin_pin_changed') === 'true';
+  const localAdminUpdatedAt = localStorage.getItem('admin_pin_updated_at');
+
+  if (adminChanged && localAdminPin && localAdminPin !== '1234' && s.vendor_admin_pin === '1234') {
+    // Fresh server redeploy reset server to default '1234', but user changed it!
+    // Auto-heal server: push local custom PIN back to server!
+    try {
+      fetch(getApiUrl('/api/auth/change-pin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin', newPin: localAdminPin, updatedAt: localAdminUpdatedAt })
+      }).catch(() => {});
+    } catch (e) {}
+  } else if (s.vendor_admin_pin && s.vendor_admin_pin !== '1234') {
+    // Server has custom PIN
+    localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
+    localStorage.setItem('admin_pin_changed', 'true');
+    if (s.admin_pin_updated_at) localStorage.setItem('admin_pin_updated_at', s.admin_pin_updated_at);
+  } else if (!adminChanged && s.vendor_admin_pin) {
+    localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
+  }
+
+  // 2. MANAGER PIN PROTECTION & AUTO-HEALING
+  const localManagerPin = localStorage.getItem('vendor_manager_pin');
+  const managerChanged = localStorage.getItem('manager_pin_changed') === 'true';
+  const localManagerUpdatedAt = localStorage.getItem('manager_pin_updated_at');
+
+  if (managerChanged && localManagerPin && localManagerPin !== '1234' && s.vendor_manager_pin === '1234') {
+    try {
+      fetch(getApiUrl('/api/auth/change-pin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'manager', newPin: localManagerPin, updatedAt: localManagerUpdatedAt })
+      }).catch(() => {});
+    } catch (e) {}
+  } else if (s.vendor_manager_pin && s.vendor_manager_pin !== '1234') {
+    localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
+    localStorage.setItem('manager_pin_changed', 'true');
+    if (s.manager_pin_updated_at) localStorage.setItem('manager_pin_updated_at', s.manager_pin_updated_at);
+  } else if (!managerChanged && s.vendor_manager_pin) {
+    localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
+  }
+
+  // 3. CLIENT PIN PROTECTION & AUTO-HEALING
+  const localClientPin = localStorage.getItem('blinkit_client_pin');
+  const clientChanged = localStorage.getItem('client_pin_changed') === 'true';
+  const localClientUpdatedAt = localStorage.getItem('client_pin_updated_at');
+
+  if (clientChanged && localClientPin && localClientPin !== '5678' && s.blinkit_client_pin === '5678') {
+    try {
+      fetch(getApiUrl('/api/auth/change-pin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'client', newPin: localClientPin, updatedAt: localClientUpdatedAt })
+      }).catch(() => {});
+    } catch (e) {}
+  } else if (s.blinkit_client_pin && s.blinkit_client_pin !== '5678') {
+    localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
+    localStorage.setItem('client_pin_changed', 'true');
+    if (s.client_pin_updated_at) localStorage.setItem('client_pin_updated_at', s.client_pin_updated_at);
+  } else if (!clientChanged && s.blinkit_client_pin) {
+    localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
   }
 }
 
@@ -618,17 +682,9 @@ export async function performCloudSync() {
     if (res.ok) {
       const result = await res.json();
       if (result.success && result.data) {
-        // Sync login credentials from server to this browser's localStorage
+        // Smart Sync login credentials from server to this browser's localStorage
         if (result.data.appSettings) {
-          const s = result.data.appSettings;
-          if (s.vendor_admin_id) localStorage.setItem('vendor_admin_id', s.vendor_admin_id);
-          if (s.vendor_admin_pin) localStorage.setItem('vendor_admin_pin', s.vendor_admin_pin);
-          if (s.vendor_manager_id) localStorage.setItem('vendor_manager_id', s.vendor_manager_id);
-          if (s.vendor_manager_pin) localStorage.setItem('vendor_manager_pin', s.vendor_manager_pin);
-          if (s.vendor_manager_name) localStorage.setItem('vendor_manager_name', s.vendor_manager_name);
-          if (s.blinkit_client_id) localStorage.setItem('blinkit_client_id', s.blinkit_client_id);
-          if (s.blinkit_client_pin) localStorage.setItem('blinkit_client_pin', s.blinkit_client_pin);
-          if (s.blinkit_client_name) localStorage.setItem('blinkit_client_name', s.blinkit_client_name);
+          syncSmartCredentials(result.data.appSettings);
         }
 
         saveCloudConfig({

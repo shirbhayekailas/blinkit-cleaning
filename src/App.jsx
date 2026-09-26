@@ -35,6 +35,7 @@ import ToastContainer, { toast } from './components/Toast';
 import ConfirmModal from './components/ConfirmModal';
 import CommandPalette from './components/CommandPalette';
 import OperationsPulseBar from './components/OperationsPulseBar';
+import { syncSmartCredentials } from './utils/cloudSync';
 import * as api from './services/api';
 import { 
   Building2, 
@@ -216,6 +217,9 @@ export default function App() {
       const data = await api.fetchServerState();
       if (data) {
         setServerData(prev => ({ ...prev, ...data }));
+        if (data.appSettings) {
+          syncSmartCredentials(data.appSettings);
+        }
         setIsDataLoaded(true);
       }
     } catch (err) {

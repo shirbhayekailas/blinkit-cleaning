@@ -39,6 +39,8 @@ export default function ChangePasswordModal({
   let expectedCurrentPin = '1234';
   if (role === 'admin') {
     expectedCurrentPin = localStorage.getItem('vendor_admin_pin') || '1234';
+  } else if (role === 'manager') {
+    expectedCurrentPin = localStorage.getItem('vendor_manager_pin') || '1234';
   } else if (role === 'client') {
     expectedCurrentPin = localStorage.getItem('blinkit_client_pin') || '5678';
   } else if (role === 'supervisor') {
@@ -47,9 +49,11 @@ export default function ChangePasswordModal({
 
   const roleTitle = role === 'admin' 
     ? 'Admin Master PIN' 
-    : role === 'client' 
-      ? 'Client Portal PIN' 
-      : `${user?.name || 'Supervisor'} Access PIN`;
+    : role === 'manager'
+      ? 'Operations Manager PIN'
+      : role === 'client' 
+        ? 'Client Portal PIN' 
+        : `${user?.name || 'Supervisor'} Access PIN`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,14 +83,20 @@ export default function ChangePasswordModal({
     setIsSaving(true);
     try {
       const cleanNewPin = newPin.trim();
+      const nowIso = new Date().toISOString();
 
       if (role === 'admin') {
         localStorage.setItem('vendor_admin_pin', cleanNewPin);
         localStorage.setItem('admin_pin_changed', 'true');
-        localStorage.setItem('admin_pin_updated_at', new Date().toISOString());
+        localStorage.setItem('admin_pin_updated_at', nowIso);
+      } else if (role === 'manager') {
+        localStorage.setItem('vendor_manager_pin', cleanNewPin);
+        localStorage.setItem('manager_pin_changed', 'true');
+        localStorage.setItem('manager_pin_updated_at', nowIso);
       } else if (role === 'client') {
         localStorage.setItem('blinkit_client_pin', cleanNewPin);
         localStorage.setItem('client_pin_changed', 'true');
+        localStorage.setItem('client_pin_updated_at', nowIso);
       } else if (role === 'supervisor' && user?.id) {
         // Also update local storage session if currently logged in
         const currentSaved = localStorage.getItem('blinkit_supervisor');
@@ -106,7 +116,7 @@ export default function ChangePasswordModal({
 
       // Sync updated PIN directly to server database
       try {
-        await changePin(role, cleanNewPin, user?.id || user?.phone);
+        await changePin(role, cleanNewPin, user?.id || user?.phone, nowIso);
       } catch (err) {
         console.warn('Could not update PIN on server directly:', err);
       }

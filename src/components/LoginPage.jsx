@@ -79,6 +79,73 @@ export default function LoginPage({
           return;
         }
       } else if (response.status === 401 || response.status === 403) {
+        // SMART AUTO-HEAL: If server just restarted/redeployed and reverted to default 1234,
+        // but user entered their valid local customized PIN, auto-restore server and retry login!
+        const savedAdminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
+        const savedAdminPin = localStorage.getItem('vendor_admin_pin') || '1234';
+        const isAdminChanged = localStorage.getItem('admin_pin_changed') === 'true';
+
+        const savedManagerId = (localStorage.getItem('vendor_manager_id') || 'manager').toLowerCase();
+        const savedManagerPin = localStorage.getItem('vendor_manager_pin') || '1234';
+        const isManagerChanged = localStorage.getItem('manager_pin_changed') === 'true';
+
+        const savedClientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
+        const savedClientPin = localStorage.getItem('blinkit_client_pin') || '5678';
+        const isClientChanged = localStorage.getItem('client_pin_changed') === 'true';
+
+        let autoHealed = false;
+        if (isAdminChanged && inputId.toLowerCase() === savedAdminId && inputPass === savedAdminPin) {
+          try {
+            await fetch(getApiUrl('/api/auth/change-pin'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'admin', newPin: savedAdminPin, updatedAt: localStorage.getItem('admin_pin_updated_at') })
+            });
+            autoHealed = true;
+          } catch (e) {}
+        } else if (isManagerChanged && inputId.toLowerCase() === savedManagerId && inputPass === savedManagerPin) {
+          try {
+            await fetch(getApiUrl('/api/auth/change-pin'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'manager', newPin: savedManagerPin, updatedAt: localStorage.getItem('manager_pin_updated_at') })
+            });
+            autoHealed = true;
+          } catch (e) {}
+        } else if (isClientChanged && inputId.toLowerCase() === savedClientId && inputPass === savedClientPin) {
+          try {
+            await fetch(getApiUrl('/api/auth/change-pin'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'client', newPin: savedClientPin, updatedAt: localStorage.getItem('client_pin_updated_at') })
+            });
+            autoHealed = true;
+          } catch (e) {}
+        }
+
+        if (autoHealed) {
+          try {
+            const retryResponse = await fetch(getApiUrl('/api/auth/login'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
+            });
+            if (retryResponse.ok) {
+              const resData = await retryResponse.json();
+              if (resData.success) {
+                if (resData.data) {
+                  await applyRemoteDataToLocalDB(resData.data);
+                }
+                onLoginSuccess({
+                  role: resData.role,
+                  user: resData.user
+                });
+                return;
+              }
+            }
+          } catch (e) {}
+        }
+
         const errData = await response.json().catch(() => ({}));
         setError(errData.message || 'Galat Login ID ya Password darj kiya gaya hai. Kripya check karke dobara dalein.');
         setIsSubmitting(false);
