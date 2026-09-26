@@ -237,18 +237,37 @@ export default function App() {
     // Fast polling every 5 seconds so Desktop & Mobile stay in live sync
     const syncInterval = setInterval(loadServerData, 5000);
 
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+    let lastFetchTime = 0;
+    const triggerInstantSync = () => {
+      const now = Date.now();
+      if (now - lastFetchTime > 600) {
+        lastFetchTime = now;
         loadServerData();
       }
     };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        triggerInstantSync();
+      }
+    };
+
+    const handleOnline = () => {
+      triggerInstantSync();
+    };
+
+    // Mobile & Desktop window lifecycle hooks
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', loadServerData);
+    window.addEventListener('focus', triggerInstantSync);
+    window.addEventListener('pageshow', triggerInstantSync); // Critical for Mobile Safari/Chrome app-switching
+    window.addEventListener('online', handleOnline); // When 4G/WiFi reconnects
 
     return () => {
       clearInterval(syncInterval);
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', loadServerData);
+      window.removeEventListener('focus', triggerInstantSync);
+      window.removeEventListener('pageshow', triggerInstantSync);
+      window.removeEventListener('online', handleOnline);
     };
   }, []);
 

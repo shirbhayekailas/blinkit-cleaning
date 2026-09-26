@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
-import { addWatermarkToPhoto } from '../utils/photoWatermark';
+import { addWatermarkToPhoto, compressImage } from '../utils/photoWatermark';
 import { getGPSCoordinates } from '../utils/geolocation';
 import { shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
 import AudioRecorder from './AudioRecorder';
@@ -182,13 +182,16 @@ export default function SupervisorPortal({
     setIsWatermarking(false);
   };
 
-  // Issue Photo Upload
-  const handleIssuePhotoUpload = (e) => {
+  // Issue Photo Upload with smart compression
+  const handleIssuePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setIssuePhoto(ev.target.result);
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1024, 0.78);
+      setIssuePhoto(compressed);
+    } catch (err) {
+      console.warn('Issue photo error:', err);
+    }
   };
 
   // Calculate Labor Cost (Roster + On-the-spot Cleaners)

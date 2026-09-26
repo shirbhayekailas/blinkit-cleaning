@@ -26,9 +26,14 @@ export function getApiUrl(endpoint) {
 
 export async function fetchServerState() {
   try {
-    const res = await fetch(getApiUrl('/api/state'), {
+    const nonce = Date.now();
+    const res = await fetch(getApiUrl(`/api/state?_t=${nonce}`), {
       method: 'GET',
-      headers: { 'Cache-Control': 'no-cache' }
+      headers: { 
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
     if (res.ok) {
       const data = await res.json();

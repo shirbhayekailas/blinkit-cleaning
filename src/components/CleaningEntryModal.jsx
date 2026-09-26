@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
-import { addWatermarkToPhoto } from '../utils/photoWatermark';
+import { addWatermarkToPhoto, compressImage } from '../utils/photoWatermark';
 import { saveCleaner } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
 
@@ -385,12 +385,8 @@ export default function CleaningEntryModal({
         });
       } catch (err) {
         console.warn('Watermark fallback:', err);
-        // Fallback to regular file reader
-        const fallbackUrl = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (uploadEvent) => resolve(uploadEvent.target.result);
-          reader.readAsDataURL(file);
-        });
+        // Fallback to high-performance client-side compressor
+        const fallbackUrl = await compressImage(file);
         newPhotos.push({
           id: 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
           type: activePhotoTab,

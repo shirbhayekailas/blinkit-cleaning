@@ -11,6 +11,15 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Strict Anti-Cache headers for all API endpoints (Ensures 100% fresh data on all devices & browsers)
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
+
 // Database directory & file
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
@@ -1152,5 +1161,16 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 server.on('error', (err) => {
   console.error('Server error:', err);
 });
+
+// 24/7 Keep-Alive self-heartbeat: prevents Render free tier from sleeping
+const KEEP_ALIVE_URL = process.env.RENDER_EXTERNAL_URL || 'https://blinkit-cleaning-tracker-e9iy.onrender.com';
+setInterval(() => {
+  try {
+    fetch(`${KEEP_ALIVE_URL}/api/health`)
+      .then(res => res.json())
+      .then(() => {})
+      .catch(() => {});
+  } catch (e) {}
+}, 10 * 60 * 1000); // Ping every 10 minutes
 
 module.exports = server;
