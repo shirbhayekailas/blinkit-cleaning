@@ -178,38 +178,8 @@ export function generateCleaningPDF(cleaning) {
       }
     });
 
-    // Chemicals & Consumables Deployed Table
-    if (cleaning.chemicalsUsed && cleaning.chemicalsUsed.length > 0) {
-      const chemY = (doc.lastAutoTable?.finalY || scopeY + 25) + 6;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(30, 41, 59);
-      doc.text('CHEMICALS & CONSUMABLES DEPLOYED', 14, chemY);
-
-      const chemRows = cleaning.chemicalsUsed.map(c => [
-        c.itemName || c.name || 'Chemical Product',
-        `${c.quantity} ${c.unit || 'Liters'}`,
-        'Diversey / Industrial Grade',
-        '[x] VERIFIED & DEPLOYED'
-      ]);
-
-      runAutoTable(doc, {
-        startY: chemY + 2,
-        head: [['Chemical Product', 'Quantity Used', 'Specification / Grade', 'Audit Verification']],
-        body: chemRows,
-        theme: 'grid',
-        headStyles: { fillColor: [109, 40, 217], textColor: [255, 255, 255] },
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: {
-          0: { fontStyle: 'bold' },
-          1: { fontStyle: 'bold', textColor: [109, 40, 217] },
-          3: { textColor: [12, 131, 31], fontStyle: 'bold' }
-        }
-      });
-    }
-
     // Remarks & Signatures
-    let signY = (doc.lastAutoTable?.finalY || scopeY + 25) + 8;
+    let signY = (doc.lastAutoTable?.finalY || scopeY + 25) + 10;
     
     if (cleaning.remarks) {
       doc.setFont('helvetica', 'italic');
