@@ -23,6 +23,18 @@
     max-width: 100%;
     height: auto;
   }
+
+  /* Eliminate 300ms mobile touch tap latency for instant response */
+  a, button, input, select, textarea, [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+/* GPU hardware acceleration for smooth 60fps animations */
+.gpu-smooth {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
 }
 
 /* Custom scrollbars */

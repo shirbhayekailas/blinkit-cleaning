@@ -554,9 +554,20 @@ app.post('/api/auth/sync-credentials', (req, res) => {
 // PURE SERVER-SIDE DATABASE CRUD ENDPOINTS (No local storage ghosting)
 // -------------------------------------------------------------
 
-// 1. Get complete server database state
+// 1. Get complete server database state (Supports ultra-fast lightweight conditional 304 sync)
 app.get('/api/state', (req, res) => {
   const currentDB = readDB();
+  const clientLastUpdated = req.query.lastUpdated;
+
+  if (clientLastUpdated && clientLastUpdated === currentDB.lastUpdated) {
+    return res.json({
+      success: true,
+      unchanged: true,
+      lastUpdated: currentDB.lastUpdated,
+      serverTime: new Date().toISOString()
+    });
+  }
+
   res.json({
     success: true,
     serverTime: new Date().toISOString(),

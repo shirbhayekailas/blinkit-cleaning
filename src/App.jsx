@@ -211,11 +211,18 @@ export default function App() {
   });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Fast function to fetch full state directly from server
-  const loadServerData = async () => {
+  const lastUpdatedRef = useRef(null);
+
+  // Fast function to fetch full state directly from server (Zero-overhead conditional sync)
+  const loadServerData = async (force = false) => {
     try {
-      const data = await api.fetchServerState();
-      if (data) {
+      const data = await api.fetchServerState(force ? null : lastUpdatedRef.current);
+      if (data && data.unchanged) {
+        // Zero change on server: Skip re-rendering, keep UI locked at 60 FPS!
+        return;
+      }
+      if (data && !data.unchanged) {
+        lastUpdatedRef.current = data.lastUpdated || null;
         setServerData(prev => ({ ...prev, ...data }));
         if (data.appSettings) {
           syncSmartCredentials(data.appSettings);
@@ -340,6 +347,14 @@ export default function App() {
     return matchesSearch && matchesPayment && matchesStatus && matchesCluster && matchesCycle;
   });
 
+  // Smooth DOM Virtualization / Progressive Batch Loading (Keeps mobile frame rates locked at 60 FPS)
+  const [visibleCleaningsCount, setVisibleCleaningsCount] = useState(15);
+
+  useEffect(() => {
+    setVisibleCleaningsCount(15);
+  }, [searchTerm, paymentFilter, statusFilter, clusterFilter, cycleFilter]);
+
+  const visibleCleanings = filteredCleanings.slice(0, visibleCleaningsCount);
 
   // Handlers for Cleanings
   const handleSaveCleaning = async (cleaningData) => {
@@ -891,35 +906,55 @@ export default function App() {
               </div>
 
               {filteredCleanings.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredCleanings.map((cleaning) => (
-                    <StoreCard
-                      key={cleaning.id}
-                      cleaning={cleaning}
-                      isAdmin={currentUserRole === 'admin'}
-                      onUpdatePayment={(c) => {
-                        if (currentUserRole !== 'admin') {
-                          alert('Payment details enter ya update karne ka access sirf Admin ke paas hai.');
-                          return;
-                        }
-                        setPaymentCleaning(c);
-                      }}
-                      onOpenPhotos={(c, view = 'grid') => {
-                        setPhotoCleaning(c);
-                        setPhotoInitialView(view);
-                      }}
-                      onGeneratePDF={(c) => generateCleaningPDF(c)}
-                      onShareWhatsApp={(c) => setReportCleaning(c)}
-                      onGenerateInvoice={(c) => setInvoiceCleaning(c)}
-                      onOpenStoreQR={(c) => setQrStore(c)}
-                      onEdit={(c) => {
-                        setEditingCleaning(c);
-                        setIsEntryModalOpen(true);
-                      }}
-                      onDelete={handleDeleteCleaning}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {visibleCleanings.map((cleaning) => (
+                      <StoreCard
+                        key={cleaning.id}
+                        cleaning={cleaning}
+                        isAdmin={currentUserRole === 'admin'}
+                        onUpdatePayment={(c) => {
+                          if (currentUserRole !== 'admin') {
+                            alert('Payment details enter ya update karne ka access sirf Admin ke paas hai.');
+                            return;
+                          }
+                          setPaymentCleaning(c);
+                        }}
+                        onOpenPhotos={(c, view = 'grid') => {
+                          setPhotoCleaning(c);
+                          setPhotoInitialView(view);
+                        }}
+                        onGeneratePDF={(c) => generateCleaningPDF(c)}
+                        onShareWhatsApp={(c) => setReportCleaning(c)}
+                        onGenerateInvoice={(c) => setInvoiceCleaning(c)}
+                        onOpenStoreQR={(c) => setQrStore(c)}
+                        onEdit={(c) => {
+                          setEditingCleaning(c);
+                          setIsEntryModalOpen(true);
+                        }}
+                        onDelete={handleDeleteCleaning}
+                      />
+                    ))}
+                  </div>
+
+                  {filteredCleanings.length > visibleCleaningsCount && (
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-6 pb-2">
+                      <button
+                        onClick={() => setVisibleCleaningsCount(prev => prev + 15)}
+                        className="px-6 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blinkit-green text-slate-800 dark:text-slate-100 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 transform active:scale-95 cursor-pointer"
+                      >
+                        <Sparkles className="w-4 h-4 text-blinkit-green" />
+                        <span>Load More Stores (Showing {visibleCleanings.length} of {filteredCleanings.length})</span>
+                      </button>
+                      <button
+                        onClick={() => setVisibleCleaningsCount(filteredCleanings.length)}
+                        className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold underline cursor-pointer"
+                      >
+                        Show All ({filteredCleanings.length})
+                      </button>
+                    </div>
+                  )}
+                </>
 
               ) : (
                 <div className="py-16 text-center bg-white dark:bg-slate-800/60 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 p-8">

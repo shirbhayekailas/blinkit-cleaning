@@ -24,10 +24,14 @@ export function getApiUrl(endpoint) {
 // CORE FETCH & STATE
 // -------------------------------------------------------------
 
-export async function fetchServerState() {
+export async function fetchServerState(lastKnownUpdated = null) {
   try {
     const nonce = Date.now();
-    const res = await fetch(getApiUrl(`/api/state?_t=${nonce}`), {
+    let url = `/api/state?_t=${nonce}`;
+    if (lastKnownUpdated) {
+      url += `&lastUpdated=${encodeURIComponent(lastKnownUpdated)}`;
+    }
+    const res = await fetch(getApiUrl(url), {
       method: 'GET',
       headers: { 
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -37,6 +41,9 @@ export async function fetchServerState() {
     });
     if (res.ok) {
       const data = await res.json();
+      if (data.unchanged) {
+        return { unchanged: true, lastUpdated: data.lastUpdated };
+      }
       return data.data || null;
     }
   } catch (err) {
