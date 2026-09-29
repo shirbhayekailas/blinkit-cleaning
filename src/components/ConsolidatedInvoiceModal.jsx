@@ -53,33 +53,37 @@ export default function ConsolidatedInvoiceModal({
     setSelectedCleaningIds(monthCleanings.map(c => c.id));
   }, [selectedMonth, cleanings.length]);
 
-  useEffect(() => {
+  const loadProfileFromBillSettings = () => {
     try {
       const billConfig = getBillSettings();
       const currentBilledBy = billConfig.billedBy || {};
-      const mergedDefault = { ...DEFAULT_SK_PROFILE, ...currentBilledBy };
-
-      const saved = localStorage.getItem('vendor_invoice_profile');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.companyName || parsed.companyName === 'My Deep Cleaning Services' || parsed.companyName === 'CleanPro Facilities Pvt Ltd') {
-          setVendorProfile({
-            ...mergedDefault,
-            ...parsed,
-            companyName: mergedDefault.companyName || 'SK ENTERPRISES',
-            phone: parsed.phone || mergedDefault.phone,
-            address: parsed.address || mergedDefault.address,
-            gstin: parsed.gstin || mergedDefault.gstin
-          });
-        } else {
-          setVendorProfile({ ...mergedDefault, ...parsed });
-        }
-      } else {
-        setVendorProfile(mergedDefault);
-      }
+      setVendorProfile({
+        companyName: currentBilledBy.companyName || DEFAULT_SK_PROFILE.companyName,
+        phone: currentBilledBy.phone || DEFAULT_SK_PROFILE.phone,
+        email: currentBilledBy.email || DEFAULT_SK_PROFILE.email,
+        address: currentBilledBy.address || DEFAULT_SK_PROFILE.address,
+        gstin: currentBilledBy.gstin || DEFAULT_SK_PROFILE.gstin,
+        bankName: currentBilledBy.bankName || DEFAULT_SK_PROFILE.bankName,
+        accountNumber: currentBilledBy.accountNumber || DEFAULT_SK_PROFILE.accountNumber,
+        ifsc: currentBilledBy.ifsc || DEFAULT_SK_PROFILE.ifsc,
+        accountHolder: currentBilledBy.accountHolder || currentBilledBy.companyName || DEFAULT_SK_PROFILE.companyName,
+        upiId: currentBilledBy.upiId || DEFAULT_SK_PROFILE.upiId,
+        signatory: currentBilledBy.signatory || 'Authorized Signatory'
+      });
     } catch (e) {
       console.warn('Profile read notice', e);
     }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadProfileFromBillSettings();
+    }
+    const handleSettingsUpdated = () => {
+      loadProfileFromBillSettings();
+    };
+    window.addEventListener('bill-settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('bill-settings-updated', handleSettingsUpdated);
   }, [isOpen]);
 
   if (!isOpen) return null;

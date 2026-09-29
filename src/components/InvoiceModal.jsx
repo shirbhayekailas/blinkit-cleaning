@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { X, Receipt, Download, Building2, CreditCard, Save, Sliders } from 'lucide-react';
 import { generateVendorInvoicePDF } from '../utils/invoiceGenerator';
-import { getBillSettings } from '../utils/billSettingsHelper';
+import { getBillSettings, saveBillSettings } from '../utils/billSettingsHelper';
 
 export default function InvoiceModal({
   isOpen,
@@ -20,55 +20,68 @@ export default function InvoiceModal({
     bankName: 'HDFC Bank',
     accountNumber: '50200012345678',
     ifsc: 'HDFC0001234',
+    accountHolder: 'SK ENTERPRISES',
     upiId: 'cleanpro@hdfcbank',
     itemDescription: ''
   };
 
   const [vendorProfile, setVendorProfile] = useState(DEFAULT_SK_PROFILE);
 
-  useEffect(() => {
+  const loadProfileFromBillSettings = () => {
     try {
       const billConfig = getBillSettings();
       const currentBilledBy = billConfig.billedBy || {};
-      const mergedDefault = { ...DEFAULT_SK_PROFILE, ...currentBilledBy };
-
-      const saved = localStorage.getItem('vendor_invoice_profile');
       const defaultDesc = cleaning ? `Deep Cleaning - ${cleaning.storeName} (${cleaning.storeCode})` : 'Deep Cleaning';
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.companyName || parsed.companyName === 'My Deep Cleaning Services' || parsed.companyName === 'CleanPro Facilities Pvt Ltd') {
-          setVendorProfile({
-            ...mergedDefault,
-            ...parsed,
-            companyName: mergedDefault.companyName || 'SK ENTERPRISES',
-            phone: parsed.phone || mergedDefault.phone,
-            address: parsed.address || mergedDefault.address,
-            gstin: parsed.gstin || mergedDefault.gstin,
-            itemDescription: defaultDesc
-          });
-        } else {
-          setVendorProfile({
-            ...mergedDefault,
-            ...parsed,
-            itemDescription: defaultDesc
-          });
-        }
-      } else {
-        setVendorProfile({
-          ...mergedDefault,
-          itemDescription: defaultDesc
-        });
-      }
+
+      setVendorProfile({
+        companyName: currentBilledBy.companyName || DEFAULT_SK_PROFILE.companyName,
+        phone: currentBilledBy.phone || DEFAULT_SK_PROFILE.phone,
+        email: currentBilledBy.email || DEFAULT_SK_PROFILE.email,
+        address: currentBilledBy.address || DEFAULT_SK_PROFILE.address,
+        gstin: currentBilledBy.gstin || DEFAULT_SK_PROFILE.gstin,
+        bankName: currentBilledBy.bankName || DEFAULT_SK_PROFILE.bankName,
+        accountNumber: currentBilledBy.accountNumber || DEFAULT_SK_PROFILE.accountNumber,
+        ifsc: currentBilledBy.ifsc || DEFAULT_SK_PROFILE.ifsc,
+        accountHolder: currentBilledBy.accountHolder || currentBilledBy.companyName || DEFAULT_SK_PROFILE.accountHolder,
+        upiId: currentBilledBy.upiId || DEFAULT_SK_PROFILE.upiId,
+        signatory: currentBilledBy.signatory || 'Authorized Signatory',
+        itemDescription: defaultDesc
+      });
     } catch (e) {
       console.warn('Profile read notice', e);
     }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadProfileFromBillSettings();
+    }
+    const handleSettingsUpdated = () => {
+      loadProfileFromBillSettings();
+    };
+    window.addEventListener('bill-settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('bill-settings-updated', handleSettingsUpdated);
   }, [cleaning, isOpen]);
 
   if (!isOpen || !cleaning) return null;
 
   const handleSaveProfile = () => {
     try {
-      localStorage.setItem('vendor_invoice_profile', JSON.stringify(vendorProfile));
+      saveBillSettings({
+        billedBy: {
+          companyName: vendorProfile.companyName,
+          phone: vendorProfile.phone,
+          email: vendorProfile.email,
+          address: vendorProfile.address,
+          gstin: vendorProfile.gstin,
+          bankName: vendorProfile.bankName,
+          accountNumber: vendorProfile.accountNumber,
+          ifsc: vendorProfile.ifsc,
+          accountHolder: vendorProfile.accountHolder || vendorProfile.companyName,
+          upiId: vendorProfile.upiId,
+          signatory: vendorProfile.signatory || 'Authorized Signatory'
+        }
+      });
       alert('Vendor Invoice profile saved!');
     } catch (e) {
       console.warn('Profile save notice', e);

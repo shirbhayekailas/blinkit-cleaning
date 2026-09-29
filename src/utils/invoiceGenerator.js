@@ -26,23 +26,28 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
 
     // Read configured bill settings (Billed By & Billed To)
     const billConfig = getBillSettings();
-    const bBy = { ...billConfig.billedBy, ...(vendorProfile || {}) };
-    const bTo = { ...billConfig.billedTo, ...(vendorProfile.clientProfile || {}) };
+    const bBySettings = billConfig.billedBy || {};
+    const bToSettings = billConfig.billedTo || {};
 
-    const vendorName = bBy.companyName || cleaning.teamVendor || 'SK ENTERPRISES';
-    const vendorTagline = bBy.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
-    const vendorPhone = bBy.phone || '09594023629';
-    const vendorEmail = bBy.email || 'skenterprises.clean@gmail.com';
-    const vendorAddress = bBy.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
-    const vendorGst = bBy.gstin || bBy.pan || '27OQCPS0083R1ZU';
-    const vendorState = bBy.state || 'Maharashtra';
-    const vendorStateCode = bBy.stateCode || '27';
-    const bankName = bBy.bankName || 'HDFC Bank';
-    const bankAcc = bBy.accountNumber || '50200012345678';
-    const ifsc = bBy.ifsc || 'HDFC0001234';
-    const accountHolder = bBy.accountHolder || vendorName;
-    const upiId = bBy.upiId || 'cleanpro@hdfcbank';
-    const signatoryTitle = bBy.signatory || 'Authorized Signatory';
+    const bBy = { ...(vendorProfile || {}), ...bBySettings };
+    const bTo = { ...(vendorProfile.clientProfile || {}), ...bToSettings };
+
+    const vendorName = bBySettings.companyName || vendorProfile.companyName || cleaning.teamVendor || 'SK ENTERPRISES';
+    const vendorTagline = bBySettings.tagline || vendorProfile.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
+    const vendorPhone = bBySettings.phone || vendorProfile.phone || '09594023629';
+    const vendorEmail = bBySettings.email || vendorProfile.email || 'skenterprises.clean@gmail.com';
+    const vendorAddress = bBySettings.address || vendorProfile.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
+    const vendorGst = bBySettings.gstin || bBySettings.pan || vendorProfile.gstin || '27OQCPS0083R1ZU';
+    const vendorState = bBySettings.state || vendorProfile.state || 'Maharashtra';
+    const vendorStateCode = bBySettings.stateCode || vendorProfile.stateCode || '27';
+
+    // Bank Details: Bill Settings is the absolute Source of Truth
+    const bankName = bBySettings.bankName || vendorProfile.bankName || 'HDFC Bank';
+    const bankAcc = bBySettings.accountNumber || vendorProfile.accountNumber || '50200012345678';
+    const ifsc = bBySettings.ifsc || vendorProfile.ifsc || 'HDFC0001234';
+    const accountHolder = bBySettings.accountHolder || vendorProfile.accountHolder || vendorName;
+    const upiId = bBySettings.upiId || vendorProfile.upiId || 'cleanpro@hdfcbank';
+    const signatoryTitle = bBySettings.signatory || vendorProfile.signatory || 'Authorized Signatory';
 
     // Billed To (Client Company)
     const clientName = bTo.companyName || 'Blinkit Commerce Private Limited';
@@ -292,7 +297,7 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105);
-    doc.text(`Bank Name: ${bankName}   |   A/c Holder: ${vendorName}`, margin + 4, bankY + 14, { maxWidth: contentWidth - 8 });
+    doc.text(`Bank Name: ${bankName}   |   A/c Holder: ${accountHolder}`, margin + 4, bankY + 14, { maxWidth: contentWidth - 8 });
     doc.text(`Account Number: ${bankAcc}   |   IFSC Code: ${ifsc}`, margin + 4, bankY + 21, { maxWidth: contentWidth - 8 });
     doc.text(`UPI ID for Instant Transfer: ${upiId}`, margin + 4, bankY + 28, { maxWidth: contentWidth - 8 });
     doc.setFontSize(8);
@@ -307,7 +312,7 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     doc.setTextColor(71, 85, 105);
     doc.text(`For ${vendorName}`, pageWidth - 75, signY + 17, { maxWidth: 61 });
     doc.setFont('helvetica', 'normal');
-    doc.text('Authorized Signatory', pageWidth - 75, signY + 22);
+    doc.text(signatoryTitle, pageWidth - 75, signY + 22);
 
     doc.save(`Invoice_${cleaning.storeCode || 'Store'}_${cleaning.cleaningDate || 'Date'}.pdf`);
   } catch (err) {

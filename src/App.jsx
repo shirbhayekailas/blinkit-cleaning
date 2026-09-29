@@ -298,6 +298,15 @@ export default function App() {
         });
         if (data.appSettings) {
           syncSmartCredentials(data.appSettings);
+          if (data.appSettings.billSettings) {
+            try {
+              const currentSaved = localStorage.getItem('blinkit_bill_settings_v1');
+              if (!currentSaved) {
+                localStorage.setItem('blinkit_bill_settings_v1', JSON.stringify(data.appSettings.billSettings));
+                window.dispatchEvent(new CustomEvent('bill-settings-updated', { detail: data.appSettings.billSettings }));
+              }
+            } catch (e) {}
+          }
         }
         setIsDataLoaded(true);
       }

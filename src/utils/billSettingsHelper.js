@@ -60,12 +60,29 @@ export function getBillSettings() {
 
 export function saveBillSettings(settings) {
   try {
+    const current = getBillSettings();
     const merged = {
-      billedBy: { ...DEFAULT_BILL_SETTINGS.billedBy, ...(settings.billedBy || {}) },
-      billedTo: { ...DEFAULT_BILL_SETTINGS.billedTo, ...(settings.billedTo || {}) }
+      billedBy: { ...current.billedBy, ...(settings.billedBy || {}) },
+      billedTo: { ...current.billedTo, ...(settings.billedTo || {}) }
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    
+    // Also sync to legacy vendor_invoice_profile key so legacy readers cannot overwrite updated bank details
+    try {
+      localStorage.setItem('vendor_invoice_profile', JSON.stringify({
+        ...merged.billedBy
+      }));
+    } catch (e) {}
+
     window.dispatchEvent(new CustomEvent('bill-settings-updated', { detail: merged }));
+
+    // Asynchronously save to cloud database
+    try {
+      import('../services/api').then(({ saveCloudBillSettings }) => {
+        saveCloudBillSettings(merged);
+      }).catch(() => {});
+    } catch (e) {}
+
     return true;
   } catch (err) {
     console.error('Error saving bill settings:', err);

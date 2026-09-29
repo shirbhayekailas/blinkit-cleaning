@@ -578,6 +578,24 @@ app.post('/api/auth/sync-credentials', (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: 'sync-credentials error: ' + err.message });
   }
+// Bill Settings endpoint (Cloud persistence for bank & company details)
+app.post('/api/settings/bill', (req, res) => {
+  try {
+    const { billSettings } = req.body;
+    if (!billSettings) {
+      return res.status(400).json({ success: false, message: 'No billSettings payload provided' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.appSettings) currentDB.appSettings = { ...DEFAULT_DB.appSettings };
+    currentDB.appSettings.billSettings = billSettings;
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      billSettings: currentDB.appSettings.billSettings
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server bill settings error: ' + err.message });
+  }
 });
 
 // -------------------------------------------------------------

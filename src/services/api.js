@@ -470,3 +470,18 @@ export async function syncCredentials(credentials) {
   }
 }
 
+export async function saveCloudBillSettings(billSettings) {
+  try {
+    const res = await fetch(getApiUrl('/api/settings/bill'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ billSettings })
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('saveCloudBillSettings warning:', err);
+    return null;
+  }
+}
+
+

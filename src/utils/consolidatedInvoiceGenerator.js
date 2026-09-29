@@ -31,23 +31,25 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
 
     // Read configured bill settings (Billed By & Billed To)
     const billConfig = getBillSettings();
-    const bBy = { ...billConfig.billedBy, ...(vendorProfile || {}) };
-    const bTo = { ...billConfig.billedTo, ...(vendorProfile.clientProfile || {}) };
+    const bBySettings = billConfig.billedBy || {};
+    const bToSettings = billConfig.billedTo || {};
 
-    const vendorName = bBy.companyName || 'SK ENTERPRISES';
-    const vendorTagline = bBy.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
-    const vendorPhone = bBy.phone || '09594023629';
-    const vendorEmail = bBy.email || 'skenterprises.clean@gmail.com';
-    const vendorAddress = bBy.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
-    const vendorGst = bBy.gstin || bBy.pan || '27OQCPS0083R1ZU';
-    const vendorState = bBy.state || 'Maharashtra';
-    const vendorStateCode = bBy.stateCode || '27';
-    const bankName = bBy.bankName || 'HDFC Bank';
-    const bankAcc = bBy.accountNumber || '50200012345678';
-    const ifsc = bBy.ifsc || 'HDFC0001234';
-    const accountHolder = bBy.accountHolder || vendorName;
-    const upiId = bBy.upiId || 'cleanpro@hdfcbank';
-    const signatoryTitle = bBy.signatory || 'Authorized Signatory';
+    const vendorName = bBySettings.companyName || vendorProfile.companyName || 'SK ENTERPRISES';
+    const vendorTagline = bBySettings.tagline || vendorProfile.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
+    const vendorPhone = bBySettings.phone || vendorProfile.phone || '09594023629';
+    const vendorEmail = bBySettings.email || vendorProfile.email || 'skenterprises.clean@gmail.com';
+    const vendorAddress = bBySettings.address || vendorProfile.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
+    const vendorGst = bBySettings.gstin || bBySettings.pan || vendorProfile.gstin || '27OQCPS0083R1ZU';
+    const vendorState = bBySettings.state || vendorProfile.state || 'Maharashtra';
+    const vendorStateCode = bBySettings.stateCode || vendorProfile.stateCode || '27';
+
+    // Bank Details: Bill Settings is the absolute Source of Truth
+    const bankName = bBySettings.bankName || vendorProfile.bankName || 'HDFC Bank';
+    const bankAcc = bBySettings.accountNumber || vendorProfile.accountNumber || '50200012345678';
+    const ifsc = bBySettings.ifsc || vendorProfile.ifsc || 'HDFC0001234';
+    const accountHolder = bBySettings.accountHolder || vendorProfile.accountHolder || vendorName;
+    const upiId = bBySettings.upiId || vendorProfile.upiId || 'cleanpro@hdfcbank';
+    const signatoryTitle = bBySettings.signatory || vendorProfile.signatory || 'Authorized Signatory';
 
     // Billed To (Client Company)
     const clientName = bTo.companyName || 'Blinkit Commerce Private Limited';
@@ -268,7 +270,7 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`Bank Name: ${bankName}  |  A/c Holder: ${vendorName}`, 18, bankY + 14);
+    doc.text(`Bank Name: ${bankName}  |  A/c Holder: ${accountHolder}`, 18, bankY + 14);
     doc.text(`Account Number: ${bankAcc}  |  IFSC Code: ${ifsc}`, 18, bankY + 21);
     doc.text(`UPI ID for Direct Settlement: ${upiId}`, 18, bankY + 28);
 
@@ -281,7 +283,7 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     doc.setTextColor(71, 85, 105);
     doc.text(`For ${vendorName}`, pageWidth - 75, signY + 14);
     doc.setFont('helvetica', 'normal');
-    doc.text('Authorized Signatory', pageWidth - 75, signY + 18);
+    doc.text(signatoryTitle, pageWidth - 75, signY + 18);
 
     doc.save(`Consolidated_Invoice_${monthLabel.replace(/\s+/g, '_')}.pdf`);
   } catch (err) {
