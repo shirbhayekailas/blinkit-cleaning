@@ -48,7 +48,7 @@ export default function ScheduleCalendarModal({
     }
 
     const st = stores.find(s => s.storeCode === newSchedule.storeCode);
-    const sup = supervisors.find(s => s.id === Number(newSchedule.supervisorId));
+    const sup = supervisors.find(s => String(s.id) === String(newSchedule.supervisorId));
 
     try {
       await saveSchedule({

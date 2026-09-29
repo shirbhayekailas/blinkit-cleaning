@@ -26,7 +26,8 @@ export function getApiUrl(endpoint) {
 
 export async function fetchServerState(lastKnownUpdated = null) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  // 35s timeout ensures Render free-tier cold boot has time to wake up smoothly
+  const timeoutId = setTimeout(() => controller.abort(), 35000);
   try {
     const nonce = Date.now();
     let url = `/api/state?_t=${nonce}`;

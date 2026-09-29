@@ -41,10 +41,10 @@ export default function CleanerKhataModal({
     let shiftsCount = 0;
     cleanings.forEach(c => {
       if (c.cleanerAttendance && Array.isArray(c.cleanerAttendance)) {
-        if (c.cleanerAttendance.some(a => a.id === cln.id || (a.name && a.name.toLowerCase() === cln.name.toLowerCase()))) {
+        if (c.cleanerAttendance.some(a => (a.id && String(a.id) === String(cln.id)) || (a.name && cln.name && a.name.toLowerCase() === cln.name.toLowerCase()))) {
           shiftsCount++;
         }
-      } else if (c.teamMembers && c.teamMembers.toLowerCase().includes(cln.name.toLowerCase())) {
+      } else if (c.teamMembers && cln.name && c.teamMembers.toLowerCase().includes(cln.name.toLowerCase())) {
         shiftsCount++;
       }
     });
@@ -53,7 +53,7 @@ export default function CleanerKhataModal({
     const totalEarned = shiftsCount * wagePerShift;
 
     // Advances paid
-    const cleanerAdvances = advances.filter(a => a.cleanerId === cln.id);
+    const cleanerAdvances = advances.filter(a => String(a.cleanerId) === String(cln.id));
     const totalPaid = cleanerAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
     const netPayable = totalEarned - totalPaid;
 

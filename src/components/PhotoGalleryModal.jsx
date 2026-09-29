@@ -11,9 +11,11 @@ import {
   Columns,
   LayoutGrid,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import BeforeAfterSlider from './BeforeAfterSlider';
+import { addWatermarkToPhoto } from '../utils/photoWatermark';
 
 export default function PhotoGalleryModal({
   isOpen,
@@ -27,6 +29,7 @@ export default function PhotoGalleryModal({
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'before' | 'during' | 'after'
   const [uploadCategory, setUploadCategory] = useState('after');
+  const [isUploading, setIsUploading] = useState(false);
   
   // Slider selection indices
   const [selectedBeforeIdx, setSelectedBeforeIdx] = useState(0);
@@ -48,25 +51,41 @@ export default function PhotoGalleryModal({
     ? photos 
     : photos.filter(p => p.type === filterType);
 
-  const handleUpload = (e) => {
+  const handleUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const newPhoto = {
-          id: 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-          type: uploadCategory,
-          title: `${uploadCategory.toUpperCase()} - ${file.name.replace(/\.[^/.]+$/, "")}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          url: uploadEvent.target.result
-        };
-        const updated = [...photos, newPhoto];
-        onUpdatePhotos(cleaning.id, updated);
-      };
-      reader.readAsDataURL(file);
-    });
+    setIsUploading(true);
+    try {
+      const processed = await Promise.all(
+        files.map(async (file) => {
+          try {
+            const compressedUrl = await addWatermarkToPhoto(file, {
+              storeCode: cleaning.storeCode,
+              type: uploadCategory,
+              date: cleaning.cleaningDate
+            });
+            return {
+              id: 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+              type: uploadCategory,
+              title: `${uploadCategory.toUpperCase()} - ${file.name.replace(/\.[^/.]+$/, "")}`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              url: compressedUrl
+            };
+          } catch (err) {
+            console.error('Photo compression notice:', err);
+            return null;
+          }
+        })
+      );
+      const validPhotos = processed.filter(Boolean);
+      if (validPhotos.length > 0) {
+        onUpdatePhotos(cleaning.id, [...photos, ...validPhotos]);
+      }
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const handleDeletePhoto = (photoId) => {
@@ -267,12 +286,21 @@ export default function PhotoGalleryModal({
                   <option value="after">After Cleaning</option>
                 </select>
 
-                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-xs shadow-xs transition">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Add Photos</span>
+                <label className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-xs transition ${
+                  isUploading 
+                    ? 'bg-amber-600 text-white cursor-not-allowed opacity-80' 
+                    : 'bg-blinkit-green hover:bg-blinkit-darkgreen text-white'
+                }`}>
+                  {isUploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isUploading ? 'Compressing & Saving...' : 'Add Photos'}</span>
                   <input
                     type="file"
                     multiple
+                    disabled={isUploading}
                     accept="image/*"
                     onChange={handleUpload}
                     className="hidden"
@@ -295,6 +323,8 @@ export default function PhotoGalleryModal({
                         <img
                           src={photo.url}
                           alt={photo.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                         />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">

@@ -13,7 +13,7 @@ import {
   Calendar
 } from 'lucide-react';
 
-export default function DashboardStats({
+function DashboardStats({
   cleanings = [],
   paymentFilter,
   setPaymentFilter,
@@ -301,4 +301,6 @@ export default function DashboardStats({
     </div>
   );
 }
+
+export default React.memo(DashboardStats);
 

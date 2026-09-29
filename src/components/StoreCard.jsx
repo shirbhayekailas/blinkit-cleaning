@@ -32,7 +32,7 @@ import {
 import { generateHygieneCertificate } from '../utils/certificateGenerator';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function StoreCard({
+function StoreCard({
   cleaning,
   onUpdatePayment,
   onOpenPhotos,
@@ -285,6 +285,8 @@ export default function StoreCard({
                   <img
                     src={photo.url}
                     alt={photo.title || 'Store photo'}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition"
                   />
                   <span className={`absolute bottom-0 inset-x-0 text-[8px] font-bold text-center py-0.5 uppercase text-white ${
@@ -567,3 +569,5 @@ export default function StoreCard({
     </div>
   );
 }
+
+export default React.memo(StoreCard);

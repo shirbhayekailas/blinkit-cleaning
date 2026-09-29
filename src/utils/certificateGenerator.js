@@ -1,7 +1,17 @@
 import { jsPDF } from 'jspdf';
+import { getBillSettings } from './billSettingsHelper';
 
 export function generateHygieneCertificate(cleaning) {
   if (!cleaning) return;
+
+  const billConfig = getBillSettings();
+  const bBy = billConfig.billedBy || {};
+  const vendorName = bBy.companyName || cleaning.teamVendor || 'SK ENTERPRISES';
+  const vendorAddress = bBy.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai - 410208';
+  const vendorPhone = bBy.phone || '09594023629';
+  const vendorGst = bBy.gstin || '27OQCPS0083R1ZU';
+  const vendorState = bBy.state || 'Maharashtra';
+  const vendorStateCode = bBy.stateCode || '27';
 
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -36,6 +46,7 @@ export function generateHygieneCertificate(cleaning) {
   doc.rect(20, 40, width - 40, 1.5, 'F');
 
   // SK Logo Crest inside Header Banner
+  const crestText = vendorName.slice(0, 2).toUpperCase() || 'SK';
   doc.setFillColor(30, 41, 59);
   doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'F');
   doc.setDrawColor(245, 158, 11);
@@ -45,7 +56,7 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12.5);
   doc.setTextColor(248, 203, 70); // Gold
-  doc.text('SK', 34.5, 29.5, { align: 'center' });
+  doc.text(crestText, 34.5, 29.5, { align: 'center' });
 
   doc.setFontSize(4.5);
   doc.setTextColor(203, 213, 225);
@@ -55,15 +66,15 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(248, 203, 70);
-  doc.text('SK ENTERPRISES', 47, 25);
+  doc.text(vendorName, 47, 25);
 
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(226, 232, 240);
-  doc.text('303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai - 410208 | Ph: 09594023629', 47, 31);
+  doc.text(`${vendorAddress} | Ph: ${vendorPhone}`, 47, 31);
   doc.setFontSize(6.8);
   doc.setTextColor(203, 213, 225);
-  doc.text('GSTIN: 27OQCPS0083R1ZU   |   State: Maharashtra (27)', 47, 36);
+  doc.text(`GSTIN: ${vendorGst}   |   State: ${vendorState} (${vendorStateCode})`, 47, 36);
 
   // Right Side: Certificate Title & Blinkit Dark Store Callout
   doc.setFont('helvetica', 'bold');
@@ -85,7 +96,7 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11.5);
   doc.setTextColor(217, 119, 6); // Amber
-  doc.text('SK ENTERPRISES (AUTHORIZED FACILITY MANAGEMENT VENDOR)', width / 2, 55, { align: 'center' });
+  doc.text(`${vendorName} (AUTHORIZED FACILITY MANAGEMENT VENDOR)`, width / 2, 55, { align: 'center' });
 
   // Store Name & Code Callout
   doc.setFont('helvetica', 'bold');
