@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Users, 
@@ -23,6 +24,7 @@ export default function SupervisorManagementModal({
   stores = [],
   onSupervisorUpdated
 }) {
+  const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [visiblePins, setVisiblePins] = useState({});
   const [currentSupervisor, setCurrentSupervisor] = useState({

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   Building2, 
   IndianRupee, 
@@ -23,6 +24,7 @@ export default function DashboardStats({
   cycleFilter = 'all',
   setCycleFilter
 }) {
+  const { t } = useLanguage();
   const totalEntries = cleanings.length;
   const totalBilled = cleanings.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   const totalReceived = cleanings.reduce((sum, c) => sum + (Number(c.amountReceived) || 0), 0);
@@ -81,16 +83,16 @@ export default function DashboardStats({
               {totalEntries}
             </span>
             <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              {completedCount} Completed
+              {completedCount} {t('filter_completed', 'Completed')}
             </span>
           </div>
           <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
             {inProgressCount > 0 ? (
               <span className="inline-flex items-center gap-1 text-amber-600 font-semibold">
-                <Activity className="w-3 h-3 animate-pulse" /> {inProgressCount} currently in-progress
+                <Activity className="w-3 h-3 animate-pulse" /> {inProgressCount} {t('dash_in_progress', 'currently in-progress')}
               </span>
             ) : (
-              'All scheduled visits recorded'
+              t('dash_all_recorded', 'All scheduled visits recorded')
             )}
           </div>
         </div>
@@ -99,7 +101,7 @@ export default function DashboardStats({
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700/60 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Total Billed Amount
+              {t('dash_total_billed', 'Total Billed Amount')}
             </span>
             <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center">
               <IndianRupee className="w-4 h-4" />
@@ -111,7 +113,7 @@ export default function DashboardStats({
             </span>
           </div>
           <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-            Across {totalEntries} store operations
+            {t('dash_across', 'Across')} {totalEntries} {t('dash_store_ops', 'store operations')}
           </div>
         </div>
 
@@ -119,7 +121,7 @@ export default function DashboardStats({
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 sm:p-5 border border-emerald-100 dark:border-emerald-900/30 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-emerald-50/30 dark:from-slate-800 dark:to-emerald-950/10">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-              Payment Received
+              {t('dash_payment_received', 'Payment Received')}
             </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
@@ -131,7 +133,7 @@ export default function DashboardStats({
             </span>
           </div>
           <div className="mt-2 text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
-            {totalBilled > 0 ? `${Math.round((totalReceived / totalBilled) * 100)}% payment collected` : '0%'}
+            {totalBilled > 0 ? `${Math.round((totalReceived / totalBilled) * 100)}% ${t('dash_collected', 'payment collected')}` : '0%'}
           </div>
         </div>
 
@@ -139,7 +141,7 @@ export default function DashboardStats({
         <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 sm:p-5 border border-rose-100 dark:border-rose-900/30 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-rose-50/30 dark:from-slate-800 dark:to-rose-950/10">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-              Payment Pending
+              {t('dash_payment_pending', 'Payment Pending')}
             </span>
             <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center">
               <AlertCircle className="w-4 h-4" />
@@ -151,7 +153,7 @@ export default function DashboardStats({
             </span>
           </div>
           <div className="mt-2 text-[11px] text-rose-700/80 dark:text-rose-400/80">
-            {pendingPaymentCount} store payments pending/partial
+            {pendingPaymentCount} {t('dash_payments_pending', 'store payments pending/partial')}
           </div>
         </div>
 
@@ -163,29 +165,29 @@ export default function DashboardStats({
           <span className="text-base">💰</span>
           <div>
             <span className="font-extrabold text-slate-900 dark:text-white">
-              Vendor P&amp;L (Real Profit / Munafa Tracker):
+              {t('dash_pnl_title', 'Vendor P&L (Real Profit / Munafa Tracker)')}:
             </span>
             <div className="text-[11px] text-slate-500 dark:text-slate-400">
-              Billed Revenue minus Cleaner Labor &amp; Chemical Expenses
+              {t('dash_pnl_desc', 'Billed Revenue minus Cleaner Labor & Chemical Expenses')}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4 flex-wrap">
           <div>
-            <span className="text-slate-400">Billed:</span>{' '}
+            <span className="text-slate-400">{t('dash_billed', 'Billed')}:</span>{' '}
             <span className="font-bold text-slate-800 dark:text-slate-200">₹{totalBilled.toLocaleString('en-IN')}</span>
           </div>
           <div>
-            <span className="text-slate-400">Labor:</span>{' '}
+            <span className="text-slate-400">{t('dash_labor', 'Labor')}:</span>{' '}
             <span className="font-bold text-rose-600 dark:text-rose-400">-₹{totalLaborCost.toLocaleString('en-IN')}</span>
           </div>
           <div>
-            <span className="text-slate-400">Chemicals:</span>{' '}
+            <span className="text-slate-400">{t('dash_chemicals', 'Chemicals')}:</span>{' '}
             <span className="font-bold text-rose-600 dark:text-rose-400">-₹{totalChemicalCost.toLocaleString('en-IN')}</span>
           </div>
           <div className="px-2.5 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 font-extrabold text-emerald-800 dark:text-emerald-300">
-            Net Profit: ₹{netProfit.toLocaleString('en-IN')} ({marginPct}%)
+            {t('dash_net_profit', 'Net Profit')}: ₹{netProfit.toLocaleString('en-IN')} ({marginPct}%)
           </div>
         </div>
       </div>
@@ -197,7 +199,7 @@ export default function DashboardStats({
         {/* Left Side: Cycle Alerts & Cluster Filter */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5" /> Filter:
+            <Filter className="w-3.5 h-3.5" /> {t('dash_filter', 'Filter')}:
           </span>
 
           {/* Overdue Alert Chip */}
@@ -212,7 +214,7 @@ export default function DashboardStats({
             }`}
           >
             <AlertCircle className="w-3 h-3" />
-            <span>Overdue ({overdueCount})</span>
+            <span>{t('dash_overdue', 'Overdue')} ({overdueCount})</span>
           </button>
 
           {/* Due Soon (7 Days) Alert Chip */}
@@ -227,7 +229,7 @@ export default function DashboardStats({
             }`}
           >
             <Bell className="w-3 h-3" />
-            <span>Due Soon ({dueSoonCount})</span>
+            <span>{t('dash_due_soon', 'Due Soon')} ({dueSoonCount})</span>
           </button>
 
           {/* Cluster / Zone Dropdown */}
@@ -239,7 +241,7 @@ export default function DashboardStats({
                 onChange={(e) => setClusterFilter(e.target.value)}
                 className="px-2.5 py-1 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blinkit-green"
               >
-                <option value="all">All Clusters / Cities</option>
+                <option value="all">{t('dash_all_clusters', 'All Clusters / Cities')}</option>
                 {clusters.map((c) => (
                   <option key={c} value={c}>
                     📍 {c}
@@ -270,7 +272,7 @@ export default function DashboardStats({
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
                 }`}
               >
-                {status === 'all' ? 'All Pay' : status}
+                {status === 'all' ? t('dash_all_pay', 'All Pay') : t(`filter_${status.toLowerCase()}`, status)}
               </button>
             ))}
           </div>
@@ -289,7 +291,7 @@ export default function DashboardStats({
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
                 }`}
               >
-                {status === 'all' ? 'All Work' : status}
+                {status === 'all' ? t('dash_all_work', 'All Work') : t(`filter_${status.toLowerCase()}`, status)}
               </button>
             ))}
           </div>

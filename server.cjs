@@ -6,7 +6,16 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// High-Performance Response Compression (Gzip / Deflate reduces payload by up to 85%)
+let compression;
+try {
+  compression = require('compression');
+} catch (e) {}
+
 // Middleware
+if (compression) {
+  app.use(compression({ threshold: 1024 }));
+}
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -392,8 +401,7 @@ app.post('/api/auth/login', (req, res) => {
         success: true,
         role: 'admin',
         user: { name: 'Vendor Admin / Owner', loginId: adminId },
-        appSettings: settings,
-        data: currentDB
+        appSettings: settings
       });
     }
 
@@ -407,8 +415,7 @@ app.post('/api/auth/login', (req, res) => {
         success: true,
         role: 'manager',
         user: { name: managerName, loginId: managerId },
-        appSettings: settings,
-        data: currentDB
+        appSettings: settings
       });
     }
 
@@ -422,8 +429,7 @@ app.post('/api/auth/login', (req, res) => {
         success: true,
         role: 'client',
         user: { name: clientName, loginId: clientId },
-        appSettings: settings,
-        data: currentDB
+        appSettings: settings
       });
     }
 
@@ -449,8 +455,7 @@ app.post('/api/auth/login', (req, res) => {
         success: true,
         role: 'supervisor',
         user: supervisor,
-        appSettings: settings,
-        data: currentDB
+        appSettings: settings
       });
     }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Users, 
@@ -24,6 +25,7 @@ export default function CleanerKhataModal({
   onOpenCleaners,
   onAdvanceUpdated
 }) {
+  const { t } = useLanguage();
   const [selectedCleaner, setSelectedCleaner] = useState(null);
   const [isAdvanceFormOpen, setIsAdvanceFormOpen] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState('');

@@ -1,7 +1,9 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { X, MapPin, Navigation, ExternalLink, Clock, Building2, Phone, Sparkles } from 'lucide-react';
 
 export default function NightRouteModal({ isOpen, onClose, schedules = [], stores = [] }) {
+  const { t } = useLanguage();
   if (!isOpen) return null;
 
   // Filter tonight's scheduled stores

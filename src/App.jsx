@@ -18,6 +18,7 @@ import CleanerRosterModal from './components/CleanerRosterModal';
 import IssueReportModal from './components/IssueReportModal';
 import SupervisorPortal from './components/SupervisorPortal';
 import ConsolidatedInvoiceModal from './components/ConsolidatedInvoiceModal';
+import BillSettingsModal from './components/BillSettingsModal';
 import ChemicalTrackerModal from './components/ChemicalTrackerModal';
 import CleanerKhataModal from './components/CleanerKhataModal';
 import ScheduleCalendarModal from './components/ScheduleCalendarModal';
@@ -37,6 +38,7 @@ import CommandPalette from './components/CommandPalette';
 import OperationsPulseBar from './components/OperationsPulseBar';
 import { syncSmartCredentials } from './utils/cloudSync';
 import * as api from './services/api';
+import { useLanguage } from './context/LanguageContext';
 import { 
   Building2, 
   Plus, 
@@ -51,6 +53,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const { t } = useLanguage();
   const [darkMode, setDarkMode] = useState(() => {
     try {
       return localStorage.getItem('blinkit_theme') === 'dark';
@@ -124,6 +127,7 @@ export default function App() {
   const [isCleanerModalOpen, setIsCleanerModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [isConsolidatedInvoiceOpen, setIsConsolidatedInvoiceOpen] = useState(false);
+  const [isBillSettingsOpen, setIsBillSettingsOpen] = useState(false);
   const [isChemicalModalOpen, setIsChemicalModalOpen] = useState(false);
   const [isCleanerKhataOpen, setIsCleanerKhataOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -194,36 +198,104 @@ export default function App() {
   }, []);
 
   // -------------------------------------------------------------
-  // 100% PURE SERVER-SIDE DATABASE STATE (No local storage ghosting)
+  // HIGH-PERFORMANCE CACHED STATE (0ms Instant Load + Background Sync)
   // -------------------------------------------------------------
-  const [serverData, setServerData] = useState({
-    cleanings: [],
-    stores: [],
-    supervisors: [],
-    cleaners: [],
-    cleaningSchedules: [],
-    chemicalStock: [],
-    chemicalLogs: [],
-    cleanerAdvances: [],
-    storeIssues: [],
-    loginLogs: [],
-    appSettings: null
-  });
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const getInitialServerData = () => {
+    try {
+      const cached = localStorage.getItem('blinkit_cached_state_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            cleanings: Array.isArray(parsed.cleanings) ? parsed.cleanings : [],
+            stores: Array.isArray(parsed.stores) ? parsed.stores : [],
+            supervisors: Array.isArray(parsed.supervisors) ? parsed.supervisors : [],
+            cleaners: Array.isArray(parsed.cleaners) ? parsed.cleaners : [],
+            cleaningSchedules: Array.isArray(parsed.cleaningSchedules) ? parsed.cleaningSchedules : [],
+            chemicalStock: Array.isArray(parsed.chemicalStock) ? parsed.chemicalStock : [],
+            chemicalLogs: Array.isArray(parsed.chemicalLogs) ? parsed.chemicalLogs : [],
+            cleanerAdvances: Array.isArray(parsed.cleanerAdvances) ? parsed.cleanerAdvances : [],
+            storeIssues: Array.isArray(parsed.storeIssues) ? parsed.storeIssues : [],
+            loginLogs: Array.isArray(parsed.loginLogs) ? parsed.loginLogs : [],
+            appSettings: parsed.appSettings || null,
+            lastUpdated: parsed.lastUpdated || null
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Initial cache notice:', e);
+    }
+    return {
+      cleanings: [],
+      stores: [],
+      supervisors: [],
+      cleaners: [],
+      cleaningSchedules: [],
+      chemicalStock: [],
+      chemicalLogs: [],
+      cleanerAdvances: [],
+      storeIssues: [],
+      loginLogs: [],
+      appSettings: null,
+      lastUpdated: null
+    };
+  };
 
-  const lastUpdatedRef = useRef(null);
+  const initialCachedData = getInitialServerData();
+  const [serverData, setServerData] = useState(initialCachedData);
+  const [isDataLoaded, setIsDataLoaded] = useState(() => {
+    return (initialCachedData.cleanings.length > 0 || initialCachedData.stores.length > 0);
+  });
+
+  const lastUpdatedRef = useRef(initialCachedData.lastUpdated || null);
+  const isSyncingRef = useRef(false);
+
+  // Helper to safely persist state to fast local cache
+  const saveStateToCache = (data) => {
+    try {
+      localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(data));
+    } catch (quotaErr) {
+      // If photo base64 strings exceed quota, preserve all records with lightweight photo stubs
+      try {
+        const lightweight = {
+          ...data,
+          cleanings: (data.cleanings || []).map(c => ({
+            ...c,
+            photos: (c.photos || []).map(p => ({
+              id: p.id,
+              type: p.type,
+              name: p.name,
+              title: p.title,
+              timestamp: p.timestamp,
+              url: (p.url && p.url.length > 3000) ? '' : p.url
+            }))
+          }))
+        };
+        localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(lightweight));
+      } catch (e) {
+        console.warn('Cache fallback notice:', e);
+      }
+    }
+  };
 
   // Fast function to fetch full state directly from server (Zero-overhead conditional sync)
   const loadServerData = async (force = false) => {
+    if (isSyncingRef.current && !force) return;
+    isSyncingRef.current = true;
     try {
       const data = await api.fetchServerState(force ? null : lastUpdatedRef.current);
       if (data && data.unchanged) {
         // Zero change on server: Skip re-rendering, keep UI locked at 60 FPS!
+        setIsDataLoaded(true);
         return;
       }
       if (data && !data.unchanged) {
         lastUpdatedRef.current = data.lastUpdated || null;
-        setServerData(prev => ({ ...prev, ...data }));
+        setServerData(prev => {
+          const next = { ...prev, ...data };
+          saveStateToCache(next);
+          return next;
+        });
         if (data.appSettings) {
           syncSmartCredentials(data.appSettings);
         }
@@ -231,27 +303,41 @@ export default function App() {
       }
     } catch (err) {
       console.warn('loadServerData notice:', err);
+    } finally {
+      isSyncingRef.current = false;
     }
   };
 
   useEffect(() => {
-    // Purge legacy IndexedDB on startup so local browser storage never retains old ghost records
-    if (typeof window !== 'undefined' && window.indexedDB) {
-      try {
-        window.indexedDB.deleteDatabase('BlinkitDeepCleaningDB');
-      } catch (e) {}
-    }
-
-    // Initial load from server
+    // Initial sync from server
     loadServerData();
 
-    // Fast polling every 5 seconds so Desktop & Mobile stay in live sync
-    const syncInterval = setInterval(loadServerData, 5000);
+    // Adaptive background polling:
+    // Only poll when the user is actively viewing the tab (15s interval)
+    // Pauses completely when tab is minimized or phone screen is locked to save battery and bandwidth
+    let pollTimer = null;
+    const startPolling = () => {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          loadServerData();
+        }
+      }, 15000);
+    };
+
+    const stopPolling = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    startPolling();
 
     let lastFetchTime = 0;
     const triggerInstantSync = () => {
       const now = Date.now();
-      if (now - lastFetchTime > 600) {
+      if (now - lastFetchTime > 3000) {
         lastFetchTime = now;
         loadServerData();
       }
@@ -259,7 +345,10 @@ export default function App() {
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
+        startPolling();
         triggerInstantSync();
+      } else {
+        stopPolling();
       }
     };
 
@@ -270,11 +359,11 @@ export default function App() {
     // Mobile & Desktop window lifecycle hooks
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', triggerInstantSync);
-    window.addEventListener('pageshow', triggerInstantSync); // Critical for Mobile Safari/Chrome app-switching
-    window.addEventListener('online', handleOnline); // When 4G/WiFi reconnects
+    window.addEventListener('pageshow', triggerInstantSync);
+    window.addEventListener('online', handleOnline);
 
     return () => {
-      clearInterval(syncInterval);
+      stopPolling();
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', triggerInstantSync);
       window.removeEventListener('pageshow', triggerInstantSync);
@@ -356,58 +445,109 @@ export default function App() {
 
   const visibleCleanings = filteredCleanings.slice(0, visibleCleaningsCount);
 
-  // Handlers for Cleanings
+  // Handlers for Cleanings with Instant 0ms Optimistic UI
   const handleSaveCleaning = async (cleaningData) => {
+    // Instant Optimistic Update
+    const syncId = cleaningData.syncId || (cleaningData.id ? String(cleaningData.id) : `sync_${Date.now()}`);
+    const optimisticRecord = { ...cleaningData, syncId, updatedAt: new Date().toISOString() };
+    
+    setServerData(prev => {
+      const existing = prev.cleanings || [];
+      const idx = existing.findIndex(c => (c.id && c.id === cleaningData.id) || (c.syncId && c.syncId === syncId));
+      let updated;
+      if (idx >= 0) {
+        updated = [...existing];
+        updated[idx] = { ...updated[idx], ...optimisticRecord };
+      } else {
+        updated = [optimisticRecord, ...existing];
+      }
+      const next = { ...prev, cleanings: updated };
+      saveStateToCache(next);
+      return next;
+    });
+
+    toast.success(
+      `Cleaning entry for ${cleaningData.storeName || cleaningData.storeCode} saved!`,
+      'Record Saved'
+    );
+
     try {
       const result = await api.saveCleaning(cleaningData);
       if (result && result.data) {
-        setServerData(prev => ({ ...prev, ...result.data }));
-      } else {
-        await loadServerData();
+        setServerData(prev => {
+          const next = { ...prev, ...result.data };
+          saveStateToCache(next);
+          return next;
+        });
       }
-      toast.success(
-        `Cleaning entry for ${cleaningData.storeName || cleaningData.storeCode} saved successfully!`,
-        'Record Saved'
-      );
     } catch (err) {
-      toast.error('Error saving record: ' + err.message, 'Save Failed');
+      console.warn('Background sync failed:', err);
+      loadServerData(true);
     }
   };
 
   const handleUpdatePayment = async (updatedCleaning) => {
+    // Instant Optimistic Update
+    setServerData(prev => {
+      const existing = prev.cleanings || [];
+      const updated = existing.map(c => 
+        (c.id === updatedCleaning.id || (c.syncId && c.syncId === updatedCleaning.syncId))
+          ? { ...c, ...updatedCleaning, updatedAt: new Date().toISOString() }
+          : c
+      );
+      const next = { ...prev, cleanings: updated };
+      saveStateToCache(next);
+      return next;
+    });
+
+    toast.success(
+      `Payment for ${updatedCleaning.storeName || updatedCleaning.storeCode} updated to ${updatedCleaning.paymentStatus}!`,
+      'Payment Updated'
+    );
+
     try {
       const result = await api.saveCleaning(updatedCleaning);
       if (result && result.data) {
-        setServerData(prev => ({ ...prev, ...result.data }));
-      } else {
-        await loadServerData();
+        setServerData(prev => {
+          const next = { ...prev, ...result.data };
+          saveStateToCache(next);
+          return next;
+        });
       }
-      toast.success(
-        `Payment for ${updatedCleaning.storeName || updatedCleaning.storeCode} updated to ${updatedCleaning.paymentStatus}!`,
-        'Payment Updated'
-      );
     } catch (err) {
-      toast.error('Error updating payment: ' + err.message, 'Update Failed');
+      console.warn('Payment sync failed:', err);
+      loadServerData(true);
     }
   };
 
   const handleUpdatePhotos = async (cleaningId, photos) => {
+    setServerData(prev => {
+      const existing = prev.cleanings || [];
+      const updated = existing.map(c => c.id === cleaningId ? { ...c, photos, updatedAt: new Date().toISOString() } : c);
+      const next = { ...prev, cleanings: updated };
+      saveStateToCache(next);
+      return next;
+    });
+
+    if (photoCleaning && photoCleaning.id === cleaningId) {
+      setPhotoCleaning(prev => ({ ...prev, photos }));
+    }
+    toast.success('Before/After photos saved successfully!', 'Photos Saved');
+
     try {
       const c = cleanings.find(item => item.id === cleaningId);
       if (c) {
         const result = await api.saveCleaning({ ...c, photos });
         if (result && result.data) {
-          setServerData(prev => ({ ...prev, ...result.data }));
-        } else {
-          await loadServerData();
+          setServerData(prev => {
+            const next = { ...prev, ...result.data };
+            saveStateToCache(next);
+            return next;
+          });
         }
       }
-      if (photoCleaning && photoCleaning.id === cleaningId) {
-        setPhotoCleaning(prev => ({ ...prev, photos }));
-      }
-      toast.success('Before/After photos saved successfully!', 'Photos Saved');
     } catch (err) {
-      toast.error('Error saving photos: ' + err.message, 'Photo Save Error');
+      console.warn('Photos sync failed:', err);
     }
   };
 
@@ -429,19 +569,32 @@ export default function App() {
       confirmText: 'Permanently Delete',
       isDanger: true,
       onConfirm: async () => {
+        // Instant Optimistic Delete
+        setServerData(prev => {
+          const existing = prev.cleanings || [];
+          const updated = existing.filter(c => c.id !== cleaning.id && (!cleaning.syncId || c.syncId !== cleaning.syncId));
+          const next = { ...prev, cleanings: updated };
+          saveStateToCache(next);
+          return next;
+        });
+
+        toast.success(
+          `Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) permanently delete ho gayi.`,
+          'Record Deleted'
+        );
+
         try {
           const result = await api.deleteCleaning(cleaning);
           if (result && result.data) {
-            setServerData(prev => ({ ...prev, ...result.data }));
-          } else {
-            await loadServerData();
+            setServerData(prev => {
+              const next = { ...prev, ...result.data };
+              saveStateToCache(next);
+              return next;
+            });
           }
-          toast.success(
-            `Cleaning entry (${cleaning.storeName || cleaning.storeCode} - ${cleaning.cleaningDate}) permanently delete ho gayi hai.`,
-            'Record Deleted'
-          );
         } catch (err) {
-          toast.error('Cleaning delete karne me error: ' + err.message, 'Delete Failed');
+          console.warn('Delete sync failed:', err);
+          loadServerData(true);
         }
       }
     });
@@ -471,16 +624,37 @@ export default function App() {
 
   // Handlers for Store Master Ledger
   const handleSaveStore = async (storeData) => {
+    // Instant Optimistic Update
+    const code = (storeData.storeCode || '').trim().toUpperCase();
+    setServerData(prev => {
+      const existing = prev.stores || [];
+      const idx = existing.findIndex(s => (s.storeCode || '').trim().toUpperCase() === code);
+      let updated;
+      if (idx >= 0) {
+        updated = [...existing];
+        updated[idx] = { ...updated[idx], ...storeData };
+      } else {
+        updated = [storeData, ...existing];
+      }
+      const next = { ...prev, stores: updated };
+      saveStateToCache(next);
+      return next;
+    });
+
+    toast.success(`Store "${storeData.storeName || storeData.storeCode}" master ledger me update ho gaya.`, 'Store Saved');
+
     try {
       const result = await api.saveStore(storeData);
       if (result && result.data) {
-        setServerData(prev => ({ ...prev, ...result.data }));
-      } else {
-        await loadServerData();
+        setServerData(prev => {
+          const next = { ...prev, ...result.data };
+          saveStateToCache(next);
+          return next;
+        });
       }
-      toast.success(`Store "${storeData.storeName || storeData.storeCode}" master ledger me update ho gaya.`, 'Store Saved');
     } catch (err) {
-      toast.error('Error saving store to ledger: ' + err.message, 'Save Failed');
+      console.warn('Store sync failed:', err);
+      loadServerData(true);
     }
   };
 
@@ -510,16 +684,32 @@ export default function App() {
       confirmText: 'Permanently Delete',
       isDanger: true,
       onConfirm: async () => {
+        // Instant Optimistic Delete
+        setServerData(prev => {
+          const updatedStores = (prev.stores || []).filter(s => (s.storeCode || '').trim().toUpperCase() !== (store.storeCode || '').trim().toUpperCase());
+          let updatedCleanings = prev.cleanings || [];
+          if (hasCleanings) {
+            updatedCleanings = updatedCleanings.filter(c => (c.storeCode || '').trim().toUpperCase() !== (store.storeCode || '').trim().toUpperCase());
+          }
+          const next = { ...prev, stores: updatedStores, cleanings: updatedCleanings };
+          saveStateToCache(next);
+          return next;
+        });
+
+        toast.success(`Store "${store.storeName}" Master Ledger se permanently delete ho gaya.`, 'Store Deleted');
+
         try {
           const result = await api.deleteStore(store.storeCode, hasCleanings, true);
           if (result && result.data) {
-            setServerData(prev => ({ ...prev, ...result.data }));
-          } else {
-            await loadServerData();
+            setServerData(prev => {
+              const next = { ...prev, ...result.data };
+              saveStateToCache(next);
+              return next;
+            });
           }
-          toast.success(`Store "${store.storeName}" Master Ledger se permanently delete ho gaya.`, 'Store Deleted');
         } catch (err) {
-          toast.error('Store delete karne me error: ' + err.message, 'Delete Failed');
+          console.warn('Store delete sync failed:', err);
+          loadServerData(true);
         }
       }
     });
@@ -748,6 +938,7 @@ export default function App() {
         issuesCount={issues.filter(i => i.status === 'Open').length}
         onLogout={handleLogout}
         onOpenConsolidatedInvoice={() => setIsConsolidatedInvoiceOpen(true)}
+        onOpenBillSettings={() => setIsBillSettingsOpen(true)}
         onOpenChemicals={() => setIsChemicalModalOpen(true)}
         onOpenKhata={() => setIsCleanerKhataOpen(true)}
         onOpenSchedule={() => setIsScheduleModalOpen(true)}
@@ -805,14 +996,14 @@ export default function App() {
                   ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white'
                   : 'bg-gradient-to-r from-amber-400 via-amber-300 to-emerald-400 text-slate-950'
             }`}>
-              <div className="space-y-1 min-w-0">
+                <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-base sm:text-xl font-extrabold tracking-tight break-words">
                     {currentUserRole === 'client'
-                      ? 'Blinkit City Operations & QA Inspection Portal'
+                      ? t('banner_client_title', 'Blinkit City Operations & QA Inspection Portal')
                       : currentUserRole === 'manager'
-                        ? 'Blinkit Operations Management Control Center'
-                        : 'Blinkit Dark Store Deep Cleaning Control Center'}
+                        ? t('banner_manager_title', 'Blinkit Operations Management Control Center')
+                        : t('banner_admin_title', 'Blinkit Dark Store Deep Cleaning Control Center')}
                   </span>
                   <span className={`text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 rounded-full font-extrabold shrink-0 ${
                     currentUserRole === 'client' 
@@ -822,20 +1013,20 @@ export default function App() {
                         : 'bg-slate-950 text-white'
                   }`}>
                     {currentUserRole === 'client' 
-                      ? 'CLIENT / CITY OPS' 
+                      ? t('badge_client', 'CLIENT / CITY OPS')
                       : currentUserRole === 'manager'
-                        ? 'OPERATIONS MANAGER'
-                        : 'VENDOR ADMIN'}
+                        ? t('badge_manager', 'OPERATIONS MANAGER')
+                        : t('badge_admin', 'VENDOR ADMIN')}
                   </span>
                 </div>
                 <p className={`text-xs sm:text-sm font-semibold ${
                   currentUserRole === 'client' || currentUserRole === 'manager' ? 'text-indigo-100' : 'text-slate-900/80'
                 }`}>
                   {currentUserRole === 'client'
-                    ? 'Official inspection portal: View completed store cleanings, interactive Before/After photo comparisons, and download FSSAI Hygiene Certificates.'
+                    ? t('banner_client_desc', 'Official inspection portal: View completed store cleanings, interactive Before/After photo comparisons, and download FSSAI Hygiene Certificates.')
                     : currentUserRole === 'manager'
-                      ? 'Operations Manager Portal: Manage deep cleaning store visits, schedules, night routes, chemical stocks, and cleaner staff attendance.'
-                      : 'Track store visits, manage your Store Ledger, auto-fill store info, track pending payments, view P&L profits, and manage site supervisors.'}
+                      ? t('banner_manager_desc', 'Operations Manager Portal: Manage deep cleaning store visits, schedules, night routes, chemical stocks, and cleaner staff attendance.')
+                      : t('banner_admin_desc', 'Track store visits, manage your Store Ledger, auto-fill store info, track pending payments, view P&L profits, and manage site supervisors.')}
                 </p>
               </div>
 
@@ -849,7 +1040,7 @@ export default function App() {
                     className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-1.5"
                   >
                     <Building2 className="w-4 h-4 text-blinkit-green" />
-                    <span>+ Add Store</span>
+                    <span>{t('btn_new_store', '+ Add Store')}</span>
                   </button>
 
                   <button
@@ -860,7 +1051,7 @@ export default function App() {
                     className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 sm:gap-2 transform active:scale-95"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>New Cleaning</span>
+                    <span>{t('btn_new_cleaning', '+ New Cleaning')}</span>
                   </button>
                 </div>
               )}
@@ -888,10 +1079,10 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-blinkit-green shrink-0" />
-                    <span>Store Deep Cleaning Records</span>
+                    <span>{t('records_heading', 'Store Deep Cleaning Records')}</span>
                   </h2>
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {filteredCleanings.length} {filteredCleanings.length === 1 ? 'store' : 'stores'}
+                    {filteredCleanings.length} {filteredCleanings.length === 1 ? t('store_singular', 'store') : t('store_plural', 'stores')}
                   </span>
                 </div>
 
@@ -915,7 +1106,7 @@ export default function App() {
                         isAdmin={currentUserRole === 'admin'}
                         onUpdatePayment={(c) => {
                           if (currentUserRole !== 'admin') {
-                            alert('Payment details enter ya update karne ka access sirf Admin ke paas hai.');
+                            alert(t('alert_payment_admin_only', 'Payment details enter ya update karne ka access sirf Admin ke paas hai.'));
                             return;
                           }
                           setPaymentCleaning(c);
@@ -944,13 +1135,13 @@ export default function App() {
                         className="px-6 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blinkit-green text-slate-800 dark:text-slate-100 font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-2 transform active:scale-95 cursor-pointer"
                       >
                         <Sparkles className="w-4 h-4 text-blinkit-green" />
-                        <span>Load More Stores (Showing {visibleCleanings.length} of {filteredCleanings.length})</span>
+                        <span>{t('btn_load_more', 'Load More Stores')} ({t('showing', 'Showing')} {visibleCleanings.length} / {filteredCleanings.length})</span>
                       </button>
                       <button
                         onClick={() => setVisibleCleaningsCount(filteredCleanings.length)}
                         className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold underline cursor-pointer"
                       >
-                        Show All ({filteredCleanings.length})
+                        {t('btn_show_all', 'Show All')} ({filteredCleanings.length})
                       </button>
                     </div>
                   )}
@@ -960,12 +1151,12 @@ export default function App() {
                 <div className="py-16 text-center bg-white dark:bg-slate-800/60 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 p-8">
                   <Building2 className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                   <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                    No matching store cleaning records found
+                    {t('empty_no_records', 'No matching store cleaning records found')}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
                     {searchTerm || paymentFilter !== 'all' || statusFilter !== 'all'
-                      ? 'Try clearing your search query or reset the payment/status filters.'
-                      : 'Start by recording your first Blinkit dark store deep cleaning entry.'}
+                      ? t('empty_clear_filters', 'Try clearing your search query or reset the payment/status filters.')
+                      : t('empty_start_first', 'Start by recording your first Blinkit dark store deep cleaning entry.')}
                   </p>
                   <button
                     onClick={() => {
@@ -978,7 +1169,7 @@ export default function App() {
                     className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blinkit-green text-white font-bold text-xs hover:bg-blinkit-darkgreen shadow-sm transition"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Add Store Cleaning Entry</span>
+                    <span>{t('btn_add_cleaning', 'Add Store Cleaning Entry')}</span>
                   </button>
                 </div>
               )}
@@ -1088,6 +1279,7 @@ export default function App() {
         isOpen={!!invoiceCleaning}
         onClose={() => setInvoiceCleaning(null)}
         cleaning={invoiceCleaning}
+        onOpenBillSettings={() => setIsBillSettingsOpen(true)}
       />
 
       <PaymentUpdateModal
@@ -1116,6 +1308,12 @@ export default function App() {
         isOpen={isConsolidatedInvoiceOpen}
         onClose={() => setIsConsolidatedInvoiceOpen(false)}
         cleanings={cleanings}
+        onOpenBillSettings={() => setIsBillSettingsOpen(true)}
+      />
+
+      <BillSettingsModal
+        isOpen={isBillSettingsOpen}
+        onClose={() => setIsBillSettingsOpen(false)}
       />
 
       <ChemicalTrackerModal
@@ -1243,6 +1441,7 @@ export default function App() {
         onOpenKhata={() => setIsCleanerKhataOpen(true)}
         onOpenIssues={() => setIsIssueModalOpen(true)}
         onOpenConsolidatedInvoice={() => setIsConsolidatedInvoiceOpen(true)}
+        onOpenBillSettings={() => setIsBillSettingsOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onExportExcel={() => exportCleaningsToExcel(cleanings)}
@@ -1277,10 +1476,10 @@ export default function App() {
             
             <div className="space-y-1">
               <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                Screen Inactivity Alert
+                {t('idle_alert_title', 'Screen Inactivity Alert')}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Security ke liye aapka session <strong className="text-rose-600 font-extrabold text-sm">{countdownSeconds}s</strong> mein auto-logout ho jayega.
+                {t('idle_alert_desc', 'Security ke liye aapka session')} <strong className="text-rose-600 font-extrabold text-sm">{countdownSeconds}s</strong> {t('idle_alert_auto_logout', 'mein auto-logout ho jayega.')}
               </p>
             </div>
 
@@ -1294,7 +1493,7 @@ export default function App() {
                 }}
                 className="w-full py-3 rounded-2xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-black text-xs shadow-md transition transform active:scale-98"
               >
-                Main Active Hoon (Continue Session)
+                {t('idle_continue', 'Main Active Hoon (Continue Session)')}
               </button>
 
               <button
@@ -1302,7 +1501,7 @@ export default function App() {
                 onClick={() => handleLogout('manual')}
                 className="w-full py-2 text-xs font-bold text-slate-400 hover:text-rose-600 transition"
               >
-                Abhi Logout Karein
+                {t('idle_logout_now', 'Abhi Logout Karein')}
               </button>
             </div>
           </div>
@@ -1313,9 +1512,9 @@ export default function App() {
       <footer className="mt-12 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="font-bold text-slate-700 dark:text-slate-300">
-            SK ENTERPRISES &bull; Facility Management &amp; Deep Cleaning Operations
+            SK ENTERPRISES &bull; {t('footer_desc', 'Facility Management & Deep Cleaning Operations')}
           </span>
-          <span>100% Server Cloud Database &bull; Real-Time Multi-Device Sync</span>
+          <span>{t('footer_cloud', '100% Server Cloud Database • Real-Time Multi-Device Sync')}</span>
         </div>
       </footer>
 

@@ -30,6 +30,7 @@ import {
   sendStoreManagerRatingWhatsApp 
 } from '../utils/whatsappFormatter';
 import { generateHygieneCertificate } from '../utils/certificateGenerator';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function StoreCard({
   cleaning,
@@ -43,6 +44,7 @@ export default function StoreCard({
   onDelete,
   isAdmin = true
 }) {
+  const { t } = useLanguage();
   const checklist = cleaning.checklist || {};
   const checklistTotal = 8;
   const checklistPassed = Object.values(checklist).filter(Boolean).length;
@@ -108,12 +110,12 @@ export default function StoreCard({
               {isOverdue ? (
                 <span className="text-[11px] px-2.5 py-0.5 rounded-full font-extrabold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/60 inline-flex items-center gap-1 animate-pulse">
                   <AlertCircle className="w-3 h-3" />
-                  <span>OVERDUE by {Math.abs(diffDays)}d</span>
+                  <span>{t('card_overdue', 'OVERDUE by')} {Math.abs(diffDays)}d</span>
                 </span>
               ) : isDueSoon ? (
                 <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/60 inline-flex items-center gap-1">
                   <Bell className="w-3 h-3" />
-                  <span>Due in {diffDays}d</span>
+                  <span>{t('card_due_in', 'Due in')} {diffDays}d</span>
                 </span>
               ) : (
                 <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 inline-flex items-center gap-1">
@@ -143,14 +145,14 @@ export default function StoreCard({
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => onEdit(cleaning)}
-              title="Edit Entry"
+              title={t('btn_edit', 'Edit Entry')}
               className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
             >
               <Edit3 className="w-4 h-4" />
             </button>
             <button
               onClick={() => onDelete(cleaning)}
-              title="Delete Entry"
+              title={t('btn_delete', 'Delete Entry')}
               className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
             >
               <Trash2 className="w-4 h-4" />
@@ -198,7 +200,7 @@ export default function StoreCard({
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-300 px-2 py-0.5 rounded-md hover:bg-emerald-100 transition"
               >
                 <Phone className="w-3 h-3" />
-                <span>Call</span>
+                <span>{t('card_call', 'Call')}</span>
               </a>
               <a
                 href={`https://wa.me/${cleaning.managerPhone.replace(/[^0-9]/g, '')}`}
@@ -207,7 +209,7 @@ export default function StoreCard({
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 dark:bg-green-950/50 dark:text-green-300 px-2 py-0.5 rounded-md hover:bg-green-100 transition"
               >
                 <MessageSquare className="w-3 h-3" />
-                <span>WhatsApp</span>
+                <span>{t('card_whatsapp', 'WhatsApp')}</span>
               </a>
             </div>
           )}
@@ -223,14 +225,14 @@ export default function StoreCard({
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-amber-500" />
             <div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">Clean Date</div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase">{t('card_clean_date', 'Clean Date')}</div>
               <div className="font-bold text-slate-800 dark:text-slate-200">{cleaning.cleaningDate}</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-indigo-500" />
             <div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">Timings & Duration</div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase">{t('card_timings', 'Timings & Duration')}</div>
               <div className="font-bold text-slate-800 dark:text-slate-200">
                 {cleaning.startTime || '--'} to {cleaning.endTime || '--'}
                 <span className="ml-1 text-[10px] font-normal text-slate-400">({cleaning.durationHours || 0}h)</span>
@@ -243,31 +245,32 @@ export default function StoreCard({
         <div className="space-y-1">
           <div className="flex items-center justify-between text-slate-400 text-[11px]">
             <span className="flex items-center gap-1 font-semibold">
-              <Users className="w-3.5 h-3.5 text-slate-500" /> Team Deployed ({cleaning.headcount || 0} Pax)
+              <Users className="w-3.5 h-3.5 text-slate-500" /> {t('card_team', 'Team Deployed')} ({cleaning.headcount || 0} Pax)
             </span>
             <span className="font-medium text-slate-500">{cleaning.teamVendor || 'Agency'}</span>
           </div>
           <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-850/50 border border-slate-100 dark:border-slate-700/40 text-slate-700 dark:text-slate-300 text-xs">
             <div className="font-semibold text-slate-900 dark:text-slate-200">
-              Supervisor: {cleaning.supervisorName || 'N/A'} {cleaning.supervisorPhone ? `(${cleaning.supervisorPhone})` : ''}
+              {t('card_supervisor', 'Supervisor')}: {cleaning.supervisorName || 'N/A'} {cleaning.supervisorPhone ? `(${cleaning.supervisorPhone})` : ''}
             </div>
             <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-              Staff: {cleaning.teamMembers || 'Names not recorded'}
+              {t('card_cleaners', 'Cleaners')}: {cleaning.teamMembers || 'Names not recorded'}
             </div>
           </div>
         </div>
+
 
         {/* Photos Thumbnail Bar */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[11px]">
             <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <Camera className="w-3.5 h-3.5 text-amber-500" /> Cleaning Photos Proofs ({cleaning.photos?.length || 0})
+              <Camera className="w-3.5 h-3.5 text-amber-500" /> {t('card_photos', 'Cleaning Photos Proofs')} ({cleaning.photos?.length || 0})
             </span>
             <button
               onClick={() => onOpenPhotos(cleaning)}
               className="text-xs text-blinkit-green hover:underline font-bold"
             >
-              {cleaning.photos?.length > 0 ? 'View All Photos' : '+ Add Photos'}
+              {cleaning.photos?.length > 0 ? t('card_view_photos', 'View All Photos') : '+ Add Photos'}
             </button>
           </div>
 
@@ -305,7 +308,7 @@ export default function StoreCard({
               onClick={() => onOpenPhotos(cleaning)}
               className="py-2.5 px-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"
             >
-              <span className="text-slate-400 text-xs">No photos attached yet. Click to upload before/after photos.</span>
+              <span className="text-slate-400 text-xs">{t('card_no_photos', 'No photos uploaded')}</span>
             </div>
           )}
         </div>
@@ -314,7 +317,7 @@ export default function StoreCard({
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
             <span className="font-semibold flex items-center gap-1">
-              <CheckSquare className="w-3.5 h-3.5 text-blinkit-green" /> Vendor Scope of Work ({cleaning.scopeOfWork?.length || 4})
+              <CheckSquare className="w-3.5 h-3.5 text-blinkit-green" /> {t('card_scope', 'Vendor Scope of Work')} ({cleaning.scopeOfWork?.length || 4})
             </span>
           </div>
           <div className="flex flex-wrap gap-1">
@@ -348,7 +351,7 @@ export default function StoreCard({
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px] text-purple-700 dark:text-purple-300">
               <span className="font-bold flex items-center gap-1">
-                <FlaskConical className="w-3.5 h-3.5" /> Chemicals Used ({cleaning.chemicalsUsed.length})
+                <FlaskConical className="w-3.5 h-3.5" /> {t('card_chemicals_used', 'Chemicals Used')} ({cleaning.chemicalsUsed.length})
               </span>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -368,7 +371,7 @@ export default function StoreCard({
         {/* Quality Rating */}
         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-850/50 border border-slate-100 dark:border-slate-700/40 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">Store Cleaning Rating:</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{t('card_rating', 'Quality Rating')}:</span>
             <span className="font-bold text-slate-900 dark:text-white">{cleaning.rating || 5}/5</span>
           </div>
           <div className="flex items-center gap-0.5 text-amber-400">
@@ -389,11 +392,12 @@ export default function StoreCard({
         {/* Payment Summary Row */}
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400">Deep Cleaning Amount</div>
+            <div className="text-[10px] uppercase font-bold text-slate-400">{t('card_amount', 'Cleaning Amount')}</div>
             <div className="text-lg font-black text-slate-900 dark:text-white">
               ₹{Number(cleaning.amount || 0).toLocaleString('en-IN')}
             </div>
           </div>
+
 
           <div className="text-right">
             <div className="flex items-center gap-1.5 justify-end">
@@ -481,7 +485,7 @@ export default function StoreCard({
               }`}
             >
               <IndianRupee className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-              <span className="truncate">{isReceived ? 'Pay Info' : 'Update Pay'}</span>
+              <span className="truncate">{isReceived ? 'Pay Info' : t('card_update_payment', 'Update Pay')}</span>
             </button>
           )}
 
@@ -500,7 +504,7 @@ export default function StoreCard({
             className="px-1.5 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold bg-green-50 hover:bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-900 transition flex items-center justify-center gap-1 min-w-0"
           >
             <Share2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-600 shrink-0" />
-            <span className="truncate">Share WA</span>
+            <span className="truncate">{t('card_share', 'Share WA')}</span>
           </button>
         </div>
 
@@ -511,7 +515,7 @@ export default function StoreCard({
             className="w-full py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-300/50 dark:border-amber-800/60 transition flex items-center justify-center gap-1.5"
           >
             <Receipt className="w-3.5 h-3.5 text-amber-600" />
-            <span>Tax Invoice / Bill</span>
+            <span>{t('btn_invoice', 'Tax Invoice / Bill')}</span>
           </button>
 
           {!isReceived && (
@@ -543,7 +547,7 @@ export default function StoreCard({
             className="w-full py-1.5 px-3 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 transition flex items-center justify-center gap-1.5 shadow-xs"
           >
             <Award className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Hygiene Cert</span>
+            <span>{t('card_certificate', 'Hygiene Cert')}</span>
           </button>
 
           <button
@@ -555,6 +559,7 @@ export default function StoreCard({
             <span>Store QR</span>
           </button>
         </div>
+
 
 
       </div>

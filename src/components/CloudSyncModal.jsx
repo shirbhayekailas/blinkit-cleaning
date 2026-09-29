@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   Cloud, 
   RefreshCw, 
@@ -16,6 +17,7 @@ import {
 import { getCloudConfig, saveCloudConfig, performCloudSync, getApiUrl } from '../utils/cloudSync';
 
 export default function CloudSyncModal({ isOpen, onClose }) {
+  const { t } = useLanguage();
   const [config, setConfig] = useState(getCloudConfig());
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');

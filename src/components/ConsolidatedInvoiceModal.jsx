@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   FileSpreadsheet, 
@@ -8,15 +9,19 @@ import {
   CheckCircle2, 
   CreditCard, 
   Save, 
-  Filter
+  Filter,
+  Sliders
 } from 'lucide-react';
 import { generateConsolidatedInvoicePDF } from '../utils/consolidatedInvoiceGenerator';
+import { getBillSettings } from '../utils/billSettingsHelper';
 
 export default function ConsolidatedInvoiceModal({
   isOpen,
   onClose,
-  cleanings = []
+  cleanings = [],
+  onOpenBillSettings
 }) {
+  const { t } = useLanguage();
   const currentMonthStr = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedCleaningIds, setSelectedCleaningIds] = useState([]);
@@ -50,23 +55,27 @@ export default function ConsolidatedInvoiceModal({
 
   useEffect(() => {
     try {
+      const billConfig = getBillSettings();
+      const currentBilledBy = billConfig.billedBy || {};
+      const mergedDefault = { ...DEFAULT_SK_PROFILE, ...currentBilledBy };
+
       const saved = localStorage.getItem('vendor_invoice_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (!parsed.companyName || parsed.companyName === 'My Deep Cleaning Services' || parsed.companyName === 'CleanPro Facilities Pvt Ltd') {
           setVendorProfile({
-            ...DEFAULT_SK_PROFILE,
+            ...mergedDefault,
             ...parsed,
-            companyName: 'SK ENTERPRISES',
-            phone: parsed.phone || '09594023629',
-            address: parsed.address || DEFAULT_SK_PROFILE.address,
-            gstin: parsed.gstin || '27OQCPS0083R1ZU'
+            companyName: mergedDefault.companyName || 'SK ENTERPRISES',
+            phone: parsed.phone || mergedDefault.phone,
+            address: parsed.address || mergedDefault.address,
+            gstin: parsed.gstin || mergedDefault.gstin
           });
         } else {
-          setVendorProfile({ ...DEFAULT_SK_PROFILE, ...parsed });
+          setVendorProfile({ ...mergedDefault, ...parsed });
         }
       } else {
-        setVendorProfile(DEFAULT_SK_PROFILE);
+        setVendorProfile(mergedDefault);
       }
     } catch (e) {
       console.warn('Profile read notice', e);
@@ -175,6 +184,27 @@ export default function ConsolidatedInvoiceModal({
               </button>
             </div>
           </div>
+
+          {onOpenBillSettings && (
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  Client (Blinkit) ya Vendor (Aapki Company) ke GSTIN/Address/Bank details badalna chahte hain?
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenBillSettings();
+                }}
+                className="px-2.5 py-1 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition shrink-0"
+              >
+                Bill Settings
+              </button>
+            </div>
+          )}
 
           {/* Selected Stores Summary Cards */}
           <div className="grid grid-cols-3 gap-2.5 text-center">

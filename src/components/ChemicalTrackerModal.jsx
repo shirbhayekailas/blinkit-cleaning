@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   FlaskConical, 
@@ -50,6 +51,7 @@ export default function ChemicalTrackerModal({
   logs = [],
   onChemicalUpdated
 }) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'action' | 'logs'
   const [actionType, setActionType] = useState('issue'); // 'add' | 'issue'
   const [selectedChemicalId, setSelectedChemicalId] = useState('');

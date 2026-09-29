@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Calendar, 
@@ -23,6 +24,7 @@ export default function ScheduleCalendarModal({
   onStartShiftForStore,
   onScheduleUpdated
 }) {
+  const { t } = useLanguage();
   const [isScheduling, setIsScheduling] = useState(false);
   const todayStr = new Date().toISOString().split('T')[0];
   const [filterDate, setFilterDate] = useState(todayStr);

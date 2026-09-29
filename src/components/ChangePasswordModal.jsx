@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Lock, 
@@ -22,6 +23,7 @@ export default function ChangePasswordModal({
   isFirstLogin = false,
   onSuccess
 }) {
+  const { t } = useLanguage();
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');

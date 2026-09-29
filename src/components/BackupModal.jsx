@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Database, 
@@ -15,6 +16,7 @@ export default function BackupModal({
   onClose,
   onDataRestored
 }) {
+  const { t } = useLanguage();
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState('');
 

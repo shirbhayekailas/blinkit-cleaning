@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { AlertTriangle, Trash2, X, Check } from 'lucide-react';
 
 export default function ConfirmModal({
@@ -11,6 +12,7 @@ export default function ConfirmModal({
   cancelText = 'Cancel',
   isDanger = false
 }) {
+  const { t } = useLanguage();
   if (!isOpen) return null;
 
   return (

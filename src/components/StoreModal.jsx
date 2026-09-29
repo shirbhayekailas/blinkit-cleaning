@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Building2, 
@@ -16,6 +17,7 @@ export default function StoreModal({
   onSave,
   initialData = null
 }) {
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     storeCode: 'BLK-',
     storeName: '',

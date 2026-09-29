@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { X, Printer, QrCode, Building2, MapPin, Download, Share2, Image as ImageIcon, Check } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 export default function StoreQRModal({ isOpen, onClose, store }) {
+  const { t } = useLanguage();
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [copied, setCopied] = useState(false);
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Users, 
@@ -17,6 +18,7 @@ export default function CleanerRosterModal({
   cleaners = [],
   onCleanerUpdated
 }) {
+  const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [currentCleaner, setCurrentCleaner] = useState({
     name: '',

@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Clock
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function OperationsPulseBar({
   stores = [],
@@ -25,6 +26,7 @@ export default function OperationsPulseBar({
   onOpenMorningSummary,
   onOpenConsolidatedInvoice
 }) {
+  const { t } = useLanguage();
   const todayStr = new Date().toISOString().split('T')[0];
 
   // 1. Tonight's shifts
@@ -77,7 +79,7 @@ export default function OperationsPulseBar({
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
           <span className="font-extrabold uppercase tracking-wider text-emerald-400">
-            Operations Pulse
+            {t('pulse_title', 'Operations Pulse')}
           </span>
           <span className="text-slate-400">•</span>
           <span className="text-slate-300 font-medium hidden sm:inline">
@@ -91,7 +93,7 @@ export default function OperationsPulseBar({
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-bold transition text-[11px]"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>6:00 AM WhatsApp Flash</span>
+            <span>{t('btn_morning_summary', '6:00 AM WhatsApp Flash')}</span>
           </button>
         </div>
       </div>
@@ -102,7 +104,7 @@ export default function OperationsPulseBar({
         {/* KPI 1: Active Fleet */}
         <div className="bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/50 rounded-2xl p-2.5 sm:p-3 transition">
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Dark Stores</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('pulse_total_stores', 'Dark Stores')}</span>
             <Building2 className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="text-lg sm:text-xl font-black text-white">{stores.length}</div>
@@ -117,7 +119,7 @@ export default function OperationsPulseBar({
           className="bg-purple-950/30 hover:bg-purple-900/40 border border-purple-800/50 rounded-2xl p-2.5 sm:p-3 transition cursor-pointer"
         >
           <div className="flex items-center justify-between text-purple-300 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Tonight's Shift</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('pulse_today_schedule', "Tonight's Shift")}</span>
             <Calendar className="w-4 h-4 text-purple-400" />
           </div>
           <div className="text-lg sm:text-xl font-black text-purple-200">
@@ -135,7 +137,7 @@ export default function OperationsPulseBar({
           className="bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-800/50 rounded-2xl p-2.5 sm:p-3 transition cursor-pointer"
         >
           <div className="flex items-center justify-between text-emerald-300 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Billed (This Month)</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('btn_invoice', 'Billed (This Month)')}</span>
             <IndianRupee className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-lg sm:text-xl font-black text-emerald-200">
@@ -157,7 +159,7 @@ export default function OperationsPulseBar({
           }`}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Store Defects</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('pulse_open_issues', 'Store Defects')}</span>
             <AlertTriangle className={`w-4 h-4 ${openIssues.length > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`} />
           </div>
           <div className="text-lg sm:text-xl font-black">
@@ -178,7 +180,7 @@ export default function OperationsPulseBar({
           }`}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Chemicals</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('tab_chemicals', 'Chemicals')}</span>
             <FlaskConical className={`w-4 h-4 ${lowStockChemicals.length > 0 ? 'text-amber-400' : 'text-slate-400'}`} />
           </div>
           <div className="text-lg sm:text-xl font-black">
@@ -186,10 +188,11 @@ export default function OperationsPulseBar({
           </div>
           <div className="text-[10px] opacity-75 mt-0.5 truncate">
             {lowStockChemicals.length > 0 
-              ? `⚠️ ${lowStockChemicals.length} item(s) low stock` 
+              ? `⚠️ ${lowStockChemicals.length} ${t('pulse_low_chemicals', 'item(s) low stock')}` 
               : 'All stocks sufficient'}
           </div>
         </div>
+
 
       </div>
 

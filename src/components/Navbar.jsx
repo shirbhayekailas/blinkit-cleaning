@@ -28,8 +28,14 @@ import {
   X,
   Layers,
   ChevronRight,
-  MapPin
+  MapPin,
+  Globe,
+  Sliders,
+  Receipt
 } from 'lucide-react';
+import LanguageSelector from './LanguageSelector';
+import { useLanguage } from '../context/LanguageContext';
+
 
 export default function Navbar({
   searchTerm,
@@ -57,6 +63,7 @@ export default function Navbar({
   issuesCount = 0,
   onLogout,
   onOpenConsolidatedInvoice,
+  onOpenBillSettings,
   onOpenChemicals,
   onOpenKhata,
   onOpenSchedule,
@@ -68,6 +75,7 @@ export default function Navbar({
   onOpenLoginLogs,
   onOpenCommandPalette
 }) {
+  const { t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const isAdmin = currentUserRole === 'admin';
@@ -119,7 +127,7 @@ export default function Navbar({
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search store name, code (BLK-...), city..."
+                  placeholder={t('search_placeholder', 'Search store name, code (BLK-...), city (Ctrl+K)...')}
                   className="w-full pl-10 pr-16 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-blinkit-green text-slate-800 dark:text-slate-100 placeholder-slate-400 transition"
                 />
                 <button
@@ -146,8 +154,8 @@ export default function Navbar({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="hidden lg:inline">Server Connected</span>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">5s Live Sync</span>
+                <span className="hidden lg:inline">{t('cloud_connected', 'Server Connected')}</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">{t('cloud_live_sync', '5s Live Sync')}</span>
               </div>
 
               {/* Mobile Command Palette Button */}
@@ -163,7 +171,7 @@ export default function Navbar({
               {/* Role Switcher Pill */}
               <button
                 onClick={onOpenLogin}
-                title="Click to Switch Role or Re-Login"
+                title={t('switch_role', 'Click to Switch Role or Re-Login')}
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center gap-1 sm:gap-1.5 border shadow-2xs ${
                   isAdmin
                     ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-800'
@@ -177,22 +185,22 @@ export default function Navbar({
                 {isAdmin ? (
                   <>
                     <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
-                    <span>Admin</span>
+                    <span>{t('role_admin', 'Admin')}</span>
                   </>
                 ) : isManager ? (
                   <>
                     <Briefcase className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-600" />
-                    <span>Manager</span>
+                    <span>{t('role_manager', 'Manager')}</span>
                   </>
                 ) : currentUserRole === 'client' ? (
                   <>
                     <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
-                    <span>Client</span>
+                    <span>{t('role_client', 'Client')}</span>
                   </>
                 ) : (
                   <>
                     <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{currentSupervisor?.name || 'Supervisor'}</span>
+                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{currentSupervisor?.name || t('role_supervisor', 'Supervisor')}</span>
                   </>
                 )}
               </button>
@@ -209,6 +217,14 @@ export default function Navbar({
                 </button>
               )}
 
+              {/* Language Selector Dropdown (Both Desktop & Mobile) */}
+              <div className="hidden sm:block">
+                <LanguageSelector compact={false} />
+              </div>
+              <div className="sm:hidden">
+                <LanguageSelector compact={true} />
+              </div>
+
               {/* Dark Mode Toggle */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -222,11 +238,11 @@ export default function Navbar({
               {onLogout && (
                 <button
                   onClick={onLogout}
-                  title="Logout to Login Screen"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 hover:dark:bg-rose-900/60 border border-rose-200 dark:border-rose-900 shadow-2xs transition active:scale-95 shrink-0"
+                  title={t('logout', 'Logout')}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 hover:dark:bg-rose-900/60 border border-rose-200 dark:border-rose-900 shadow-2xs transition active:scale-95 shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Logout</span>
+                  <span className="hidden xs:inline">{t('logout', 'Logout')}</span>
                 </button>
               )}
 
@@ -236,10 +252,11 @@ export default function Navbar({
                 className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 hover:shadow-lg transition transform active:scale-95 shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>{isOpsStaff ? 'New Cleaning' : 'Log Shift'}</span>
+                <span>{t('btn_new_cleaning', isOpsStaff ? 'New Cleaning' : 'Log Shift')}</span>
               </button>
 
             </div>
+
 
           </div>
 
@@ -256,7 +273,7 @@ export default function Navbar({
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span>🧹 Cleaning Visits &amp; Logs</span>
+                  <span>🧹 {t('tab_cleanings', 'Cleaning Visits & Logs')}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                     activeTab === 'cleanings' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}>
@@ -272,7 +289,7 @@ export default function Navbar({
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span>🏬 Store Master Ledger</span>
+                  <span>🏬 {t('tab_stores', 'Store Master Ledger')}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                     activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}>
@@ -290,7 +307,7 @@ export default function Navbar({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition shadow-2xs"
                   >
                     <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Schedule</span>
+                    <span>{t('tab_schedules', 'Schedule')}</span>
                   </button>
 
                   <button
@@ -299,7 +316,7 @@ export default function Navbar({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition shadow-2xs"
                   >
                     <FlaskConical className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Chemicals</span>
+                    <span>{t('tab_chemicals', 'Chemicals')}</span>
                   </button>
 
                   <button
@@ -308,7 +325,7 @@ export default function Navbar({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 transition shadow-2xs"
                   >
                     <Users className="w-3.5 h-3.5 text-teal-600" />
-                    <span>Cleaners</span>
+                    <span>{t('tab_cleaners', 'Cleaners')}</span>
                   </button>
 
                   <button
@@ -317,7 +334,7 @@ export default function Navbar({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs"
                   >
                     <Wallet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Staff Khata</span>
+                    <span>{t('tab_khata', 'Staff Khata')}</span>
                   </button>
 
                   <button
@@ -326,7 +343,16 @@ export default function Navbar({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition shadow-2xs"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Monthly Bill</span>
+                    <span>{t('btn_invoice', 'Monthly Bill')}</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenBillSettings}
+                    title="Bill & Tax Invoice Settings: Edit Billed By (Vendor) & Bill To (Client)"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition shadow-2xs"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{t('tab_bill_settings', 'Bill Settings')}</span>
                   </button>
 
                   {/* Passwords Button: Strictly ONLY for Admin */}
@@ -364,7 +390,7 @@ export default function Navbar({
                     }`}
                   >
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                    <span>Issues {issuesCount > 0 && `(${issuesCount})`}</span>
+                    <span>{t('tab_issues', 'Issues')} {issuesCount > 0 && `(${issuesCount})`}</span>
                   </button>
 
                   <button
@@ -373,7 +399,7 @@ export default function Navbar({
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Excel</span>
+                    <span>{t('btn_export_excel', 'Excel')}</span>
                   </button>
 
                   <button
@@ -382,7 +408,7 @@ export default function Navbar({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-2xs"
                   >
                     <Cloud className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Sync</span>
+                    <span>{t('tab_cloud_sync', 'Sync')}</span>
                   </button>
 
                   <button
@@ -398,7 +424,7 @@ export default function Navbar({
                     className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 shadow-2xs"
                   >
                     <Building2 className="w-3.5 h-3.5 text-amber-500" />
-                    <span>+ Add Store</span>
+                    <span>{t('btn_new_store', '+ Add Store')}</span>
                   </button>
                 </div>
               )}
@@ -414,7 +440,7 @@ export default function Navbar({
                     : 'text-slate-500 dark:text-slate-400'
                 }`}
               >
-                <span>🧹 Cleanings</span>
+                <span>🧹 {t('tab_cleanings', 'Cleanings')}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
                   activeTab === 'cleanings' ? 'bg-blinkit-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}>
@@ -430,7 +456,7 @@ export default function Navbar({
                     : 'text-slate-500 dark:text-slate-400'
                 }`}
               >
-                <span>🏬 Store Ledger</span>
+                <span>🏬 {t('tab_stores', 'Store Ledger')}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
                   activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}>
@@ -438,6 +464,7 @@ export default function Navbar({
                 </span>
               </button>
             </div>
+
 
           </div>
 
@@ -470,7 +497,7 @@ export default function Navbar({
           }`}
         >
           <Sparkles className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Cleanings</span>
+          <span className="text-[10px]">{t('tab_cleanings', 'Cleanings')}</span>
         </button>
 
         {/* Tab 2: Store Ledger */}
@@ -481,7 +508,7 @@ export default function Navbar({
           }`}
         >
           <Building2 className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Stores</span>
+          <span className="text-[10px]">{t('tab_stores', 'Stores')}</span>
         </button>
 
         {/* Center Floating + New Action Button */}
@@ -489,7 +516,7 @@ export default function Navbar({
           <button
             onClick={onOpenNewEntry}
             className="w-12 h-12 rounded-full bg-gradient-to-tr from-blinkit-darkgreen via-blinkit-green to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white dark:border-slate-900 active:scale-95 transition transform"
-            title="Create New Cleaning Entry"
+            title={t('btn_new_cleaning', 'Create New Cleaning Entry')}
           >
             <Plus className="w-6 h-6 stroke-[3]" />
           </button>
@@ -502,7 +529,7 @@ export default function Navbar({
             className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-indigo-600 transition"
           >
             <Calendar className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px]">Schedule</span>
+            <span className="text-[10px]">{t('tab_schedules', 'Schedule')}</span>
           </button>
         ) : (
           <button
@@ -520,7 +547,7 @@ export default function Navbar({
           className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-white transition relative"
         >
           <Menu className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">More Hub</span>
+          <span className="text-[10px]">Hub</span>
           {issuesCount > 0 && (
             <span className="absolute top-0.5 right-4 w-2 h-2 bg-rose-500 rounded-full" />
           )}
@@ -562,7 +589,7 @@ export default function Navbar({
                     className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 text-xs font-black flex items-center gap-1 shadow-2xs transition active:scale-95"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Logout</span>
+                    <span>{t('logout', 'Logout')}</span>
                   </button>
                 )}
                 <button
@@ -572,6 +599,22 @@ export default function Navbar({
                   <X className="w-5 h-5" />
                 </button>
               </div>
+            </div>
+
+            {/* Language Switcher in Mobile Drawer */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">
+                    {t('lang_change_title', 'भाषा बदलें (Select Language)')}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Hindi / English / Hinglish
+                  </span>
+                </div>
+              </div>
+              <LanguageSelector compact={false} />
             </div>
 
             {/* Command Palette Button for Mobile */}
@@ -596,7 +639,7 @@ export default function Navbar({
                   className="p-3 rounded-2xl bg-blinkit-green text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-98 transition"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>+ New Cleaning</span>
+                  <span>{t('btn_new_cleaning', '+ New Cleaning')}</span>
                 </button>
 
                 <button
@@ -604,10 +647,11 @@ export default function Navbar({
                   className="p-3 rounded-2xl bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-98 transition"
                 >
                   <Building2 className="w-4 h-4" />
-                  <span>+ Add Store</span>
+                  <span>{t('btn_new_store', '+ Add Store')}</span>
                 </button>
               </div>
             )}
+
 
             {/* SECTION 1: Shift & Field Operations */}
             {isOpsStaff && (
@@ -624,7 +668,7 @@ export default function Navbar({
                       <Calendar className="w-5 h-5 text-indigo-600" />
                       <ChevronRight className="w-4 h-4 text-indigo-400" />
                     </div>
-                    <div className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Shift Schedule</div>
+                    <div className="text-xs font-bold text-indigo-950 dark:text-indigo-200">{t('tab_schedules', 'Shift Schedule')}</div>
                     <div className="text-[10px] text-indigo-600 dark:text-indigo-400">Tonight's plan</div>
                   </button>
 
@@ -636,7 +680,7 @@ export default function Navbar({
                       <Sun className="w-5 h-5 text-amber-500" />
                       <ChevronRight className="w-4 h-4 text-amber-400" />
                     </div>
-                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">Morning Summary</div>
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">{t('btn_morning_summary', 'Morning Summary')}</div>
                     <div className="text-[10px] text-amber-600 dark:text-amber-400">6 AM Flash WA</div>
                   </button>
 
@@ -648,7 +692,7 @@ export default function Navbar({
                       <Navigation className="w-5 h-5 text-blue-600" />
                       <ChevronRight className="w-4 h-4 text-blue-400" />
                     </div>
-                    <div className="text-xs font-bold text-blue-950 dark:text-blue-200">Night Route</div>
+                    <div className="text-xs font-bold text-blue-950 dark:text-blue-200">{t('btn_night_route', 'Night Route')}</div>
                     <div className="text-[10px] text-blue-600 dark:text-blue-400">Google Maps order</div>
                   </button>
 
@@ -666,7 +710,7 @@ export default function Navbar({
                         <ChevronRight className="w-4 h-4 text-rose-400" />
                       )}
                     </div>
-                    <div className="text-xs font-bold text-rose-950 dark:text-rose-200">Store Issues</div>
+                    <div className="text-xs font-bold text-rose-950 dark:text-rose-200">{t('tab_issues', 'Store Issues')}</div>
                     <div className="text-[10px] text-rose-600 dark:text-rose-400">Defects &amp; alerts</div>
                   </button>
                 </div>
@@ -688,7 +732,7 @@ export default function Navbar({
                       <FlaskConical className="w-5 h-5 text-purple-600" />
                       <ChevronRight className="w-4 h-4 text-purple-400" />
                     </div>
-                    <div className="text-xs font-bold text-purple-950 dark:text-purple-200">Chemical Stock</div>
+                    <div className="text-xs font-bold text-purple-950 dark:text-purple-200">{t('tab_chemicals', 'Chemical Stock')}</div>
                     <div className="text-[10px] text-purple-600 dark:text-purple-400">Taski R-Series Ltr</div>
                   </button>
 
@@ -700,7 +744,7 @@ export default function Navbar({
                       <Wallet className="w-5 h-5 text-emerald-600" />
                       <ChevronRight className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">Staff Khata</div>
+                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">{t('tab_khata', 'Staff Khata')}</div>
                     <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Haziri &amp; advances</div>
                   </button>
 
@@ -712,7 +756,7 @@ export default function Navbar({
                       <Users className="w-5 h-5 text-emerald-600" />
                       <ChevronRight className="w-4 h-4 text-slate-400" />
                     </div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Supervisors</div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">{t('tab_supervisors', 'Supervisors')}</div>
                     <div className="text-[10px] text-slate-500">Site leads</div>
                   </button>
 
@@ -724,7 +768,7 @@ export default function Navbar({
                       <HardHat className="w-5 h-5 text-amber-500" />
                       <ChevronRight className="w-4 h-4 text-slate-400" />
                     </div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Cleaners Team</div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">{t('tab_cleaners', 'Cleaners Team')}</div>
                     <div className="text-[10px] text-slate-500">Roster &amp; daily wages</div>
                   </button>
                 </div>
@@ -746,8 +790,20 @@ export default function Navbar({
                       <FileSpreadsheet className="w-5 h-5 text-amber-600" />
                       <ChevronRight className="w-4 h-4 text-amber-400" />
                     </div>
-                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">Monthly Bill</div>
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">{t('btn_invoice', 'Monthly Bill')}</div>
                     <div className="text-[10px] text-amber-600 dark:text-amber-400">Consolidated GST</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenBillSettings)}
+                    className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Sliders className="w-5 h-5 text-amber-600" />
+                      <ChevronRight className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">{t('tab_bill_settings', 'Bill Settings')}</div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400">Vendor &amp; Client details</div>
                   </button>
 
                   <button
@@ -758,7 +814,7 @@ export default function Navbar({
                       <Download className="w-5 h-5 text-emerald-600" />
                       <ChevronRight className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">Export Excel</div>
+                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">{t('btn_export_excel', 'Export Excel')}</div>
                     <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Full workbook</div>
                   </button>
 
@@ -770,7 +826,7 @@ export default function Navbar({
                       <Database className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                       <ChevronRight className="w-4 h-4 text-slate-400" />
                     </div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Backup / Restore</div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">{t('btn_backup', 'Backup / Restore')}</div>
                     <div className="text-[10px] text-slate-500">Offline JSON save</div>
                   </button>
 
@@ -782,7 +838,7 @@ export default function Navbar({
                       <Cloud className="w-5 h-5 text-blue-600" />
                       <ChevronRight className="w-4 h-4 text-blue-400" />
                     </div>
-                    <div className="text-xs font-bold text-blue-950 dark:text-blue-200">Cloud Sync</div>
+                    <div className="text-xs font-bold text-blue-950 dark:text-blue-200">{t('tab_cloud_sync', 'Cloud Sync')}</div>
                     <div className="text-[10px] text-blue-600 dark:text-blue-400">Remote database</div>
                   </button>
                 </div>
@@ -857,7 +913,7 @@ export default function Navbar({
                 className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition"
               >
                 <Smartphone className="w-4 h-4 text-blinkit-green" />
-                <span>Install Mobile App (PWA)</span>
+                <span>{t('btn_install_app', 'Install Mobile App (PWA)')}</span>
               </button>
 
               {onLogout && (
@@ -866,10 +922,11 @@ export default function Navbar({
                   className="w-full py-2.5 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 font-bold text-xs flex items-center justify-center gap-2 transition border border-rose-200 dark:border-rose-900/40"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Logout from Session</span>
+                  <span>{t('logout', 'Logout from Session')}</span>
                 </button>
               )}
             </div>
+
 
           </div>
         </div>

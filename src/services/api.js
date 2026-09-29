@@ -25,6 +25,8 @@ export function getApiUrl(endpoint) {
 // -------------------------------------------------------------
 
 export async function fetchServerState(lastKnownUpdated = null) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
   try {
     const nonce = Date.now();
     let url = `/api/state?_t=${nonce}`;
@@ -33,12 +35,15 @@ export async function fetchServerState(lastKnownUpdated = null) {
     }
     const res = await fetch(getApiUrl(url), {
       method: 'GET',
+      signal: controller.signal,
       headers: { 
+        'Accept': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
       }
     });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data.unchanged) {
@@ -47,7 +52,10 @@ export async function fetchServerState(lastKnownUpdated = null) {
       return data.data || null;
     }
   } catch (err) {
-    console.warn('fetchServerState warning:', err.message);
+    clearTimeout(timeoutId);
+    if (err.name !== 'AbortError') {
+      console.warn('fetchServerState notice:', err.message);
+    }
   }
   return null;
 }

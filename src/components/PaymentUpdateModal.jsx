@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   IndianRupee, 
@@ -18,6 +19,7 @@ export default function PaymentUpdateModal({
   cleaning,
   onSave
 }) {
+  const { t } = useLanguage();
   const [paymentData, setPaymentData] = useState({
     amount: 0,
     amountReceived: 0,

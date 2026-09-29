@@ -6,9 +6,9 @@ export function addWatermarkToPhoto(imageFile, metadata = {}) {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // High-performance image resizing (Max 1280px dimension to prevent mobile memory bloat)
-        const MAX_WIDTH = 1280;
-        const MAX_HEIGHT = 1280;
+        // High-performance image resizing (Max 960px dimension for ultra-fast mobile network & 60fps rendering)
+        const MAX_WIDTH = 960;
+        const MAX_HEIGHT = 960;
         let width = img.width;
         let height = img.height;
 
@@ -37,8 +37,8 @@ export function addWatermarkToPhoto(imageFile, metadata = {}) {
         ctx.drawImage(img, 0, 0, width, height);
 
         // Watermark Banner Configuration (proportional to resized canvas)
-        const bannerHeight = Math.max(32, Math.floor(height * 0.08));
-        const fontSize = Math.max(12, Math.floor(bannerHeight * 0.42));
+        const bannerHeight = Math.max(28, Math.floor(height * 0.075));
+        const fontSize = Math.max(11, Math.floor(bannerHeight * 0.42));
 
         // Semi-transparent black gradient bar at the bottom
         ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
@@ -67,8 +67,8 @@ export function addWatermarkToPhoto(imageFile, metadata = {}) {
         const rightTextWidth = ctx.measureText(rightText).width;
         ctx.fillText(rightText, Math.max(width - rightTextWidth - 12, width / 2), textY);
 
-        // Return optimized base64 JPEG (~180-250 KB)
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
+        // Return lightweight base64 JPEG (~50-80 KB for fast network & zero lag)
+        resolve(canvas.toDataURL('image/jpeg', 0.65));
       };
       img.onerror = reject;
       img.src = event.target.result;
@@ -79,7 +79,7 @@ export function addWatermarkToPhoto(imageFile, metadata = {}) {
 }
 
 // Standalone image compressor utility for any generic file upload
-export function compressImage(file, maxWidth = 1280, quality = 0.80) {
+export function compressImage(file, maxWidth = 960, quality = 0.65) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {

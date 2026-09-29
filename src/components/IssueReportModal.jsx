@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   AlertTriangle, 
@@ -19,6 +20,7 @@ export default function IssueReportModal({
   stores = [],
   onIssueUpdated
 }) {
+  const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'Open' | 'Resolved'
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { X, Share2, Copy, Check, MessageSquare, Sun, Building2, Star, Clock } from 'lucide-react';
 
 export default function MorningSummaryModal({ isOpen, onClose, cleanings = [] }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;

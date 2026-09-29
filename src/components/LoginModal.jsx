@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Lock, 
@@ -19,6 +20,7 @@ export default function LoginModal({
   currentRole,
   onLoginSuccess
 }) {
+  const { t } = useLanguage();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,24 +43,114 @@ export default function LoginModal({
 
     setIsSubmitting(true);
 
-    // 1. Try Server Auth
-    try {
-      const deviceInfo = typeof navigator !== 'undefined'
-        ? `${/Mobi/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop'} - ${navigator.userAgent.slice(0, 60)}`
-        : 'Web Browser';
+    const deviceInfo = typeof navigator !== 'undefined'
+      ? `${/Mobi/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop'} - ${navigator.userAgent.slice(0, 60)}`
+      : 'Web Browser';
 
-      const response = await fetch(getApiUrl('/api/auth/login'), {
+    // Helper to send non-blocking server audit log
+    const fireBackgroundAuditLog = () => {
+      fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
+      }).catch(() => {});
+    };
+
+    // -----------------------------------------------------------------
+    // 1. FAST-PATH INSTANT AUTHENTICATION (0.01s Instant Login)
+    // -----------------------------------------------------------------
+    try {
+      // 1a. Vendor Admin
+      const adminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
+      const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
+      if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
+        fireBackgroundAuditLog();
+        onLoginSuccess({
+          role: 'admin',
+          user: { name: 'Vendor Admin / Owner', loginId: adminId }
+        });
+        onClose();
+        return;
+      }
+
+      // 1b. Operations Manager
+      const managerId = (localStorage.getItem('vendor_manager_id') || 'manager').toLowerCase();
+      const managerPin = localStorage.getItem('vendor_manager_pin') || '1234';
+      const managerName = localStorage.getItem('vendor_manager_name') || 'Operations Manager';
+      if (inputId.toLowerCase() === managerId && inputPass === managerPin) {
+        fireBackgroundAuditLog();
+        onLoginSuccess({
+          role: 'manager',
+          user: { name: managerName, loginId: managerId }
+        });
+        onClose();
+        return;
+      }
+
+      // 1c. Blinkit Client Ops Head
+      const clientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
+      const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
+      const clientName = localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head';
+      if (inputId.toLowerCase() === clientId && inputPass === clientPin) {
+        fireBackgroundAuditLog();
+        onLoginSuccess({
+          role: 'client',
+          user: { name: clientName, loginId: clientId }
+        });
+        onClose();
+        return;
+      }
+
+      // 1d. Site Supervisor from local cache
+      const cached = localStorage.getItem('blinkit_cached_state_v2');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const cleanPhone = inputId.replace(/[^0-9]/g, '');
+          const sup = (parsed.supervisors || []).find(s => 
+            s && (
+              (cleanPhone && String(s.phone).replace(/[^0-9]/g, '') === cleanPhone) ||
+              String(s.phone) === inputId
+            )
+          );
+          if (sup && String(sup.pin) === inputPass) {
+            if (sup.active === false) {
+              setError('Ye supervisor account deactivate kiya gaya hai. Admin se sampark karein.');
+              setIsSubmitting(false);
+              return;
+            }
+            fireBackgroundAuditLog();
+            onLoginSuccess({
+              role: 'supervisor',
+              user: sup
+            });
+            onClose();
+            return;
+          }
+        } catch (e) {}
+      }
+    } catch (localCheckErr) {
+      console.warn('Fast-path auth check notice:', localCheckErr);
+    }
+
+    // -----------------------------------------------------------------
+    // 2. REMOTE SERVER AUTHENTICATION (For new devices or changed PINs)
+    // -----------------------------------------------------------------
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max
+
+    try {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
       });
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const resData = await response.json();
         if (resData.success) {
-          if (resData.data) {
-            await applyRemoteDataToLocalDB(resData.data);
-          }
           onLoginSuccess({
             role: resData.role,
             user: resData.user
@@ -67,80 +159,13 @@ export default function LoginModal({
           return;
         }
       } else if (response.status === 401 || response.status === 403) {
-        // SMART AUTO-HEAL: If server just restarted/redeployed and reverted to default 1234,
-        // but user entered their valid local customized PIN, auto-restore server and retry login!
-        const savedAdminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
-        const savedAdminPin = localStorage.getItem('vendor_admin_pin') || '1234';
-        const isAdminChanged = localStorage.getItem('admin_pin_changed') === 'true';
-
-        const savedManagerId = (localStorage.getItem('vendor_manager_id') || 'manager').toLowerCase();
-        const savedManagerPin = localStorage.getItem('vendor_manager_pin') || '1234';
-        const isManagerChanged = localStorage.getItem('manager_pin_changed') === 'true';
-
-        const savedClientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
-        const savedClientPin = localStorage.getItem('blinkit_client_pin') || '5678';
-        const isClientChanged = localStorage.getItem('client_pin_changed') === 'true';
-
-        let autoHealed = false;
-        if (isAdminChanged && inputId.toLowerCase() === savedAdminId && inputPass === savedAdminPin) {
-          try {
-            await fetch(getApiUrl('/api/auth/change-pin'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'admin', newPin: savedAdminPin, updatedAt: localStorage.getItem('admin_pin_updated_at') })
-            });
-            autoHealed = true;
-          } catch (e) {}
-        } else if (isManagerChanged && inputId.toLowerCase() === savedManagerId && inputPass === savedManagerPin) {
-          try {
-            await fetch(getApiUrl('/api/auth/change-pin'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'manager', newPin: savedManagerPin, updatedAt: localStorage.getItem('manager_pin_updated_at') })
-            });
-            autoHealed = true;
-          } catch (e) {}
-        } else if (isClientChanged && inputId.toLowerCase() === savedClientId && inputPass === savedClientPin) {
-          try {
-            await fetch(getApiUrl('/api/auth/change-pin'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'client', newPin: savedClientPin, updatedAt: localStorage.getItem('client_pin_updated_at') })
-            });
-            autoHealed = true;
-          } catch (e) {}
-        }
-
-        if (autoHealed) {
-          try {
-            const retryResponse = await fetch(getApiUrl('/api/auth/login'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
-            });
-            if (retryResponse.ok) {
-              const resData = await retryResponse.json();
-              if (resData.success) {
-                if (resData.data) {
-                  await applyRemoteDataToLocalDB(resData.data);
-                }
-                onLoginSuccess({
-                  role: resData.role,
-                  user: resData.user
-                });
-                onClose();
-                return;
-              }
-            }
-          } catch (e) {}
-        }
-
         const errData = await response.json().catch(() => ({}));
         setError(errData.message || 'Invalid Login ID or Password. Please try again.');
         setIsSubmitting(false);
         return;
       }
     } catch (netErr) {
+      clearTimeout(timeoutId);
       console.warn('Server auth unreachable, using local check:', netErr);
     }
 

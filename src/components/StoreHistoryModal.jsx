@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Building2, 
@@ -33,6 +34,7 @@ export default function StoreHistoryModal({
   onShareWhatsApp,
   onGenerateInvoice
 }) {
+  const { t } = useLanguage();
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   if (!isOpen || !store) return null;

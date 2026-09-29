@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   Camera, 
@@ -21,6 +22,7 @@ export default function PhotoGalleryModal({
   onUpdatePhotos,
   initialView = 'grid'
 }) {
+  const { t } = useLanguage();
   const [activeView, setActiveView] = useState(initialView); // 'grid' | 'slider'
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'before' | 'during' | 'after'

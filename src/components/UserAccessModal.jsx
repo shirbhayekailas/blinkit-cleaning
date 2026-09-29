@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   ShieldCheck, 
@@ -31,6 +32,7 @@ export default function UserAccessModal({
   onOpenLoginLogs,
   onSupervisorUpdated
 }) {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   
   // Show / Hide states for PINs

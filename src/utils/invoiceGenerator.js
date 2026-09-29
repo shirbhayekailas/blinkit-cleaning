@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+import { getBillSettings } from './billSettingsHelper';
+
 function runAutoTable(doc, options) {
   try {
     if (typeof autoTable === 'function') {
@@ -22,21 +24,39 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const margin = 14;
     const contentWidth = pageWidth - (margin * 2); // 182 mm
 
-    const vendorName = vendorProfile.companyName || cleaning.teamVendor || 'SK ENTERPRISES';
-    const vendorPhone = vendorProfile.phone || '09594023629';
-    const vendorEmail = vendorProfile.email || 'skenterprises.clean@gmail.com';
-    const vendorAddress = vendorProfile.address || '303, Panchsheel Chs Ltd., Plot No. 07, Sector -2, Taloja Phase -01, Navi Mumbai - 410208';
-    const vendorGst = vendorProfile.gstin || vendorProfile.pan || '27OQCPS0083R1ZU';
-    const bankName = vendorProfile.bankName || 'HDFC Bank';
-    const bankAcc = vendorProfile.accountNumber || '50200012345678';
-    const ifsc = vendorProfile.ifsc || 'HDFC0001234';
-    const upiId = vendorProfile.upiId || 'cleanpro@hdfcbank';
+    // Read configured bill settings (Billed By & Billed To)
+    const billConfig = getBillSettings();
+    const bBy = { ...billConfig.billedBy, ...(vendorProfile || {}) };
+    const bTo = { ...billConfig.billedTo, ...(vendorProfile.clientProfile || {}) };
+
+    const vendorName = bBy.companyName || cleaning.teamVendor || 'SK ENTERPRISES';
+    const vendorTagline = bBy.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
+    const vendorPhone = bBy.phone || '09594023629';
+    const vendorEmail = bBy.email || 'skenterprises.clean@gmail.com';
+    const vendorAddress = bBy.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
+    const vendorGst = bBy.gstin || bBy.pan || '27OQCPS0083R1ZU';
+    const vendorState = bBy.state || 'Maharashtra';
+    const vendorStateCode = bBy.stateCode || '27';
+    const bankName = bBy.bankName || 'HDFC Bank';
+    const bankAcc = bBy.accountNumber || '50200012345678';
+    const ifsc = bBy.ifsc || 'HDFC0001234';
+    const accountHolder = bBy.accountHolder || vendorName;
+    const upiId = bBy.upiId || 'cleanpro@hdfcbank';
+    const signatoryTitle = bBy.signatory || 'Authorized Signatory';
+
+    // Billed To (Client Company)
+    const clientName = bTo.companyName || 'Blinkit Commerce Private Limited';
+    const clientDivision = bTo.division || 'Corporate Office & Dark Store Operations Division';
+    const clientAddress = bTo.address || 'Ground Floor, Pioneer Square, Sector 62, Golf Course Ext Rd, Gurugram';
+    const clientGstin = bTo.gstin || '';
+    const clientState = bTo.state || '';
+    const clientStateCode = bTo.stateCode || '';
 
     const cleanDateStr = cleaning.cleaningDate ? String(cleaning.cleaningDate).replace(/-/g, '') : new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const invoiceNo = `INV-${cleaning.storeCode || 'BLK'}-${cleanDateStr}`;
 
     // =============================================================
-    // OFFICIAL SK ENTERPRISES LETTERHEAD HEADER
+    // OFFICIAL LETTERHEAD HEADER
     // =============================================================
     const bannerHeight = 39;
     doc.setFillColor(15, 23, 42); // Dark Slate / Navy
@@ -46,7 +66,7 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     doc.setFillColor(12, 131, 31); // Blinkit Green Accent
     doc.rect(0, bannerHeight, pageWidth, 2.5, 'F');
 
-    // SK ENTERPRISES Company Logo Crest / Emblem
+    // Company Logo Crest / Emblem
     const logoX = margin;
     const logoY = 7;
     const logoSize = 18;
@@ -59,7 +79,8 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(248, 203, 70); // Gold
-    doc.text('SK', logoX + (logoSize / 2), logoY + 11, { align: 'center' });
+    const logoLetters = (vendorName || 'SK').slice(0, 2).toUpperCase();
+    doc.text(logoLetters, logoX + (logoSize / 2), logoY + 11, { align: 'center' });
 
     doc.setFontSize(5);
     doc.setTextColor(203, 213, 225);
@@ -68,14 +89,14 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     // Company Name & Tagline
     const titleX = logoX + logoSize + 4;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setTextColor(248, 203, 70); // Gold
-    doc.text('SK ENTERPRISES', titleX, 14);
+    doc.text(vendorName, titleX, 14);
 
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(148, 163, 184); // Slate-400
-    doc.text('FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS', titleX, 19);
+    doc.text(vendorTagline, titleX, 19, { maxWidth: 110 });
 
     // Header Right: Document Title & Tax Tag
     doc.setFont('helvetica', 'bold');
@@ -85,14 +106,14 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
 
     doc.setFontSize(7.5);
     doc.setTextColor(52, 211, 153); // Emerald-400
-    doc.text('GST REG: 27OQCPS0083R1ZU', pageWidth - margin, 18, { align: 'right' });
+    doc.text(`GST REG: ${vendorGst}`, pageWidth - margin, 18, { align: 'right' });
 
     // Letterhead Address & Contact Bar (Cleanly wrapped inside banner)
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(226, 232, 240);
     doc.text(
-      '303, Panchsheel Chs Ltd., Plot No. 07, Sector -2, Taloja Phase -01, Navi Mumbai - 410208',
+      vendorAddress,
       margin,
       28,
       { maxWidth: contentWidth }
@@ -101,7 +122,7 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     doc.setFontSize(7);
     doc.setTextColor(203, 213, 225);
     doc.text(
-      `Ph: ${vendorPhone}   |   GSTIN / PAN: ${vendorGst}   |   State: Maharashtra (Code: 27)${vendorEmail ? `   |   Email: ${vendorEmail}` : ''}`,
+      `Ph: ${vendorPhone}   |   GSTIN: ${vendorGst}   |   State: ${vendorState} (${vendorStateCode})${vendorEmail ? `   |   Email: ${vendorEmail}` : ''}`,
       margin,
       34,
       { maxWidth: contentWidth }
@@ -117,32 +138,55 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
 
     let currentLeftY = startY;
 
-    // Left Column: Billed To
+    // Left Column: Billed To (Client Details)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
     doc.text('BILLED TO (CLIENT):', margin, currentLeftY);
     currentLeftY += 4.8;
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.setTextColor(51, 65, 85);
-    doc.text('Blinkit Commerce Private Limited', margin, currentLeftY);
+    doc.setTextColor(15, 23, 42);
+    doc.text(clientName, margin, currentLeftY);
     currentLeftY += 4.2;
 
-    const storeLines = doc.splitTextToSize(`Store: ${cleaning.storeCode || ''} - ${cleaning.storeName || 'Dark Store'}`, maxLeftWidth);
+    if (clientDivision) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(clientDivision, margin, currentLeftY);
+      currentLeftY += 4.0;
+    }
+
+    if (clientGstin) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(12, 131, 31);
+      doc.text(`GSTIN: ${clientGstin}${clientState ? `  |  State: ${clientState}` : ''}`, margin, currentLeftY);
+      currentLeftY += 4.0;
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(51, 65, 85);
+
+    const storeLines = doc.splitTextToSize(`Store Hub: ${cleaning.storeCode || ''} - ${cleaning.storeName || 'Dark Store'}`, maxLeftWidth);
     doc.text(storeLines, margin, currentLeftY);
-    currentLeftY += storeLines.length * 4.2;
+    currentLeftY += storeLines.length * 4.0;
 
-    const addressLines = doc.splitTextToSize(`Address: ${cleaning.address || 'Dark Store Hub'}`, maxLeftWidth);
+    const addressLines = doc.splitTextToSize(`Location: ${cleaning.address || clientAddress}`, maxLeftWidth);
     doc.text(addressLines, margin, currentLeftY);
-    currentLeftY += addressLines.length * 4.2;
+    currentLeftY += addressLines.length * 4.0;
 
-    const managerLines = doc.splitTextToSize(
-      `Store Manager: ${cleaning.managerName || 'Hub Manager'} (${cleaning.managerPhone || 'N/A'})`,
-      maxLeftWidth
-    );
-    doc.text(managerLines, margin, currentLeftY);
+    if (cleaning.managerName) {
+      const managerLines = doc.splitTextToSize(
+        `Hub Manager: ${cleaning.managerName} (${cleaning.managerPhone || 'N/A'})`,
+        maxLeftWidth
+      );
+      doc.text(managerLines, margin, currentLeftY);
+      currentLeftY += managerLines.length * 4.0;
+    }
     currentLeftY += managerLines.length * 4.2;
 
     // Right Column: Invoice Details

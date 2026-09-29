@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { Download, Smartphone, X, CheckCircle, Share, PlusSquare } from 'lucide-react';
 
 export default function InstallAppBanner() {
+  const { t } = useLanguage();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -132,7 +134,7 @@ export default function InstallAppBanner() {
                 </span>
               </div>
               <p className="text-xs sm:text-sm font-semibold text-slate-100">
-                Install Blinkit Cleaning App on your phone for 1-tap night access
+                {t('install_desc', 'Install Blinkit Cleaning App on your phone for 1-tap night access')}
               </p>
             </div>
           </div>
@@ -143,7 +145,7 @@ export default function InstallAppBanner() {
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-1.5 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-xs shadow-md transition transform active:scale-95"
             >
               <Download className="w-4 h-4" />
-              <span>{isIOS ? 'How to Install on iPhone' : 'Install App'}</span>
+              <span>{isIOS ? t('install_ios', 'How to Install on iPhone') : t('btn_install_app', 'Install App')}</span>
             </button>
             <button
               onClick={handleDismiss}

@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Receipt, Download, Building2, CreditCard, Save } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { X, Receipt, Download, Building2, CreditCard, Save, Sliders } from 'lucide-react';
 import { generateVendorInvoicePDF } from '../utils/invoiceGenerator';
+import { getBillSettings } from '../utils/billSettingsHelper';
 
 export default function InvoiceModal({
   isOpen,
   onClose,
-  cleaning
+  cleaning,
+  onOpenBillSettings
 }) {
+  const { t } = useLanguage();
   const DEFAULT_SK_PROFILE = {
     companyName: 'SK ENTERPRISES',
     phone: '09594023629',
@@ -24,31 +28,34 @@ export default function InvoiceModal({
 
   useEffect(() => {
     try {
+      const billConfig = getBillSettings();
+      const currentBilledBy = billConfig.billedBy || {};
+      const mergedDefault = { ...DEFAULT_SK_PROFILE, ...currentBilledBy };
+
       const saved = localStorage.getItem('vendor_invoice_profile');
       const defaultDesc = cleaning ? `Deep Cleaning - ${cleaning.storeName} (${cleaning.storeCode})` : 'Deep Cleaning';
       if (saved) {
         const parsed = JSON.parse(saved);
-        // If saved profile still has old placeholder, override with SK ENTERPRISES
         if (!parsed.companyName || parsed.companyName === 'My Deep Cleaning Services' || parsed.companyName === 'CleanPro Facilities Pvt Ltd') {
           setVendorProfile({
-            ...DEFAULT_SK_PROFILE,
+            ...mergedDefault,
             ...parsed,
-            companyName: 'SK ENTERPRISES',
-            phone: parsed.phone || '09594023629',
-            address: parsed.address || DEFAULT_SK_PROFILE.address,
-            gstin: parsed.gstin || '27OQCPS0083R1ZU',
+            companyName: mergedDefault.companyName || 'SK ENTERPRISES',
+            phone: parsed.phone || mergedDefault.phone,
+            address: parsed.address || mergedDefault.address,
+            gstin: parsed.gstin || mergedDefault.gstin,
             itemDescription: defaultDesc
           });
         } else {
           setVendorProfile({
-            ...DEFAULT_SK_PROFILE,
+            ...mergedDefault,
             ...parsed,
             itemDescription: defaultDesc
           });
         }
       } else {
         setVendorProfile({
-          ...DEFAULT_SK_PROFILE,
+          ...mergedDefault,
           itemDescription: defaultDesc
         });
       }
@@ -108,6 +115,27 @@ export default function InvoiceModal({
         {/* Content Form */}
         <div className="p-6 space-y-4 text-xs sm:text-sm max-h-[75vh] overflow-y-auto">
           
+          {onOpenBillSettings && (
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  Full company & client bill settings manage karni hain?
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenBillSettings();
+                }}
+                className="px-2.5 py-1 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition shrink-0"
+              >
+                Bill Settings
+              </button>
+            </div>
+          )}
+
           <div className="space-y-3">
             <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
               <Building2 className="w-4 h-4 text-blinkit-green" />

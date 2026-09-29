@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   History, 
@@ -27,6 +28,7 @@ export default function LoginLogsModal({
   logs = [],
   onLogsCleared
 }) {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'admin' | 'manager' | 'supervisor' | 'client' | 'failed'
   const [timeFilter, setTimeFilter] = useState('all'); // 'all' | 'today' | 'week'

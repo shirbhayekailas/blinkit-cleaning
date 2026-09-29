@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
   FileText, 
@@ -18,6 +19,7 @@ export default function ReportModal({
   onClose,
   cleaning
 }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen || !cleaning) return null;

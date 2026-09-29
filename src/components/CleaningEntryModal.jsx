@@ -29,6 +29,7 @@ import SignaturePad from './SignaturePad';
 import { addWatermarkToPhoto, compressImage } from '../utils/photoWatermark';
 import { saveCleaner } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function CleaningEntryModal({
   isOpen,
@@ -42,6 +43,7 @@ export default function CleaningEntryModal({
   onAddNewStore,
   currentUserRole = 'admin'
 }) {
+  const { t } = useLanguage();
   const isAdmin = currentUserRole === 'admin';
   const [formData, setFormData] = useState({
     storeCode: '',
@@ -608,10 +610,10 @@ export default function CleaningEntryModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                {initialData ? 'Edit Deep Cleaning Entry' : 'New Blinkit Store Deep Cleaning Entry'}
+                {initialData ? t('entry_title_edit', 'Edit Deep Cleaning Entry') : t('entry_title_new', 'New Blinkit Store Deep Cleaning Entry')}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Log store details, timings, team names, payment status & photo proofs
+                Log store details, timings, team names, payment status &amp; photo proofs
               </p>
             </div>
           </div>
@@ -631,7 +633,7 @@ export default function CleaningEntryModal({
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                 <Building2 className="w-4 h-4 text-blinkit-green" />
-                <span>1. Blinkit Dark Store Details</span>
+                <span>{t('entry_sec1_title', '1. Blinkit Dark Store Details')}</span>
               </div>
               <span className="text-[11px] font-semibold text-slate-400">
                 Ledger se select karein ya new details dalein
@@ -831,7 +833,7 @@ export default function CleaningEntryModal({
           <div className="space-y-3">
             <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-bold">
               <Clock className="w-4 h-4 text-indigo-500" />
-              <span>2. Cleaning Date, Shift & Timings (Start - End)</span>
+              <span>{t('entry_sec2_title', '2. Cleaning Date, Shift & Timings (Start - End)')}</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -936,7 +938,7 @@ export default function CleaningEntryModal({
           <div className="space-y-3">
             <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-bold">
               <Users className="w-4 h-4 text-emerald-600" />
-              <span>3. Team Deployed (Supervisor, Cleaners Roster & Sabke Naam)</span>
+              <span>{t('entry_sec3_title', '3. Team Deployed (Supervisor, Cleaners Roster & Sabke Naam)')}</span>
             </div>
 
             {/* Quick Supervisor Selector from Registered List */}
@@ -1247,9 +1249,9 @@ export default function CleaningEntryModal({
             <div className="space-y-3">
               <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-bold">
                 <IndianRupee className="w-4 h-4 text-amber-500" />
-                <span>4. Deep Cleaning Amount &amp; Payment Tracking (Pending / Received)</span>
+                <span>{t('entry_sec4_title', '4. Deep Cleaning Amount & Payment Tracking (Pending / Received)')}</span>
                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-                  Admin Only
+                  {t('role_admin', 'Admin')} Only
                 </span>
               </div>
 
@@ -1673,7 +1675,7 @@ export default function CleaningEntryModal({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-purple-200/60 dark:border-purple-900/40 gap-2">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-extrabold text-sm">
                 <FlaskConical className="w-4 h-4 text-purple-600" />
-                <span>🧪 Chemicals &amp; Consumables Used (Kitna aur Konsa Chemical Use Huwa)</span>
+                <span>{t('entry_sec_chemicals', '🧪 Chemicals & Consumables Used (Kitna aur Konsa Chemical Use Huwa)')}</span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
@@ -1683,7 +1685,7 @@ export default function CleaningEntryModal({
                   title="Degreaser (2L) + Sanitizer (1L) + Descaler (0.5L) auto-add karein"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>⚡ 1-Click Standard 3-Chemical Pack</span>
+                  <span>{t('entry_std_chemical_pack', '⚡ 1-Click Standard 3-Chemical Pack')}</span>
                 </button>
                 <button
                   type="button"
@@ -1691,7 +1693,7 @@ export default function CleaningEntryModal({
                   className="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition flex items-center gap-1.5 shadow-2xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ Add Chemical Item</span>
+                  <span>{t('entry_add_chemical_row', '+ Add Chemical Item')}</span>
                 </button>
               </div>
             </div>
@@ -1896,14 +1898,14 @@ export default function CleaningEntryModal({
               onClick={onClose}
               className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
-              Cancel
+              {t('btn_cancel', 'Cancel')}
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold shadow-md shadow-emerald-700/20 hover:shadow-lg transition flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
-              <span>{initialData ? 'Update Cleaning Record' : 'Save Cleaning Entry'}</span>
+              <span>{initialData ? t('btn_save', 'Update Cleaning Record') : t('entry_save_btn', 'Save Cleaning Record')}</span>
             </button>
           </div>
 

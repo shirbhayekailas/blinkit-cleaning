@@ -17,6 +17,9 @@ import {
 import { db } from '../db/db';
 import { logUserLogin } from '../utils/auditLogger';
 import { applyRemoteDataToLocalDB, performCloudSync, getApiUrl } from '../utils/cloudSync';
+import LanguageSelector from './LanguageSelector';
+import { useLanguage } from '../context/LanguageContext';
+
 
 export default function LoginPage({
   onLoginSuccess,
@@ -25,15 +28,17 @@ export default function LoginPage({
   logoutNotice = null,
   onClearLogoutNotice
 }) {
+  const { t } = useLanguage();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pre-sync on login page load so local IndexedDB has latest supervisors & credentials
+  // Fast background check for offline credentials
   useEffect(() => {
-    performCloudSync().catch(() => {});
+    // Light ping in background, zero blocking
+    fetch(getApiUrl('/api/health')).catch(() => {});
   }, []);
 
   const handleUniversalLogin = async (e) => {
@@ -50,28 +55,110 @@ export default function LoginPage({
 
     setIsSubmitting(true);
 
-    // -----------------------------------------------------------------
-    // 1. PRIMARY STRATEGY: Real-time Server Database Authentication
-    // -----------------------------------------------------------------
-    try {
-      const deviceInfo = typeof navigator !== 'undefined'
-        ? `${/Mobi/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop'} - ${navigator.userAgent.slice(0, 60)}`
-        : 'Web Browser';
+    const deviceInfo = typeof navigator !== 'undefined'
+      ? `${/Mobi/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop'} - ${navigator.userAgent.slice(0, 60)}`
+      : 'Web Browser';
 
-      const response = await fetch(getApiUrl('/api/auth/login'), {
+    // Helper to send non-blocking server audit log
+    const fireBackgroundAuditLog = () => {
+      fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
+      }).catch(() => {});
+    };
+
+    // -----------------------------------------------------------------
+    // 1. FAST-PATH INSTANT AUTHENTICATION (0.01s Instant Login)
+    // -----------------------------------------------------------------
+    try {
+      // 1a. Vendor Admin
+      const adminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
+      const adminPin = localStorage.getItem('vendor_admin_pin') || '1234';
+      if (inputId.toLowerCase() === adminId && inputPass === adminPin) {
+        fireBackgroundAuditLog();
+        onLoginSuccess({
+          role: 'admin',
+          user: { name: 'Vendor Admin / Owner', loginId: adminId }
+        });
+        return;
+      }
+
+      // 1b. Operations Manager
+      const managerId = (localStorage.getItem('vendor_manager_id') || 'manager').toLowerCase();
+      const managerPin = localStorage.getItem('vendor_manager_pin') || '1234';
+      const managerName = localStorage.getItem('vendor_manager_name') || 'Operations Manager';
+      if (inputId.toLowerCase() === managerId && inputPass === managerPin) {
+        fireBackgroundAuditLog();
+        onLoginSuccess({
+          role: 'manager',
+          user: { name: managerName, loginId: managerId }
+        });
+        return;
+      }
+
+      // 1c. Blinkit Client Ops Head
+      const clientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
+      const clientPin = localStorage.getItem('blinkit_client_pin') || '5678';
+      const clientName = localStorage.getItem('blinkit_client_name') || 'Blinkit City Operations Head';
+      if (inputId.toLowerCase() === clientId && inputPass === clientPin) {
+        fireBackgroundAuditLog();
+        onLoginSuccess({
+          role: 'client',
+          user: { name: clientName, loginId: clientId }
+        });
+        return;
+      }
+
+      // 1d. Site Supervisor from local cache
+      const cached = localStorage.getItem('blinkit_cached_state_v2');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const cleanPhone = inputId.replace(/[^0-9]/g, '');
+          const sup = (parsed.supervisors || []).find(s => 
+            s && (
+              (cleanPhone && String(s.phone).replace(/[^0-9]/g, '') === cleanPhone) ||
+              String(s.phone) === inputId
+            )
+          );
+          if (sup && String(sup.pin) === inputPass) {
+            if (sup.active === false) {
+              setError('Ye supervisor account deactivate kiya gaya hai. Admin se sampark karein.');
+              setIsSubmitting(false);
+              return;
+            }
+            fireBackgroundAuditLog();
+            onLoginSuccess({
+              role: 'supervisor',
+              user: sup
+            });
+            return;
+          }
+        } catch (e) {}
+      }
+    } catch (localCheckErr) {
+      console.warn('Fast-path auth check notice:', localCheckErr);
+    }
+
+    // -----------------------------------------------------------------
+    // 2. REMOTE SERVER AUTHENTICATION (For new devices or changed PINs)
+    // -----------------------------------------------------------------
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max
+
+    try {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
       });
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const resData = await response.json();
         if (resData.success) {
-          // Immediately rehydrate local IndexedDB with full server database
-          if (resData.data) {
-            await applyRemoteDataToLocalDB(resData.data);
-          }
-
           onLoginSuccess({
             role: resData.role,
             user: resData.user
@@ -79,80 +166,14 @@ export default function LoginPage({
           return;
         }
       } else if (response.status === 401 || response.status === 403) {
-        // SMART AUTO-HEAL: If server just restarted/redeployed and reverted to default 1234,
-        // but user entered their valid local customized PIN, auto-restore server and retry login!
-        const savedAdminId = (localStorage.getItem('vendor_admin_id') || 'admin').toLowerCase();
-        const savedAdminPin = localStorage.getItem('vendor_admin_pin') || '1234';
-        const isAdminChanged = localStorage.getItem('admin_pin_changed') === 'true';
-
-        const savedManagerId = (localStorage.getItem('vendor_manager_id') || 'manager').toLowerCase();
-        const savedManagerPin = localStorage.getItem('vendor_manager_pin') || '1234';
-        const isManagerChanged = localStorage.getItem('manager_pin_changed') === 'true';
-
-        const savedClientId = (localStorage.getItem('blinkit_client_id') || 'client').toLowerCase();
-        const savedClientPin = localStorage.getItem('blinkit_client_pin') || '5678';
-        const isClientChanged = localStorage.getItem('client_pin_changed') === 'true';
-
-        let autoHealed = false;
-        if (isAdminChanged && inputId.toLowerCase() === savedAdminId && inputPass === savedAdminPin) {
-          try {
-            await fetch(getApiUrl('/api/auth/change-pin'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'admin', newPin: savedAdminPin, updatedAt: localStorage.getItem('admin_pin_updated_at') })
-            });
-            autoHealed = true;
-          } catch (e) {}
-        } else if (isManagerChanged && inputId.toLowerCase() === savedManagerId && inputPass === savedManagerPin) {
-          try {
-            await fetch(getApiUrl('/api/auth/change-pin'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'manager', newPin: savedManagerPin, updatedAt: localStorage.getItem('manager_pin_updated_at') })
-            });
-            autoHealed = true;
-          } catch (e) {}
-        } else if (isClientChanged && inputId.toLowerCase() === savedClientId && inputPass === savedClientPin) {
-          try {
-            await fetch(getApiUrl('/api/auth/change-pin'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'client', newPin: savedClientPin, updatedAt: localStorage.getItem('client_pin_updated_at') })
-            });
-            autoHealed = true;
-          } catch (e) {}
-        }
-
-        if (autoHealed) {
-          try {
-            const retryResponse = await fetch(getApiUrl('/api/auth/login'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
-            });
-            if (retryResponse.ok) {
-              const resData = await retryResponse.json();
-              if (resData.success) {
-                if (resData.data) {
-                  await applyRemoteDataToLocalDB(resData.data);
-                }
-                onLoginSuccess({
-                  role: resData.role,
-                  user: resData.user
-                });
-                return;
-              }
-            }
-          } catch (e) {}
-        }
-
         const errData = await response.json().catch(() => ({}));
         setError(errData.message || 'Galat Login ID ya Password darj kiya gaya hai. Kripya check karke dobara dalein.');
         setIsSubmitting(false);
         return;
       }
     } catch (netErr) {
-      console.warn('Server auth API unreachable (offline mode), trying local cache:', netErr.message);
+      clearTimeout(timeoutId);
+      console.warn('Server auth failed or timed out:', netErr.message);
     }
 
     // -----------------------------------------------------------------
@@ -292,13 +313,16 @@ export default function LoginPage({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* App Language Selector Pill */}
+          <LanguageSelector compact={false} />
+
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-2xl bg-white dark:bg-slate-900 text-blinkit-green dark:text-emerald-400 border border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition"
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Install App</span>
+            <span className="hidden sm:inline">{t('btn_install_app', 'Install App')}</span>
           </button>
 
           <button
@@ -327,10 +351,10 @@ export default function LoginPage({
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight mt-3 text-slate-950">
-              Operations Sign In
+              {t('login_title', 'Operations Sign In')}
             </h1>
             <p className="text-xs sm:text-sm font-semibold text-slate-900/85 mt-0.5">
-              Enter your assigned Login ID &amp; Password to access your portal
+              {t('login_subtitle', 'Enter your assigned Login ID & Password to access your portal')}
             </p>
           </div>
 
@@ -362,7 +386,7 @@ export default function LoginPage({
               {/* Login ID Input */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Login ID / Mobile Number
+                  {t('login_id_label', 'Login ID / Mobile Number')}
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -384,7 +408,7 @@ export default function LoginPage({
               {/* Password Input */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Password / PIN
+                  {t('login_password_label', 'Password / PIN')}
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -423,7 +447,7 @@ export default function LoginPage({
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-2xl bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-black text-sm shadow-lg shadow-slate-950/20 hover:shadow-xl transition transform active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                <span>{isSubmitting ? 'Verifying Credentials...' : 'Sign In to Portal'}</span>
+                <span>{isSubmitting ? t('login_verifying', 'Verifying Credentials...') : t('login_btn', 'Sign In to Portal')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   Building2, 
   MapPin, 
@@ -42,6 +43,7 @@ export default function SupervisorPortal({
   onLogout,
   onRecordSaved
 }) {
+  const { t } = useLanguage();
   // Filter stores assigned to this supervisor
   const assignedStores = stores.filter(s => 
     !supervisor.assignedStoreCodes || 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   Search, 
   Sparkles, 
@@ -17,7 +18,8 @@ import {
   ArrowRight, 
   CornerDownLeft, 
   X,
-  FileText
+  FileText,
+  Sliders
 } from 'lucide-react';
 
 export default function CommandPalette({
@@ -34,6 +36,7 @@ export default function CommandPalette({
   onOpenKhata,
   onOpenIssues,
   onOpenConsolidatedInvoice,
+  onOpenBillSettings,
   onOpenNightRoute,
   onOpenMorningSummary,
   onExportExcel,
@@ -42,6 +45,7 @@ export default function CommandPalette({
   onViewStoreHistory,
   onLogCleaningForStore
 }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
@@ -123,6 +127,15 @@ export default function CommandPalette({
       subtitle: 'Generate standard tax invoice for Blinkit accounts',
       shortcut: 'G',
       run: onOpenConsolidatedInvoice
+    },
+    {
+      id: 'action-bill-settings',
+      category: 'Accounts',
+      icon: <Sliders className="w-4 h-4 text-amber-500" />,
+      title: 'Bill & Tax Invoice Settings',
+      subtitle: 'Edit Billed By (Your Company) & Bill To (Client Company)',
+      shortcut: 'B',
+      run: onOpenBillSettings
     },
     {
       id: 'action-route',
