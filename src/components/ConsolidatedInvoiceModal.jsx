@@ -13,7 +13,7 @@ import {
   Sliders
 } from 'lucide-react';
 import { generateConsolidatedInvoicePDF } from '../utils/consolidatedInvoiceGenerator';
-import { getBillSettings } from '../utils/billSettingsHelper';
+import { getBillSettings, saveBillSettings } from '../utils/billSettingsHelper';
 
 export default function ConsolidatedInvoiceModal({
   isOpen,
@@ -115,7 +115,16 @@ export default function ConsolidatedInvoiceModal({
       return;
     }
     try {
-      localStorage.setItem('vendor_invoice_profile', JSON.stringify(vendorProfile));
+      saveBillSettings({
+        billedBy: {
+          bankName: vendorProfile.bankName,
+          accountNumber: vendorProfile.accountNumber,
+          ifsc: vendorProfile.ifsc,
+          accountHolder: vendorProfile.accountHolder || vendorProfile.companyName,
+          upiId: vendorProfile.upiId,
+          signatory: vendorProfile.signatory || 'Authorized Signatory'
+        }
+      });
     } catch (e) {
       console.warn('Profile save notice', e);
     }
@@ -275,6 +284,75 @@ export default function ConsolidatedInvoiceModal({
                 Is month ({selectedMonth}) me koi store cleaning visit record nahi mila.
               </div>
             )}
+          </div>
+
+          {/* Vendor Bank Details Confirmation & Quick Edit Card */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Payment &amp; Bank Details (Will be printed on this bill):</span>
+              </span>
+              {onOpenBillSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenBillSettings();
+                  }}
+                  className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>Full Bill Settings</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Bank Name</label>
+                <input
+                  type="text"
+                  value={vendorProfile.bankName || ''}
+                  onChange={(e) => setVendorProfile(prev => ({ ...prev, bankName: e.target.value }))}
+                  placeholder="e.g. HDFC Bank"
+                  className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Account Number</label>
+                <input
+                  type="text"
+                  value={vendorProfile.accountNumber || ''}
+                  onChange={(e) => setVendorProfile(prev => ({ ...prev, accountNumber: e.target.value }))}
+                  placeholder="A/c Number"
+                  className="w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">IFSC Code</label>
+                <input
+                  type="text"
+                  value={vendorProfile.ifsc || ''}
+                  onChange={(e) => setVendorProfile(prev => ({ ...prev, ifsc: e.target.value.toUpperCase() }))}
+                  placeholder="IFSC"
+                  className="w-full px-2.5 py-1.5 text-xs font-mono uppercase font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">UPI ID</label>
+                <input
+                  type="text"
+                  value={vendorProfile.upiId || ''}
+                  onChange={(e) => setVendorProfile(prev => ({ ...prev, upiId: e.target.value }))}
+                  placeholder="UPI ID"
+                  className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Invoice Meta Customization */}

@@ -34,30 +34,30 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     const bBySettings = billConfig.billedBy || {};
     const bToSettings = billConfig.billedTo || {};
 
-    const vendorName = bBySettings.companyName || vendorProfile.companyName || 'SK ENTERPRISES';
-    const vendorTagline = bBySettings.tagline || vendorProfile.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
-    const vendorPhone = bBySettings.phone || vendorProfile.phone || '09594023629';
-    const vendorEmail = bBySettings.email || vendorProfile.email || 'skenterprises.clean@gmail.com';
-    const vendorAddress = bBySettings.address || vendorProfile.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
-    const vendorGst = bBySettings.gstin || bBySettings.pan || vendorProfile.gstin || '27OQCPS0083R1ZU';
-    const vendorState = bBySettings.state || vendorProfile.state || 'Maharashtra';
-    const vendorStateCode = bBySettings.stateCode || vendorProfile.stateCode || '27';
+    const vendorName = vendorProfile.companyName || bBySettings.companyName || 'SK ENTERPRISES';
+    const vendorTagline = vendorProfile.tagline || bBySettings.tagline || 'FACILITY MANAGEMENT & INDUSTRIAL DEEP CLEANING SOLUTIONS';
+    const vendorPhone = vendorProfile.phone || bBySettings.phone || '09594023629';
+    const vendorEmail = vendorProfile.email || bBySettings.email || 'skenterprises.clean@gmail.com';
+    const vendorAddress = vendorProfile.address || bBySettings.address || '303, Panchsheel Chs Ltd., Sector -2, Taloja Phase -01, Navi Mumbai';
+    const vendorGst = vendorProfile.gstin || bBySettings.gstin || bBySettings.pan || '27OQCPS0083R1ZU';
+    const vendorState = vendorProfile.state || bBySettings.state || 'Maharashtra';
+    const vendorStateCode = vendorProfile.stateCode || bBySettings.stateCode || '27';
 
-    // Bank Details: Bill Settings is the absolute Source of Truth
-    const bankName = bBySettings.bankName || vendorProfile.bankName || 'HDFC Bank';
-    const bankAcc = bBySettings.accountNumber || vendorProfile.accountNumber || '50200012345678';
-    const ifsc = bBySettings.ifsc || vendorProfile.ifsc || 'HDFC0001234';
-    const accountHolder = bBySettings.accountHolder || vendorProfile.accountHolder || vendorName;
-    const upiId = bBySettings.upiId || vendorProfile.upiId || 'cleanpro@hdfcbank';
-    const signatoryTitle = bBySettings.signatory || vendorProfile.signatory || 'Authorized Signatory';
+    // Bank Details: Priority: Direct Modal Edit -> Saved Bill Settings -> Fallback
+    const bankName = vendorProfile.bankName || bBySettings.bankName || 'HDFC Bank';
+    const bankAcc = vendorProfile.accountNumber || bBySettings.accountNumber || '50200012345678';
+    const ifsc = vendorProfile.ifsc || bBySettings.ifsc || 'HDFC0001234';
+    const accountHolder = vendorProfile.accountHolder || bBySettings.accountHolder || vendorName;
+    const upiId = vendorProfile.upiId || bBySettings.upiId || 'cleanpro@hdfcbank';
+    const signatoryTitle = vendorProfile.signatory || bBySettings.signatory || 'Authorized Signatory';
 
     // Billed To (Client Company)
-    const clientName = bTo.companyName || 'Blinkit Commerce Private Limited';
-    const clientDivision = bTo.division || 'Corporate Office & Dark Store Operations Division';
-    const clientAddress = bTo.address || 'Ground Floor, Pioneer Square, Sector 62, Golf Course Ext Rd, Gurugram';
-    const clientGstin = bTo.gstin || '';
-    const clientState = bTo.state || '';
-    const clientStateCode = bTo.stateCode || '';
+    const clientName = bToSettings.companyName || 'Blinkit Commerce Private Limited';
+    const clientDivision = bToSettings.division || 'Corporate Office & Dark Store Operations Division';
+    const clientAddress = bToSettings.address || 'Ground Floor, Pioneer Square, Sector 62, Golf Course Ext Rd, Gurugram';
+    const clientGstin = bToSettings.gstin || '';
+    const clientState = bToSettings.state || '';
+    const clientStateCode = bToSettings.stateCode || '';
 
     const monthLabel = invoiceMeta.monthLabel || 'Monthly Consolidated Billing';
     const invoiceNo = invoiceMeta.invoiceNumber || `INV-CONS-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;

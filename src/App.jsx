@@ -300,11 +300,15 @@ export default function App() {
           syncSmartCredentials(data.appSettings);
           if (data.appSettings.billSettings) {
             try {
+              const serverBill = data.appSettings.billSettings;
               const currentSaved = localStorage.getItem('blinkit_bill_settings_v1');
-              if (!currentSaved) {
-                localStorage.setItem('blinkit_bill_settings_v1', JSON.stringify(data.appSettings.billSettings));
-                window.dispatchEvent(new CustomEvent('bill-settings-updated', { detail: data.appSettings.billSettings }));
-              }
+              const localParsed = currentSaved ? JSON.parse(currentSaved) : {};
+              const merged = {
+                billedBy: { ...(localParsed.billedBy || {}), ...(serverBill.billedBy || {}) },
+                billedTo: { ...(localParsed.billedTo || {}), ...(serverBill.billedTo || {}) }
+              };
+              localStorage.setItem('blinkit_bill_settings_v1', JSON.stringify(merged));
+              window.dispatchEvent(new CustomEvent('bill-settings-updated', { detail: merged }));
             } catch (e) {}
           }
         }

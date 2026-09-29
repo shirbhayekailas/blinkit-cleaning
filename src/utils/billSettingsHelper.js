@@ -1,3 +1,5 @@
+import { saveCloudBillSettings } from '../services/api';
+
 /**
  * Bill Settings Helper
  * Manages configuration for:
@@ -76,11 +78,9 @@ export function saveBillSettings(settings) {
 
     window.dispatchEvent(new CustomEvent('bill-settings-updated', { detail: merged }));
 
-    // Asynchronously save to cloud database
+    // Persist to cloud database
     try {
-      import('../services/api').then(({ saveCloudBillSettings }) => {
-        saveCloudBillSettings(merged);
-      }).catch(() => {});
+      saveCloudBillSettings(merged);
     } catch (e) {}
 
     return true;
