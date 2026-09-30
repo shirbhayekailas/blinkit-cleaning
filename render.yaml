@@ -3,10 +3,12 @@ services:
     name: blinkit-cleaning-tracker
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: node server.cjs
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: ELECTRON_SKIP_BINARY_DOWNLOAD
+        value: "1"

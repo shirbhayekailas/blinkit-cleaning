@@ -578,6 +578,8 @@ app.post('/api/auth/sync-credentials', (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: 'sync-credentials error: ' + err.message });
   }
+});
+
 // Bill Settings endpoint (Cloud persistence for bank & company details)
 app.post('/api/settings/bill', (req, res) => {
   try {
