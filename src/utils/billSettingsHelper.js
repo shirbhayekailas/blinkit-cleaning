@@ -1,4 +1,5 @@
 import { saveCloudBillSettings } from '../services/api';
+import { DEFAULT_SK_LOGO } from './defaultLogo';
 
 /**
  * Bill Settings Helper
@@ -19,6 +20,7 @@ export const DEFAULT_BILL_SETTINGS = {
     stateCode: '27',
     phone: '09594023629',
     email: 'skenterprises.clean@gmail.com',
+    logoUrl: DEFAULT_SK_LOGO,
     bankName: 'HDFC Bank',
     accountNumber: '50200012345678',
     ifsc: 'HDFC0001234',
@@ -50,7 +52,13 @@ export function getBillSettings() {
     if (saved) {
       const parsed = JSON.parse(saved);
       return {
-        billedBy: { ...DEFAULT_BILL_SETTINGS.billedBy, ...(parsed.billedBy || {}) },
+        billedBy: {
+          ...DEFAULT_BILL_SETTINGS.billedBy,
+          ...(parsed.billedBy || {}),
+          logoUrl: (parsed.billedBy && parsed.billedBy.logoUrl !== undefined)
+            ? parsed.billedBy.logoUrl
+            : DEFAULT_SK_LOGO
+        },
         billedTo: { ...DEFAULT_BILL_SETTINGS.billedTo, ...(parsed.billedTo || {}) }
       };
     }

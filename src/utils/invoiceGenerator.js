@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import { getBillSettings } from './billSettingsHelper';
+import { DEFAULT_SK_LOGO } from './defaultLogo';
 
 function runAutoTable(doc, options) {
   try {
@@ -40,6 +41,7 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const vendorGst = bBySettings.gstin || bBySettings.pan || vendorProfile.gstin || '27OQCPS0083R1ZU';
     const vendorState = bBySettings.state || vendorProfile.state || 'Maharashtra';
     const vendorStateCode = bBySettings.stateCode || vendorProfile.stateCode || '27';
+    const vendorLogo = vendorProfile.logoUrl || bBySettings.logoUrl || DEFAULT_SK_LOGO;
 
     // Bank Details: Priority: Direct Modal Edit -> Saved Bill Settings -> Fallback
     const bankName = vendorProfile.bankName || bBySettings.bankName || 'HDFC Bank';
@@ -75,21 +77,39 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const logoX = margin;
     const logoY = 7;
     const logoSize = 18;
-    doc.setFillColor(30, 41, 59); // Slate-800
-    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F');
-    doc.setDrawColor(245, 158, 11); // Amber-500 gold border
-    doc.setLineWidth(0.8);
-    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'S');
+    let logoDrawn = false;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(248, 203, 70); // Gold
-    const logoLetters = (vendorName || 'SK').slice(0, 2).toUpperCase();
-    doc.text(logoLetters, logoX + (logoSize / 2), logoY + 11, { align: 'center' });
+    if (vendorLogo) {
+      try {
+        let fmt = 'JPEG';
+        if (typeof vendorLogo === 'string' && vendorLogo.includes('image/png')) fmt = 'PNG';
+        doc.addImage(vendorLogo, fmt, logoX, logoY, logoSize, logoSize);
+        doc.setDrawColor(245, 158, 11); // Gold border
+        doc.setLineWidth(0.6);
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 2, 2, 'S');
+        logoDrawn = true;
+      } catch (err) {
+        console.warn('Could not add image logo, using emblem fallback:', err);
+      }
+    }
 
-    doc.setFontSize(5);
-    doc.setTextColor(203, 213, 225);
-    doc.text('FACILITY', logoX + (logoSize / 2), logoY + 15.5, { align: 'center' });
+    if (!logoDrawn) {
+      doc.setFillColor(30, 41, 59); // Slate-800
+      doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F');
+      doc.setDrawColor(245, 158, 11); // Amber-500 gold border
+      doc.setLineWidth(0.8);
+      doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(248, 203, 70); // Gold
+      const logoLetters = (vendorName || 'SK').slice(0, 2).toUpperCase();
+      doc.text(logoLetters, logoX + (logoSize / 2), logoY + 11, { align: 'center' });
+
+      doc.setFontSize(5);
+      doc.setTextColor(203, 213, 225);
+      doc.text('FACILITY', logoX + (logoSize / 2), logoY + 15.5, { align: 'center' });
+    }
 
     // Company Name & Tagline
     const titleX = logoX + logoSize + 4;

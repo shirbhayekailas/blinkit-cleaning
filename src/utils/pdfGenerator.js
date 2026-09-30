@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getBillSettings } from './billSettingsHelper';
+import { DEFAULT_SK_LOGO } from './defaultLogo';
 
 // Safe helper for autoTable compatibility across ES modules and bundles
 function runAutoTable(doc, options) {
@@ -40,24 +42,45 @@ export function generateCleaningPDF(cleaning) {
     doc.setFillColor(12, 131, 31); // Blinkit Green Accent
     doc.rect(0, bannerHeight, pageWidth, 2.5, 'F');
 
-    // SK ENTERPRISES Logo Crest / Emblem
+    // SK ENTERPRISES Logo
+    const billConfig = getBillSettings();
+    const vendorLogo = billConfig.billedBy?.logoUrl || DEFAULT_SK_LOGO;
+    const vendorName = billConfig.billedBy?.companyName || 'SK ENTERPRISES';
     const logoX = 14;
     const logoY = 6.5;
     const logoSize = 17;
-    doc.setFillColor(30, 41, 59); // Slate-800
-    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F');
-    doc.setDrawColor(245, 158, 11); // Amber-500 gold border
-    doc.setLineWidth(0.8);
-    doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'S');
+    let logoDrawn = false;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12.5);
-    doc.setTextColor(248, 203, 70); // Gold
-    doc.text('SK', logoX + (logoSize / 2), logoY + 10.5, { align: 'center' });
+    if (vendorLogo) {
+      try {
+        let fmt = 'JPEG';
+        if (typeof vendorLogo === 'string' && vendorLogo.includes('image/png')) fmt = 'PNG';
+        doc.addImage(vendorLogo, fmt, logoX, logoY, logoSize, logoSize);
+        doc.setDrawColor(245, 158, 11);
+        doc.setLineWidth(0.6);
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 2, 2, 'S');
+        logoDrawn = true;
+      } catch (err) {
+        console.warn('PDF inspection logo error, falling back:', err);
+      }
+    }
 
-    doc.setFontSize(4.5);
-    doc.setTextColor(203, 213, 225);
-    doc.text('FACILITY', logoX + (logoSize / 2), logoY + 14.8, { align: 'center' });
+    if (!logoDrawn) {
+      doc.setFillColor(30, 41, 59); // Slate-800
+      doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F');
+      doc.setDrawColor(245, 158, 11); // Amber-500 gold border
+      doc.setLineWidth(0.8);
+      doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12.5);
+      doc.setTextColor(248, 203, 70); // Gold
+      doc.text('SK', logoX + (logoSize / 2), logoY + 10.5, { align: 'center' });
+
+      doc.setFontSize(4.5);
+      doc.setTextColor(203, 213, 225);
+      doc.text('FACILITY', logoX + (logoSize / 2), logoY + 14.8, { align: 'center' });
+    }
 
     // Company Name & Subtitle
     const titleX = logoX + logoSize + 4;

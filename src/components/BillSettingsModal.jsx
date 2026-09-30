@@ -16,9 +16,14 @@ import {
   User,
   CheckCircle2,
   Sparkles,
-  Sliders
+  Sliders,
+  Upload,
+  Download,
+  Image as ImageIcon,
+  Trash2
 } from 'lucide-react';
 import { getBillSettings, saveBillSettings, DEFAULT_BILL_SETTINGS } from '../utils/billSettingsHelper';
+import { DEFAULT_SK_LOGO } from '../utils/defaultLogo';
 
 export default function BillSettingsModal({ isOpen, onClose }) {
   const { t } = useLanguage();
@@ -43,6 +48,55 @@ export default function BillSettingsModal({ isOpen, onClose }) {
         [field]: value
       }
     }));
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Kripya valid image file (PNG, JPG, SVG, WebP) select karein.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 400;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+        handleBilledByChange('logoUrl', compressedBase64);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDownloadLogo = () => {
+    const link = document.createElement('a');
+    link.href = settings.billedBy.logoUrl || '/sk_enterprises_logo.jpg';
+    link.download = 'SK_Enterprises_Official_Logo.jpg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleBilledToChange = (field, value) => {
@@ -165,6 +219,82 @@ export default function BillSettingsModal({ isOpen, onClose }) {
                 <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
                   <strong>Aapki Company Details:</strong> Ye details har Tax Invoice ke letterhead header, GST section aur payment bank details me print hongi.
                 </p>
+              </div>
+
+              {/* Official Company Logo Upload / Customization Card */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Company Brand Logo (Print on Invoices &amp; Certificates)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadLogo}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl transition cursor-pointer"
+                    title="Download Official Logo File"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Logo File</span>
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Logo Preview */}
+                  <div className="relative w-20 h-20 rounded-2xl bg-slate-900 border-2 border-amber-500/40 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-md">
+                    {settings.billedBy.logoUrl ? (
+                      <img 
+                        src={settings.billedBy.logoUrl} 
+                        alt="Company Logo" 
+                        className="w-full h-full object-contain rounded-xl"
+                      />
+                    ) : (
+                      <div className="text-amber-400 font-black text-lg">SK</div>
+                    )}
+                  </div>
+
+                  {/* Actions & Description */}
+                  <div className="flex-1 space-y-2 text-center sm:text-left">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Ye logo aapke har Single Store Tax Invoice, Monthly Consolidated Invoice aur Hygiene Certificates ke letterhead par print hoga.
+                    </p>
+                    
+                    <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition active:scale-95">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Custom Logo</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={handleLogoUpload} 
+                          className="hidden" 
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => handleBilledByChange('logoUrl', DEFAULT_SK_LOGO)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-200/50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Use SK Enterprises Logo</span>
+                      </button>
+
+                      {settings.billedBy.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleBilledByChange('logoUrl', '')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -539,8 +669,12 @@ export default function BillSettingsModal({ isOpen, onClose }) {
                 {/* Header Banner Preview */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-800 border-2 border-amber-400 flex items-center justify-center font-black text-amber-400 text-sm">
-                      SK
+                    <div className="w-11 h-11 rounded-2xl bg-slate-800 border-2 border-amber-400 flex items-center justify-center font-black text-amber-400 text-sm overflow-hidden shrink-0">
+                      {settings.billedBy.logoUrl ? (
+                        <img src={settings.billedBy.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                      ) : (
+                        'SK'
+                      )}
                     </div>
                     <div>
                       <div className="text-base font-extrabold text-amber-400 leading-tight">

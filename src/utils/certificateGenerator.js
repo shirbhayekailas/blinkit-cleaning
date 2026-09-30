@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { getBillSettings } from './billSettingsHelper';
+import { DEFAULT_SK_LOGO } from './defaultLogo';
 
 export function generateHygieneCertificate(cleaning) {
   if (!cleaning) return;
@@ -45,22 +46,41 @@ export function generateHygieneCertificate(cleaning) {
   doc.setFillColor(12, 131, 31); // Green Accent
   doc.rect(20, 40, width - 40, 1.5, 'F');
 
-  // SK Logo Crest inside Header Banner
-  const crestText = vendorName.slice(0, 2).toUpperCase() || 'SK';
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'F');
-  doc.setDrawColor(245, 158, 11);
-  doc.setLineWidth(0.7);
-  doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'S');
+  // SK Logo inside Header Banner
+  const vendorLogo = bBy.logoUrl || DEFAULT_SK_LOGO;
+  let logoDrawn = false;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12.5);
-  doc.setTextColor(248, 203, 70); // Gold
-  doc.text(crestText, 34.5, 29.5, { align: 'center' });
+  if (vendorLogo) {
+    try {
+      let fmt = 'JPEG';
+      if (typeof vendorLogo === 'string' && vendorLogo.includes('image/png')) fmt = 'PNG';
+      doc.addImage(vendorLogo, fmt, 26, 19, 17, 17);
+      doc.setDrawColor(245, 158, 11);
+      doc.setLineWidth(0.6);
+      doc.roundedRect(26, 19, 17, 17, 2, 2, 'S');
+      logoDrawn = true;
+    } catch (err) {
+      console.warn('Certificate image logo error, falling back:', err);
+    }
+  }
 
-  doc.setFontSize(4.5);
-  doc.setTextColor(203, 213, 225);
-  doc.text('FACILITY', 34.5, 34, { align: 'center' });
+  if (!logoDrawn) {
+    const crestText = vendorName.slice(0, 2).toUpperCase() || 'SK';
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'F');
+    doc.setDrawColor(245, 158, 11);
+    doc.setLineWidth(0.7);
+    doc.roundedRect(26, 19, 17, 17, 2.5, 2.5, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12.5);
+    doc.setTextColor(248, 203, 70); // Gold
+    doc.text(crestText, 34.5, 29.5, { align: 'center' });
+
+    doc.setFontSize(4.5);
+    doc.setTextColor(203, 213, 225);
+    doc.text('FACILITY', 34.5, 34, { align: 'center' });
+  }
 
   // Company Name & Address
   doc.setFont('helvetica', 'bold');
