@@ -47,7 +47,8 @@ export function generateHygieneCertificate(cleaning) {
   doc.rect(20, 40, width - 40, 1.5, 'F');
 
   // SK Logo inside Header Banner
-  const vendorLogo = bBy.logoUrl || DEFAULT_SK_LOGO;
+  const rawLogo = bBy.logoUrl;
+  const vendorLogo = (rawLogo && typeof rawLogo === 'string' && rawLogo.trim() !== '' && rawLogo !== 'none') ? rawLogo : null;
   let logoDrawn = false;
 
   if (vendorLogo) {

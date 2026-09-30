@@ -41,7 +41,10 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const vendorGst = bBySettings.gstin || bBySettings.pan || vendorProfile.gstin || '27OQCPS0083R1ZU';
     const vendorState = bBySettings.state || vendorProfile.state || 'Maharashtra';
     const vendorStateCode = bBySettings.stateCode || vendorProfile.stateCode || '27';
-    const vendorLogo = vendorProfile.logoUrl || bBySettings.logoUrl || DEFAULT_SK_LOGO;
+    
+    // Logo determination: Respect user removal (if empty or 'none', do NOT show logo)
+    const rawLogo = (vendorProfile.logoUrl !== undefined) ? vendorProfile.logoUrl : bBySettings.logoUrl;
+    const vendorLogo = (rawLogo && typeof rawLogo === 'string' && rawLogo.trim() !== '' && rawLogo !== 'none') ? rawLogo : null;
 
     // Bank Details: Priority: Direct Modal Edit -> Saved Bill Settings -> Fallback
     const bankName = vendorProfile.bankName || bBySettings.bankName || 'HDFC Bank';

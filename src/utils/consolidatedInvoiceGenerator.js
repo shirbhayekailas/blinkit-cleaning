@@ -43,7 +43,10 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     const vendorGst = vendorProfile.gstin || bBySettings.gstin || bBySettings.pan || '27OQCPS0083R1ZU';
     const vendorState = vendorProfile.state || bBySettings.state || 'Maharashtra';
     const vendorStateCode = vendorProfile.stateCode || bBySettings.stateCode || '27';
-    const vendorLogo = vendorProfile.logoUrl || bBySettings.logoUrl || DEFAULT_SK_LOGO;
+    
+    // Logo determination: Respect user removal (if empty or 'none', do NOT show logo)
+    const rawLogo = (vendorProfile.logoUrl !== undefined) ? vendorProfile.logoUrl : bBySettings.logoUrl;
+    const vendorLogo = (rawLogo && typeof rawLogo === 'string' && rawLogo.trim() !== '' && rawLogo !== 'none') ? rawLogo : null;
 
     // Bank Details: Priority: Direct Modal Edit -> Saved Bill Settings -> Fallback
     const bankName = vendorProfile.bankName || bBySettings.bankName || 'HDFC Bank';

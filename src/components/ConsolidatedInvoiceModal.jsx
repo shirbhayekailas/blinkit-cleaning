@@ -63,6 +63,7 @@ export default function ConsolidatedInvoiceModal({
         email: currentBilledBy.email || DEFAULT_SK_PROFILE.email,
         address: currentBilledBy.address || DEFAULT_SK_PROFILE.address,
         gstin: currentBilledBy.gstin || DEFAULT_SK_PROFILE.gstin,
+        logoUrl: currentBilledBy.logoUrl !== undefined ? currentBilledBy.logoUrl : '',
         bankName: currentBilledBy.bankName || DEFAULT_SK_PROFILE.bankName,
         accountNumber: currentBilledBy.accountNumber || DEFAULT_SK_PROFILE.accountNumber,
         ifsc: currentBilledBy.ifsc || DEFAULT_SK_PROFILE.ifsc,

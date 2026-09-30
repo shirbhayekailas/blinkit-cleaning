@@ -44,7 +44,8 @@ export function generateCleaningPDF(cleaning) {
 
     // SK ENTERPRISES Logo
     const billConfig = getBillSettings();
-    const vendorLogo = billConfig.billedBy?.logoUrl || DEFAULT_SK_LOGO;
+    const rawLogo = billConfig.billedBy?.logoUrl;
+    const vendorLogo = (rawLogo && typeof rawLogo === 'string' && rawLogo.trim() !== '' && rawLogo !== 'none') ? rawLogo : null;
     const vendorName = billConfig.billedBy?.companyName || 'SK ENTERPRISES';
     const logoX = 14;
     const logoY = 6.5;
