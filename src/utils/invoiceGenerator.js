@@ -41,13 +41,13 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     const vendorState = bBySettings.state || vendorProfile.state || 'Maharashtra';
     const vendorStateCode = bBySettings.stateCode || vendorProfile.stateCode || '27';
 
-    // Bank Details: Bill Settings is the absolute Source of Truth
-    const bankName = bBySettings.bankName || vendorProfile.bankName || 'HDFC Bank';
-    const bankAcc = bBySettings.accountNumber || vendorProfile.accountNumber || '50200012345678';
-    const ifsc = bBySettings.ifsc || vendorProfile.ifsc || 'HDFC0001234';
-    const accountHolder = bBySettings.accountHolder || vendorProfile.accountHolder || vendorName;
-    const upiId = bBySettings.upiId || vendorProfile.upiId || 'cleanpro@hdfcbank';
-    const signatoryTitle = bBySettings.signatory || vendorProfile.signatory || 'Authorized Signatory';
+    // Bank Details: Priority: Direct Modal Edit -> Saved Bill Settings -> Fallback
+    const bankName = vendorProfile.bankName || bBySettings.bankName || 'HDFC Bank';
+    const bankAcc = vendorProfile.accountNumber || bBySettings.accountNumber || '50200012345678';
+    const ifsc = vendorProfile.ifsc || bBySettings.ifsc || 'HDFC0001234';
+    const accountHolder = vendorProfile.accountHolder || bBySettings.accountHolder || vendorName;
+    const upiId = vendorProfile.upiId || bBySettings.upiId || 'cleanpro@hdfcbank';
+    const signatoryTitle = vendorProfile.signatory || bBySettings.signatory || 'Authorized Signatory';
 
     // Billed To (Client Company)
     const clientName = bTo.companyName || 'Blinkit Commerce Private Limited';
@@ -192,7 +192,6 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
       doc.text(managerLines, margin, currentLeftY);
       currentLeftY += managerLines.length * 4.0;
     }
-    currentLeftY += managerLines.length * 4.2;
 
     // Right Column: Invoice Details
     let currentRightY = startY;
