@@ -183,12 +183,12 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     doc.text(`Total Dark Stores Invoiced: ${cleanings.length} Stores`, margin, currentLeftY);
     currentLeftY += 4.2;
 
-    // Right: Invoice Meta
+    // Right: Invoice Details
     let currentRightY = startY;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
-    doc.text('INVOICE METADATA:', rightColX, currentRightY);
+    doc.text('INVOICE DETAILS:', rightColX, currentRightY);
     currentRightY += 4.8;
 
     doc.setFont('helvetica', 'normal');
