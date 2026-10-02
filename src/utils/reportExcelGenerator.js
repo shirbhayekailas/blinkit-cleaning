@@ -273,15 +273,31 @@ function applyCorporateTheme(ws, {
           // Check previous label to determine if this cell is currency or integer count!
           const labelRef = `${getColLetter(c - 1)}6`;
           const labelText = ws[labelRef] && typeof ws[labelRef].v === 'string' ? ws[labelRef].v.toLowerCase() : '';
-          const isCurrency = labelText.includes('billed') || 
-                             labelText.includes('invoiced') || 
-                             labelText.includes('received') || 
-                             labelText.includes('pending') || 
-                             labelText.includes('amount') || 
-                             labelText.includes('dues') || 
-                             labelText.includes('balance') || 
-                             labelText.includes('collection') || 
-                             labelText.includes('value');
+          
+          const isExplicitCount = labelText.includes('store') || 
+                                  labelText.includes('stores') || 
+                                  labelText.includes('cleaning') || 
+                                  labelText.includes('cleanings') || 
+                                  labelText.includes('count') || 
+                                  labelText.includes('record') || 
+                                  labelText.includes('records') || 
+                                  labelText.includes('frequency') || 
+                                  labelText.includes('rate') || 
+                                  labelText.includes('coverage') || 
+                                  labelText.includes('days') || 
+                                  labelText.includes('headcount');
+
+          const isCurrency = !isExplicitCount && (
+            labelText.includes('billed') || 
+            labelText.includes('invoiced') || 
+            labelText.includes('received') || 
+            labelText.includes('amount') || 
+            labelText.includes('dues') || 
+            labelText.includes('balance') || 
+            labelText.includes('collection') || 
+            labelText.includes('revenue') || 
+            labelText.includes('price')
+          );
 
           if (typeof ws[ref].v === 'number') {
             ws[ref].t = 'n';
@@ -1170,25 +1186,25 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
   let summaryRow = [];
   if (includeFinancials) {
     summaryRow = [
-      'TOTAL / SUMMARY',
+      'GRAND TOTAL',
       '',
       '',
       '',
-      `Total Stores: ${storeRows.length}`,
+      `Total Registered Stores: ${storeRows.length}`,
       sumCleanings,
       sumBilled,
       sumRecv,
       sumPend,
-      '',
+      sumPend === 0 ? 'All Settled' : 'Pending Dues Exist',
       ''
     ];
   } else {
     summaryRow = [
-      'TOTAL / SUMMARY',
+      'GRAND TOTAL',
       '',
       '',
       '',
-      `Total Stores: ${storeRows.length}`,
+      `Total Registered Stores: ${storeRows.length}`,
       sumCleanings,
       '',
       '',

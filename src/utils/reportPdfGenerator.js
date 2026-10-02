@@ -274,6 +274,7 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
       '#', 'Store Code', 'Store Name', 'City', 'Store Address', 'Clean Date', 'Aging', 
       'Invoiced', 'Received', 'Pending Due', 'Status'
     ]],
+    body: tableRows,
     foot: [[
       { 
         content: `TOTAL (${pendingList.length} Stores Due)`, 
@@ -417,6 +418,7 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
       '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 'Paid Date', 
       'Payment Mode', 'UTR / Ref No', 'Invoiced', 'Paid Amount', 'Status'
     ]],
+    body: tableRows,
     foot: [[
       { 
         content: `TOTAL (${completedList.length} Stores Settled)`, 
