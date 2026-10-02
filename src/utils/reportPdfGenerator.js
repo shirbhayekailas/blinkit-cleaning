@@ -281,18 +281,21 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
       '#', 'Store Code', 'Store Name', 'City', 'Store Address', 'Clean Date', 'Aging', 
       'Invoiced', 'Received', 'Pending Due', 'Status'
     ]],
-    body: tableRows,
     foot: [[
-      'TOTAL', '', '', '', `${pendingList.length} Stores Due`, '', '',
-      `Rs ${totalBilled.toLocaleString('en-IN')}`,
-      `Rs ${totalRecv.toLocaleString('en-IN')}`,
-      `Rs ${totalPend.toLocaleString('en-IN')}`,
-      'OVERDUE'
+      { 
+        content: `TOTAL (${pendingList.length} Stores Due)`, 
+        colSpan: 7, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: `Rs ${totalBilled.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${totalRecv.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${totalPend.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [220, 38, 38] } },
+      { content: 'OVERDUE', styles: { halign: 'center', fontStyle: 'bold', fontSize: 8, textColor: [220, 38, 38] } }
     ]],
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8, minCellHeight: 8, valign: 'middle' },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 18, fontStyle: 'bold' },
@@ -421,17 +424,20 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
       '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 'Paid Date', 
       'Payment Mode', 'UTR / Ref No', 'Invoiced', 'Paid Amount', 'Status'
     ]],
-    body: tableRows,
     foot: [[
-      'TOTAL', '', '', '', '', '', '', `${completedList.length} Entries`,
-      `Rs ${totalBilled.toLocaleString('en-IN')}`,
-      `Rs ${totalRecv.toLocaleString('en-IN')}`,
-      'SETTLED'
+      { 
+        content: `TOTAL (${completedList.length} Stores Settled)`, 
+        colSpan: 8, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: `Rs ${totalBilled.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${totalRecv.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [5, 150, 105] } },
+      { content: 'SETTLED', styles: { halign: 'center', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } }
     ]],
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [12, 131, 31], textColor: [255, 255, 255], fontStyle: 'bold' },
-    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8, minCellHeight: 8, valign: 'middle' },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 18, fontStyle: 'bold' },
@@ -536,11 +542,15 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
     ];
 
     footCols = [
-      'TOTAL', '', '', '', '', `${cleanings.length} Records`, '', '',
-      `Rs ${totalBilled.toLocaleString('en-IN')}`,
-      `Rs ${totalRecv.toLocaleString('en-IN')}`,
-      `Rs ${totalPend.toLocaleString('en-IN')}`,
-      ''
+      { 
+        content: `TOTAL (${cleanings.length} Cleanings Recorded)`, 
+        colSpan: 8, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: `Rs ${totalBilled.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${totalRecv.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } },
+      { content: `Rs ${totalPend.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: totalPend > 0 ? [220, 38, 38] : [15, 23, 42] } },
+      { content: totalPend === 0 ? 'CLEARED' : 'PENDING', styles: { halign: 'center', fontStyle: 'bold', fontSize: 8 } }
     ];
 
     colStyles = {
@@ -593,7 +603,12 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
     ];
 
     footCols = [
-      'TOTAL', '', '', '', '', '', '', `${cleanings.length} Executions`, '', '', '', 'VERIFIED'
+      { 
+        content: `TOTAL (${cleanings.length} Cleanings Executed & Audited)`, 
+        colSpan: 11, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: 'VERIFIED', styles: { halign: 'center', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } }
     ];
 
     colStyles = {
@@ -620,7 +635,7 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8, minCellHeight: 8, valign: 'middle' },
     columnStyles: colStyles
   });
 
@@ -765,12 +780,16 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
     ];
 
     footCols = [
-      'TOTAL', '', '', `${storeRows.length} Stores`,
-      sumCleanings,
-      `Rs ${sumBilled.toLocaleString('en-IN')}`,
-      `Rs ${sumRecv.toLocaleString('en-IN')}`,
-      `Rs ${sumPend.toLocaleString('en-IN')}`,
-      '', ''
+      { 
+        content: `TOTAL (${storeRows.length} Registered Stores)`, 
+        colSpan: 4, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: String(sumCleanings), styles: { halign: 'center', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${sumBilled.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${sumRecv.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } },
+      { content: `Rs ${sumPend.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: sumPend > 0 ? [220, 38, 38] : [15, 23, 42] } },
+      { content: sumPend === 0 ? 'CLEARED' : 'PENDING', colSpan: 2, styles: { halign: 'center', fontStyle: 'bold', fontSize: 8 } }
     ];
 
     colStyles = {
@@ -816,8 +835,13 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
     ];
 
     footCols = [
-      'TOTAL', '', '', '', `${storeRows.length} Stores`,
-      sumCleanings, '', '', 'NETWORK AUDITED'
+      { 
+        content: `TOTAL (${storeRows.length} Registered Stores)`, 
+        colSpan: 5, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: String(sumCleanings), styles: { halign: 'center', fontStyle: 'bold', fontSize: 8 } },
+      { content: 'AUDITED', colSpan: 3, styles: { halign: 'center', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } }
     ];
 
     colStyles = {
@@ -841,7 +865,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8, minCellHeight: 8, valign: 'middle' },
     columnStyles: colStyles
   });
 
@@ -931,16 +955,20 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
     ]],
     body: tableRows,
     foot: [[
-      'TOTAL', '', '', '', `${cleanings.length} Cleanings`,
-      `Rs ${totalBilled.toLocaleString('en-IN')}`,
-      `Rs ${totalReceived.toLocaleString('en-IN')}`,
-      `Rs ${totalPending.toLocaleString('en-IN')}`,
-      collectionRate
+      { 
+        content: `TOTAL ACCOUNTS SUMMARY (${cleanings.length} Cleanings Executed)`, 
+        colSpan: 5, 
+        styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
+      },
+      { content: `Rs ${totalBilled.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+      { content: `Rs ${totalReceived.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } },
+      { content: `Rs ${totalPending.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [220, 38, 38] } },
+      { content: collectionRate, styles: { halign: 'center', fontStyle: 'bold', fontSize: 8 } }
     ]],
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8, minCellHeight: 8, valign: 'middle' },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 20, fontStyle: 'bold' },
