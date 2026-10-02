@@ -385,14 +385,51 @@ function applyCorporateTheme(ws, {
 }
 
 /**
- * Natural Alphanumeric Sort by Store Code (e.g. ES27 -> ES30 -> ES55 -> ES87 -> ES149 -> ES154 -> ES300)
+ * Parse store code into prefix and numerical part (e.g., "ES27" -> prefix "ES", num 27)
+ */
+export function parseStoreCode(codeStr) {
+  if (!codeStr) return { prefix: '', num: 0, suffix: '', raw: '' };
+  const s = String(codeStr).trim();
+  const match = s.match(/^(\D*?)(\d+)(.*)$/);
+  if (match) {
+    return {
+      prefix: match[1].toUpperCase().trim(),
+      num: parseInt(match[2], 10),
+      suffix: match[3].toUpperCase().trim(),
+      raw: s
+    };
+  }
+  return { prefix: s.toUpperCase(), num: 0, suffix: '', raw: s };
+}
+
+/**
+ * Compare two store codes strictly by store number
+ */
+export function compareStoreCodes(codeA, codeB) {
+  const pA = parseStoreCode(codeA);
+  const pB = parseStoreCode(codeB);
+
+  // When both have numbers, compare numeric values
+  if (pA.num > 0 && pB.num > 0) {
+    const prefComp = pA.prefix.localeCompare(pB.prefix);
+    if (prefComp !== 0) return prefComp;
+    if (pA.num !== pB.num) return pA.num - pB.num;
+    return pA.suffix.localeCompare(pB.suffix);
+  }
+
+  // If one has number and other doesn't, number comes first
+  if (pA.num > 0 && pB.num === 0) return -1;
+  if (pA.num === 0 && pB.num > 0) return 1;
+
+  // Fallback to standard natural sort
+  return String(codeA || '').localeCompare(String(codeB || ''), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * Natural Alphanumeric Sort strictly by Store Number (e.g. ES27 -> ES30 -> ES55 -> ES87 -> ES149 -> ES154 -> ES300)
  */
 export function naturalSortByStoreCode(list = [], getCode = item => item.storeCode || item.code || '') {
-  return [...list].sort((a, b) => {
-    const codeA = String(getCode(a) || '').trim();
-    const codeB = String(getCode(b) || '').trim();
-    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
-  });
+  return [...list].sort((a, b) => compareStoreCodes(getCode(a), getCode(b)));
 }
 
 // ----------------------------------------------------------------------

@@ -21,6 +21,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
+import { naturalSortByStoreCode } from '../utils/reportExcelGenerator';
 
 export default function StoreLedgerView({
   stores = [],
@@ -35,12 +36,15 @@ export default function StoreLedgerView({
   onOpenReportsCenter
 }) {
   const { t } = useLanguage();
-  // Filter stores by search
-  const filteredStores = stores.filter(s => 
-    (s.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.storeCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.managerName || '').toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter stores by search and sort strictly by store number
+  const filteredStores = naturalSortByStoreCode(
+    stores.filter(s => 
+      (s.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.storeCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.managerName || '').toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    s => s.storeCode
   );
 
   return (

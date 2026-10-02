@@ -232,7 +232,7 @@ export default function ReportsCenterModal({
         list.push({ code, name: c.storeName || code });
       }
     });
-    return list.sort((a, b) => a.name.localeCompare(b.name));
+    return naturalSortByStoreCode(list, item => item.code);
   }, [stores, cleanings]);
 
   if (!isOpen) return null;

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getBillSettings } from './billSettingsHelper';
+import { naturalSortByStoreCode } from './reportExcelGenerator';
 
 // Safe helper for autoTable compatibility
 function runAutoTable(doc, options) {
@@ -202,14 +203,6 @@ function addFooterAndPageNumbers(doc) {
       { align: 'right' }
     );
   }
-}
-
-function naturalSortByStoreCode(list = [], getCode = item => item.storeCode || item.code || '') {
-  return [...list].sort((a, b) => {
-    const codeA = String(getCode(a) || '').trim();
-    const codeB = String(getCode(b) || '').trim();
-    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
-  });
 }
 
 // ----------------------------------------------------------------------

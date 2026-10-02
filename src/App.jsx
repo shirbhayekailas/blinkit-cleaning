@@ -33,6 +33,7 @@ import LoginLogsModal from './components/LoginLogsModal';
 import ReportsCenterModal from './components/ReportsCenterModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
+import { naturalSortByStoreCode } from './utils/reportExcelGenerator';
 import ToastContainer, { toast } from './components/Toast';
 import ConfirmModal from './components/ConfirmModal';
 import CommandPalette from './components/CommandPalette';
@@ -410,9 +411,9 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Derived state directly from serverData (sorted properly)
-  const cleanings = (serverData.cleanings || []).slice().sort((a, b) => (b.cleaningDate || '').localeCompare(a.cleaningDate || ''));
-  const stores = (serverData.stores || []).slice().sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || ''));
+  // Derived state directly from serverData (sorted strictly by store number)
+  const cleanings = naturalSortByStoreCode(serverData.cleanings || [], c => c.storeCode);
+  const stores = naturalSortByStoreCode(serverData.stores || [], s => s.storeCode);
   const supervisors = serverData.supervisors || [];
   const cleaners = serverData.cleaners || [];
   const issues = serverData.storeIssues || [];
