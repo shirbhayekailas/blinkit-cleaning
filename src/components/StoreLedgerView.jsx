@@ -17,7 +17,8 @@ import {
   Search,
   CheckCircle2,
   AlertCircle,
-  Share2
+  Share2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
 
@@ -30,7 +31,8 @@ export default function StoreLedgerView({
   onEditStore,
   onDeleteStore,
   onViewStoreHistory,
-  onLogCleaningForStore
+  onLogCleaningForStore,
+  onOpenReportsCenter
 }) {
   const { t } = useLanguage();
   // Filter stores by search
@@ -56,13 +58,26 @@ export default function StoreLedgerView({
           </p>
         </div>
 
-        <button
-          onClick={onAddNewStore}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 transition self-start sm:self-auto shrink-0"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>{t('ledger_add_store', 'Add New Store to Ledger')}</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          {onOpenReportsCenter && (
+            <button
+              onClick={onOpenReportsCenter}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-bold rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 shadow-2xs transition shrink-0"
+              title="Download formatted Store Ledger & Performance reports in Excel (.xlsx) and PDF (.pdf)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>{t('btn_reports', 'Ledger Reports (Excel / PDF)')}</span>
+            </button>
+          )}
+
+          <button
+            onClick={onAddNewStore}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 transition shrink-0"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>{t('ledger_add_store', 'Add New Store')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Stores Ledger Grid */}

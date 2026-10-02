@@ -30,6 +30,7 @@ import StoreQRModal from './components/StoreQRModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
+import ReportsCenterModal from './components/ReportsCenterModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
 import ToastContainer, { toast } from './components/Toast';
@@ -128,6 +129,7 @@ export default function App() {
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [isConsolidatedInvoiceOpen, setIsConsolidatedInvoiceOpen] = useState(false);
   const [isBillSettingsOpen, setIsBillSettingsOpen] = useState(false);
+  const [isReportsCenterOpen, setIsReportsCenterOpen] = useState(false);
   const [isChemicalModalOpen, setIsChemicalModalOpen] = useState(false);
   const [isCleanerKhataOpen, setIsCleanerKhataOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -935,6 +937,7 @@ export default function App() {
           setIsStoreModalOpen(true);
         }}
         onExportExcel={() => exportCleaningsToExcel(cleanings)}
+        onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
         onOpenBackup={() => setIsBackupOpen(true)}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -1084,6 +1087,7 @@ export default function App() {
               setClusterFilter={setClusterFilter}
               cycleFilter={cycleFilter}
               setCycleFilter={setCycleFilter}
+              onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
             />
 
             {/* Store Cards Grid / Records View */}
@@ -1100,12 +1104,20 @@ export default function App() {
                 </div>
 
                 {filteredCleanings.length > 0 && (
-                  <button
-                    onClick={() => exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx')}
-                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold self-start sm:self-auto"
-                  >
-                    Export filtered ({filteredCleanings.length})
-                  </button>
+                  <div className="flex items-center gap-3 self-start sm:self-auto">
+                    <button
+                      onClick={() => setIsReportsCenterOpen(true)}
+                      className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1"
+                    >
+                      <span>📊 {t('btn_reports', 'Reports Center')}</span>
+                    </button>
+                    <button
+                      onClick={() => exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx')}
+                      className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold"
+                    >
+                      Excel ({filteredCleanings.length})
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1208,6 +1220,7 @@ export default function App() {
             onDeleteStore={handleDeleteStore}
             onViewStoreHistory={(s) => setHistoryStore(s)}
             onLogCleaningForStore={handleLogCleaningForStore}
+            onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
           />
         )}
           </>
@@ -1327,6 +1340,13 @@ export default function App() {
       <BillSettingsModal
         isOpen={isBillSettingsOpen}
         onClose={() => setIsBillSettingsOpen(false)}
+      />
+
+      <ReportsCenterModal
+        isOpen={isReportsCenterOpen}
+        onClose={() => setIsReportsCenterOpen(false)}
+        cleanings={cleanings}
+        stores={stores}
       />
 
       <ChemicalTrackerModal
@@ -1457,6 +1477,7 @@ export default function App() {
         onOpenBillSettings={() => setIsBillSettingsOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
+        onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
         onExportExcel={() => exportCleaningsToExcel(cleanings)}
         onToggleDarkMode={() => setDarkMode(prev => !prev)}
         darkMode={darkMode}

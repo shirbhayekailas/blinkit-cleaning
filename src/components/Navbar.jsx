@@ -73,7 +73,8 @@ export default function Navbar({
   onOpenUserAccess,
   onChangeAdminPassword,
   onOpenLoginLogs,
-  onOpenCommandPalette
+  onOpenCommandPalette,
+  onOpenReportsCenter
 }) {
   const { t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -394,12 +395,12 @@ export default function Navbar({
                   </button>
 
                   <button
-                    onClick={onExportExcel}
-                    title="Export all data to Excel"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs"
+                    onClick={onOpenReportsCenter || onExportExcel}
+                    title="Comprehensive Reports & Audit Ledger (Excel & PDF)"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{t('btn_export_excel', 'Excel')}</span>
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>{t('btn_reports', 'Reports')}</span>
                   </button>
 
                   <button
@@ -807,15 +808,15 @@ export default function Navbar({
                   </button>
 
                   <button
-                    onClick={() => triggerMobileAction(onExportExcel)}
+                    onClick={() => triggerMobileAction(onOpenReportsCenter || onExportExcel)}
                     className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800 text-left transition"
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <Download className="w-5 h-5 text-emerald-600" />
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
                       <ChevronRight className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">{t('btn_export_excel', 'Export Excel')}</div>
-                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Full workbook</div>
+                    <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">{t('btn_reports', 'Reports & Ledgers')}</div>
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Excel (.xlsx) &amp; PDF (.pdf)</div>
                   </button>
 
                   <button

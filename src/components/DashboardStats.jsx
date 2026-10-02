@@ -22,7 +22,8 @@ function DashboardStats({
   clusterFilter = 'all',
   setClusterFilter,
   cycleFilter = 'all',
-  setCycleFilter
+  setCycleFilter,
+  onOpenReportsCenter
 }) {
   const { t } = useLanguage();
   const totalEntries = cleanings.length;
@@ -138,10 +139,21 @@ function DashboardStats({
         </div>
 
         {/* Card 4: Payment Pending */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 sm:p-5 border border-rose-100 dark:border-rose-900/30 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-rose-50/30 dark:from-slate-800 dark:to-rose-950/10">
+        <div 
+          onClick={onOpenReportsCenter}
+          className={`bg-white dark:bg-slate-800/90 rounded-2xl p-4 sm:p-5 border border-rose-100 dark:border-rose-900/30 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-rose-50/30 dark:from-slate-800 dark:to-rose-950/10 ${
+            onOpenReportsCenter ? 'cursor-pointer hover:shadow-md transition hover:border-rose-300 dark:hover:border-rose-700' : ''
+          }`}
+          title={onOpenReportsCenter ? "Click to view and export Pending Payments Report" : ""}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-              {t('dash_payment_pending', 'Payment Pending')}
+            <span className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+              <span>{t('dash_payment_pending', 'Payment Pending')}</span>
+              {onOpenReportsCenter && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-rose-200/60 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300 rounded">
+                  Report ↗
+                </span>
+              )}
             </span>
             <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center">
               <AlertCircle className="w-4 h-4" />

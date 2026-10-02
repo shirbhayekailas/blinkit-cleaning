@@ -39,6 +39,7 @@ export default function CommandPalette({
   onOpenBillSettings,
   onOpenNightRoute,
   onOpenMorningSummary,
+  onOpenReportsCenter,
   onExportExcel,
   onToggleDarkMode,
   darkMode,
@@ -156,11 +157,20 @@ export default function CommandPalette({
       run: onOpenMorningSummary
     },
     {
-      id: 'action-excel',
+      id: 'action-reports',
       category: 'Reporting',
       icon: <FileSpreadsheet className="w-4 h-4 text-emerald-600" />,
-      title: 'Download Excel Spreadsheet (.xlsx)',
-      subtitle: 'Export complete store cleanings and payment ledgers',
+      title: 'Open Reports Center (Excel & PDF)',
+      subtitle: 'Download Pending, Completed, All Cleanings & Store Ledgers in Excel and PDF',
+      shortcut: 'R',
+      run: onOpenReportsCenter || onExportExcel
+    },
+    {
+      id: 'action-excel',
+      category: 'Reporting',
+      icon: <FileSpreadsheet className="w-4 h-4 text-teal-600" />,
+      title: 'Quick Master Excel (.xlsx)',
+      subtitle: 'Export complete 5-sheet master workbook',
       shortcut: 'E',
       run: onExportExcel
     },

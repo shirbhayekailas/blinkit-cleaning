@@ -9,9 +9,11 @@ import {
   Check, 
   Printer, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet
 } from 'lucide-react';
 import { generateCleaningPDF } from '../utils/pdfGenerator';
+import { exportAllCleaningsExcel } from '../utils/reportExcelGenerator';
 import { formatWhatsAppMessage } from '../utils/whatsappFormatter';
 
 export default function ReportModal({
@@ -83,13 +85,24 @@ export default function ReportModal({
                 Official PDF with Blinkit branding, timings, team deployed, verified checklist, and embedded photo proofs.
               </p>
             </div>
-            <button
-              onClick={() => generateCleaningPDF(cleaning)}
-              className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 shrink-0 transition"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download PDF</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => exportAllCleaningsExcel([cleaning], 'Single Store', `Blinkit_${cleaning.storeCode || 'Store'}_Cleaning.xlsx`)}
+                className="px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                title="Download formatted store cleaning record in Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Excel</span>
+              </button>
+              <button
+                onClick={() => generateCleaningPDF(cleaning)}
+                className="px-3.5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                title="Download official PDF work completion report"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>PDF</span>
+              </button>
+            </div>
           </div>
 
           {/* Action 2: WhatsApp Formatted Summary */}
