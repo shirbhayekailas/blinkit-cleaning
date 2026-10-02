@@ -25,7 +25,8 @@ import {
   exportPendingPaymentsExcel,
   exportCompletedPaymentsExcel,
   exportAllCleaningsExcel,
-  exportStorePerformanceExcel
+  exportStorePerformanceExcel,
+  naturalSortByStoreCode
 } from '../utils/reportExcelGenerator';
 import {
   generateMasterExecutiveReportPDF,
@@ -121,24 +122,27 @@ export default function ReportsCenterModal({
 
       return true;
     });
+    return naturalSortByStoreCode(list);
   }, [cleanings, periodFilter, thisMonthPrefix, lastMonthPrefix, customStartDate, customEndDate, selectedStore, searchTerm]);
 
   // Derived datasets
   const pendingCleanings = useMemo(() => {
-    return filteredCleanings.filter(c => 
+    const list = filteredCleanings.filter(c => 
       c.paymentStatus === 'Pending' || 
       c.paymentStatus === 'Partial' || 
       Number(c.amountPending) > 0 ||
       (Number(c.amount) - Number(c.amountReceived) > 0)
     );
+    return naturalSortByStoreCode(list);
   }, [filteredCleanings]);
 
   const completedCleanings = useMemo(() => {
-    return filteredCleanings.filter(c => 
+    const list = filteredCleanings.filter(c => 
       c.paymentStatus === 'Received' || 
       c.paymentStatus === 'Completed' ||
       (Number(c.amountReceived) > 0 && Number(c.amountPending) <= 0)
     );
+    return naturalSortByStoreCode(list);
   }, [filteredCleanings]);
 
   // Store performance summary
@@ -198,7 +202,7 @@ export default function ReportsCenterModal({
       }
     });
 
-    return Array.from(map.values()).sort((a, b) => b.totalPending - a.totalPending);
+    return naturalSortByStoreCode(Array.from(map.values()), s => s.code);
   }, [filteredCleanings, stores]);
 
   // Summary totals

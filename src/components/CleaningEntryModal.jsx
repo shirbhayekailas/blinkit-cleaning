@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Building2, 
@@ -30,6 +30,7 @@ import { addWatermarkToPhoto, compressImage } from '../utils/photoWatermark';
 import { saveCleaner } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
 import { useLanguage } from '../context/LanguageContext';
+import { naturalSortByStoreCode } from '../utils/reportExcelGenerator';
 
 export default function CleaningEntryModal({
   isOpen,
@@ -121,6 +122,33 @@ export default function CleaningEntryModal({
   const [newCleanerWage, setNewCleanerWage] = useState(500);
   const [isSavingCleaner, setIsSavingCleaner] = useState(false);
   const [matchedStoreAlert, setMatchedStoreAlert] = useState(null);
+  const [selectedCityFilter, setSelectedCityFilter] = useState(initialData?.city || 'all');
+
+  // Compute available unique cities dynamically from registered stores
+  const availableCities = useMemo(() => {
+    const set = new Set();
+    if (Array.isArray(stores)) {
+      stores.forEach(s => {
+        if (s && s.city && s.city.trim()) {
+          set.add(s.city.trim());
+        }
+      });
+    }
+    // Add standard operating hubs
+    ['Mumbai', 'Navi Mumbai', 'Thane', 'Pune'].forEach(c => set.add(c));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [stores]);
+
+  // Stores filtered by selectedCityFilter and naturally sorted by store code
+  const filteredStoresByCity = useMemo(() => {
+    if (!Array.isArray(stores)) return [];
+    let list = stores;
+    if (selectedCityFilter && selectedCityFilter !== 'all') {
+      const target = selectedCityFilter.trim().toLowerCase();
+      list = stores.filter(s => s && s.city && s.city.trim().toLowerCase() === target);
+    }
+    return naturalSortByStoreCode(list);
+  }, [stores, selectedCityFilter]);
 
   const handleQuickAddSupervisor = async (e) => {
     e?.preventDefault();
@@ -239,34 +267,61 @@ export default function CleaningEntryModal({
     }
   };
 
-  const handleStoreCodeChange = (inputVal) => {
+  const handleStoreCodeChange = (inputVal, cityOverride = null) => {
     const code = inputVal.toUpperCase();
     const clean = code.trim();
+    const targetCity = cityOverride !== null ? cityOverride : selectedCityFilter;
 
     if (clean && stores && stores.length > 0) {
-      const match = stores.find(s => {
-        if (!s || !s.storeCode) return false;
-        const sCode = s.storeCode.trim().toUpperCase();
-        if (sCode === clean) return true;
-        const sClean = sCode.replace(/^BLK-/, '');
-        const inputClean = clean.replace(/^BLK-/, '');
-        return sClean === inputClean && inputClean.length >= 2;
-      });
+      let match = null;
+
+      // 1. If a specific city is selected/filtered, check stores in that city first!
+      if (targetCity && targetCity !== 'all') {
+        const normTarget = targetCity.trim().toLowerCase();
+        match = stores.find(s => {
+          if (!s || !s.storeCode) return false;
+          const sCode = s.storeCode.trim().toUpperCase();
+          const sCity = (s.city || '').trim().toLowerCase();
+          if (sCity !== normTarget) return false;
+          if (sCode === clean) return true;
+          const sClean = sCode.replace(/^BLK-/, '');
+          const inputClean = clean.replace(/^BLK-/, '');
+          return sClean === inputClean && inputClean.length >= 2;
+        });
+      }
+
+      // 2. If no city filter or no match in that city, search all stores
+      if (!match) {
+        match = stores.find(s => {
+          if (!s || !s.storeCode) return false;
+          const sCode = s.storeCode.trim().toUpperCase();
+          if (sCode === clean) return true;
+          const sClean = sCode.replace(/^BLK-/, '');
+          const inputClean = clean.replace(/^BLK-/, '');
+          return sClean === inputClean && inputClean.length >= 2;
+        });
+      }
 
       if (match) {
+        const matchedCity = match.city ? match.city.trim() : '';
         setFormData(prev => ({
           ...prev,
           storeCode: match.storeCode || code,
           storeName: match.storeName || prev.storeName,
           address: match.address || prev.address,
-          city: match.city || prev.city,
+          city: matchedCity || prev.city,
           googleMapsUrl: match.googleMapsUrl || prev.googleMapsUrl,
           managerName: match.managerName || prev.managerName,
           managerPhone: match.managerPhone || prev.managerPhone
         }));
+
+        if (matchedCity) {
+          setSelectedCityFilter(matchedCity);
+        }
+
         setMatchedStoreAlert({
           storeName: match.storeName,
-          city: match.city || '',
+          city: matchedCity,
           managerName: match.managerName || ''
         });
         return;
@@ -314,8 +369,12 @@ export default function CleaningEntryModal({
         photos: initialData.photos || [],
         chemicalsUsed: initialData.chemicalsUsed || []
       });
+      if (initialData.city && initialData.city.trim()) {
+        setSelectedCityFilter(initialData.city.trim());
+      }
     } else {
       // Reset form
+      setSelectedCityFilter('all');
       const savedVendor = localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES';
       setFormData({
         storeCode: 'BLK-',
@@ -640,59 +699,100 @@ export default function CleaningEntryModal({
               </span>
             </div>
 
-            {/* Quick Store Selector from Ledger */}
-            <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-amber-900 dark:text-amber-300 mb-1">
-                  ⚡ Store Ledger Se Select Karein (Sari Info Auto-Fill Ho Jayegi):
-                </label>
-                <select
-                  onChange={(e) => {
-                    const selectedCode = e.target.value;
-                    if (!selectedCode) return;
-                    const s = stores.find(st => st.storeCode === selectedCode);
-                    if (s) {
-                      setFormData(prev => ({
-                        ...prev,
-                        storeCode: s.storeCode,
-                        storeName: s.storeName,
-                        address: s.address || '',
-                        city: s.city || '',
-                        googleMapsUrl: s.googleMapsUrl || '',
-                        managerName: s.managerName || '',
-                        managerPhone: s.managerPhone || ''
-                      }));
-                      setMatchedStoreAlert({
-                        storeName: s.storeName,
-                        city: s.city || '',
-                        managerName: s.managerName || ''
-                      });
-                    }
-                  }}
-                  defaultValue=""
-                  className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
-                >
-                  <option value="">-- Select Blinkit Store from Ledger --</option>
-                  {stores.map(s => (
-                    <option key={s.storeCode} value={s.storeCode}>
-                      {s.storeCode} - {s.storeName} ({s.city || 'Hub'})
-                    </option>
-                  ))}
-                </select>
+            {/* Quick Store Selector from Ledger with City Filtering */}
+            <div className="p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-600 dark:text-amber-400 font-black text-sm">⚡</span>
+                  <span className="text-xs font-bold text-amber-950 dark:text-amber-200">
+                    Store Ledger Se Auto-Fetch Karein:
+                  </span>
+                </div>
+                {onAddNewStore && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onAddNewStore();
+                    }}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-950 shrink-0 transition shadow-sm"
+                  >
+                    + Add New Store in Ledger
+                  </button>
+                )}
               </div>
 
-              {onAddNewStore && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onAddNewStore();
-                  }}
-                  className="text-xs font-bold px-3 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 shrink-0 transition"
-                >
-                  + Add New Store in Ledger
-                </button>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                {/* City Filter Dropdown */}
+                <div className="sm:col-span-4">
+                  <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-300 mb-1">
+                    📍 1. City Chunein:
+                  </label>
+                  <select
+                    value={selectedCityFilter}
+                    onChange={(e) => {
+                      const newCity = e.target.value;
+                      setSelectedCityFilter(newCity);
+                      if (formData.storeCode) {
+                        handleStoreCodeChange(formData.storeCode, newCity);
+                      }
+                    }}
+                    className="w-full px-2.5 py-2 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green shadow-sm"
+                  >
+                    <option value="all">🌐 All Cities ({stores?.length || 0} Stores)</option>
+                    {availableCities.map(c => {
+                      const count = (stores || []).filter(s => s && s.city && s.city.trim().toLowerCase() === c.toLowerCase()).length;
+                      return (
+                        <option key={c} value={c}>
+                          📍 {c} {count > 0 ? `(${count} Stores)` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Store Dropdown (Filtered by City) */}
+                <div className="sm:col-span-8">
+                  <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-300 mb-1">
+                    🏬 2. Store Ledger Se Select Karein ({filteredStoresByCity.length} Stores):
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const selectedVal = e.target.value;
+                      if (!selectedVal) return;
+                      const s = filteredStoresByCity.find(st => (st._id || `${st.storeCode}-${st.city}`) === selectedVal || st.storeCode === selectedVal);
+                      if (s) {
+                        const sCity = s.city ? s.city.trim() : '';
+                        setFormData(prev => ({
+                          ...prev,
+                          storeCode: s.storeCode,
+                          storeName: s.storeName,
+                          address: s.address || '',
+                          city: sCity || prev.city,
+                          googleMapsUrl: s.googleMapsUrl || '',
+                          managerName: s.managerName || '',
+                          managerPhone: s.managerPhone || ''
+                        }));
+                        if (sCity) setSelectedCityFilter(sCity);
+                        setMatchedStoreAlert({
+                          storeName: s.storeName,
+                          city: sCity || '',
+                          managerName: s.managerName || ''
+                        });
+                      }
+                    }}
+                    value=""
+                    className="w-full px-2.5 py-2 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green shadow-sm"
+                  >
+                    <option value="">-- {selectedCityFilter !== 'all' ? `${selectedCityFilter} ke stores me se chunein` : 'Select Blinkit Store from Ledger'} --</option>
+                    {filteredStoresByCity.map(s => (
+                      <option key={s._id || `${s.storeCode}-${s.city}`} value={s._id || `${s.storeCode}-${s.city}`}>
+                        {s.storeCode} - {s.storeName} ({s.city || 'Hub'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -718,16 +818,17 @@ export default function CleaningEntryModal({
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-blinkit-green"
                 />
                 <datalist id="ledger-store-codes-datalist">
-                  {stores.map(s => (
-                    <option key={s.storeCode} value={s.storeCode}>
+                  {filteredStoresByCity.map(s => (
+                    <option key={s._id || `${s.storeCode}-${s.city}`} value={s.storeCode}>
                       {s.storeName} ({s.city || 'Hub'})
                     </option>
                   ))}
                 </datalist>
                 {matchedStoreAlert && (
                   <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-semibold flex items-center gap-1">
-                    <span>⚡ Ledger Se Details Fetch Ho Gayi:</span>
+                    <span>⚡ Ledger Match:</span>
                     <strong className="underline">{matchedStoreAlert.storeName}</strong>
+                    {matchedStoreAlert.city && <span className="text-slate-400">({matchedStoreAlert.city})</span>}
                   </div>
                 )}
               </div>
@@ -762,18 +863,41 @@ export default function CleaningEntryModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  City / Hub Zone
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    City / Hub Zone
+                  </label>
+                  {formData.city && (
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      📍 {formData.city}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
-                  placeholder="e.g. Mumbai, Pune, Delhi NCR, etc."
+                  placeholder="e.g. Mumbai, Pune, Thane, etc."
                   value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  onChange={(e) => {
+                    const newCity = e.target.value;
+                    setFormData(prev => ({ ...prev, city: newCity }));
+                    if (newCity && newCity.trim()) {
+                      setSelectedCityFilter(newCity.trim());
+                      if (formData.storeCode) {
+                        handleStoreCodeChange(formData.storeCode, newCity.trim());
+                      }
+                    }
+                  }}
+                  list="available-cities-datalist"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
                 />
+                <datalist id="available-cities-datalist">
+                  {availableCities.map(c => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
             </div>
+
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>

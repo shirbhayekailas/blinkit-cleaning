@@ -204,16 +204,24 @@ function addFooterAndPageNumbers(doc) {
   }
 }
 
+function naturalSortByStoreCode(list = [], getCode = item => item.storeCode || item.code || '') {
+  return [...list].sort((a, b) => {
+    const codeA = String(getCode(a) || '').trim();
+    const codeB = String(getCode(b) || '').trim();
+    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 // ----------------------------------------------------------------------
 // 1. PENDING PAYMENTS PDF REPORT (Store Manager & Contact Removed)
 // ----------------------------------------------------------------------
 export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All Time' }) {
-  const pendingList = cleanings.filter(c => 
+  const pendingList = naturalSortByStoreCode(cleanings.filter(c => 
     c.paymentStatus === 'Pending' || 
     c.paymentStatus === 'Partial' || 
     (toNum(c.amountPending) > 0) ||
     (toNum(c.amount) - toNum(c.amountReceived) > 0)
-  );
+  ));
 
   if (pendingList.length === 0) {
     alert('Congratulations! There are no pending payment records for the selected period.');
@@ -356,11 +364,11 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
 // 2. COMPLETED PAYMENTS PDF REPORT (Store Manager Removed)
 // ----------------------------------------------------------------------
 export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'All Time' }) {
-  const completedList = cleanings.filter(c => 
+  const completedList = naturalSortByStoreCode(cleanings.filter(c => 
     c.paymentStatus === 'Received' || 
     c.paymentStatus === 'Completed' ||
     (toNum(c.amountReceived) > 0 && toNum(c.amountPending) <= 0)
-  );
+  ));
 
   if (completedList.length === 0) {
     alert('No settled payment records found for the selected period.');
@@ -486,6 +494,7 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
     totalPhotos += (c.photos && c.photos.length) || 0;
   });
 
+  const sortedCleanings = naturalSortByStoreCode(cleanings);
   let tableRows = [];
   let headCols = [];
   let footCols = [];
@@ -500,7 +509,7 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
       { label: 'Total Outstanding Pending', value: `Rs ${totalPend.toLocaleString('en-IN')}`, valR: totalPend > 0 ? 220 : 15, valG: totalPend > 0 ? 38 : 23, valB: totalPend > 0 ? 38 : 42 }
     ]);
 
-    tableRows = cleanings.map((c, idx) => {
+    tableRows = sortedCleanings.map((c, idx) => {
       const billed = toNum(c.amount);
       const recv = toNum(c.amountReceived);
       const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
@@ -557,7 +566,7 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
       { label: 'Audit Verification Rate', value: '100.0% VERIFIED', valR: 12, valG: 131, valB: 31 }
     ]);
 
-    tableRows = cleanings.map((c, idx) => {
+    tableRows = sortedCleanings.map((c, idx) => {
       const scopeStr = Array.isArray(c.scopeOfWork)
         ? c.scopeOfWork.slice(0, 2).join(', ')
         : 'Floor Deep Cleaning, Toilet, Cold Storage';
@@ -681,7 +690,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
     }
   });
 
-  const storeRows = Array.from(storeMap.values());
+  const storeRows = naturalSortByStoreCode(Array.from(storeMap.values()), s => s.code);
   if (storeRows.length === 0) {
     alert('No store records found.');
     return;

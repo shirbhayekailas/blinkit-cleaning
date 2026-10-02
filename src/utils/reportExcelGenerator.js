@@ -269,9 +269,27 @@ function applyCorporateTheme(ws, {
           } else {
             ws[ref].s = STYLES.kpiValueNeutral;
           }
-          if (typeof ws[ref].v === 'number' && c > 1) {
+
+          // Check previous label to determine if this cell is currency or integer count!
+          const labelRef = `${getColLetter(c - 1)}6`;
+          const labelText = ws[labelRef] && typeof ws[labelRef].v === 'string' ? ws[labelRef].v.toLowerCase() : '';
+          const isCurrency = labelText.includes('billed') || 
+                             labelText.includes('invoiced') || 
+                             labelText.includes('received') || 
+                             labelText.includes('pending') || 
+                             labelText.includes('amount') || 
+                             labelText.includes('dues') || 
+                             labelText.includes('balance') || 
+                             labelText.includes('collection') || 
+                             labelText.includes('value');
+
+          if (typeof ws[ref].v === 'number') {
             ws[ref].t = 'n';
-            ws[ref].z = '"₹"#,##0';
+            if (isCurrency) {
+              ws[ref].z = '"₹"#,##0';
+            } else {
+              ws[ref].z = '#,##0'; // Clean integer count without any ₹ currency sign!
+            }
           }
         }
       }
@@ -348,6 +366,12 @@ function applyCorporateTheme(ws, {
           ws[ref].t = 'n';
           ws[ref].z = '"₹"#,##0';
         }
+      } else if (numberColIndices.includes(c)) {
+        align = 'center';
+        if (typeof ws[ref].v === 'number') {
+          ws[ref].t = 'n';
+          ws[ref].z = '#,##0';
+        }
       } else if (centerColIndices.includes(c)) {
         align = 'center';
       }
@@ -360,16 +384,27 @@ function applyCorporateTheme(ws, {
   }
 }
 
+/**
+ * Natural Alphanumeric Sort by Store Code (e.g. ES27 -> ES30 -> ES55 -> ES87 -> ES149 -> ES154 -> ES300)
+ */
+export function naturalSortByStoreCode(list = [], getCode = item => item.storeCode || item.code || '') {
+  return [...list].sort((a, b) => {
+    const codeA = String(getCode(a) || '').trim();
+    const codeB = String(getCode(b) || '').trim();
+    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 // ----------------------------------------------------------------------
 // 1. PENDING PAYMENTS SHEET BUILDER (Store Manager / Contact Removed)
 // ----------------------------------------------------------------------
 export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Time') {
-  const pendingList = cleanings.filter(c => 
+  const pendingList = naturalSortByStoreCode(cleanings.filter(c => 
     c.paymentStatus === 'Pending' || 
     c.paymentStatus === 'Partial' || 
     (toNum(c.amountPending) > 0) ||
     (toNum(c.amount) - toNum(c.amountReceived) > 0)
-  );
+  ));
 
   let totalBilled = 0;
   let totalRecv = 0;
@@ -501,11 +536,11 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
 // 2. COMPLETED PAYMENTS SHEET BUILDER (Store Manager Removed)
 // ----------------------------------------------------------------------
 export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All Time') {
-  const completedList = cleanings.filter(c => 
+  const completedList = naturalSortByStoreCode(cleanings.filter(c => 
     c.paymentStatus === 'Received' || 
     c.paymentStatus === 'Completed' ||
     (toNum(c.amountReceived) > 0 && toNum(c.amountPending) <= 0)
-  );
+  ));
 
   let totalBilled = 0;
   let totalRecv = 0;
@@ -725,7 +760,8 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
     ];
   }
 
-  const dataRows = cleanings.map((c, index) => {
+  const sortedCleanings = naturalSortByStoreCode(cleanings);
+  const dataRows = sortedCleanings.map((c, index) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived);
     const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
@@ -985,7 +1021,7 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
     }
   });
 
-  const storeRows = Array.from(storeMap.values()).map(item => {
+  const storeRows = naturalSortByStoreCode(Array.from(storeMap.values()).map(item => {
     let financialStatus = 'All Cleared';
     if (item.cleaningsCount === 0) financialStatus = 'Not Started';
     else if (item.totalPending > 0) financialStatus = `Pending Dues (Rs ${item.totalPending})`;
@@ -994,7 +1030,7 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
       ...item,
       financialStatus
     };
-  });
+  }), s => s.code);
 
   let sumCleanings = 0;
   let sumBilled = 0;
