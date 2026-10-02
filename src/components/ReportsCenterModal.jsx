@@ -51,8 +51,6 @@ export default function ReportsCenterModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [previewTab, setPreviewTab] = useState('pending'); // 'pending' | 'completed' | 'all' | 'stores'
 
-  if (!isOpen) return null;
-
   // Compute date bounds for filters
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -217,6 +215,8 @@ export default function ReportsCenterModal({
     });
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [stores, cleanings]);
+
+  if (!isOpen) return null;
 
   return (
     <div 

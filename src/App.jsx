@@ -1372,12 +1372,14 @@ export default function App() {
         onClose={() => setIsBillSettingsOpen(false)}
       />
 
-      <ReportsCenterModal
-        isOpen={isReportsCenterOpen}
-        onClose={() => setIsReportsCenterOpen(false)}
-        cleanings={cleanings}
-        stores={stores}
-      />
+      {isReportsCenterOpen && (
+        <ReportsCenterModal
+          isOpen={isReportsCenterOpen}
+          onClose={() => setIsReportsCenterOpen(false)}
+          cleanings={cleanings}
+          stores={stores}
+        />
+      )}
 
       <ChemicalTrackerModal
         isOpen={isChemicalModalOpen}
