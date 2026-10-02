@@ -774,7 +774,7 @@ export default function App() {
       startTime: '01:00',
       endTime: '05:30',
       durationHours: '4.5',
-      teamVendor: localStorage.getItem('vendor_company_name') || 'My Deep Cleaning Services',
+      teamVendor: localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES',
       supervisorName: '',
       supervisorPhone: '',
       teamMembers: '',

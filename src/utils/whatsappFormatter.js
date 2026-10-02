@@ -38,7 +38,7 @@ _Report generated via Blinkit Deep Cleaning Operations Tracker_`;
 export function formatPaymentReminderWhatsApp(cleaning) {
   const pendingAmount = Number(cleaning.amountPending || cleaning.amount || 0).toLocaleString('en-IN');
   const totalAmount = Number(cleaning.amount || 0).toLocaleString('en-IN');
-  const vendorName = localStorage.getItem('vendor_company_name') || 'Deep Cleaning Vendor';
+  const vendorName = localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES';
   const upiId = localStorage.getItem('vendor_upi_id') || '';
 
   return `*🔴 PAYMENT REMINDER: BLINKIT STORE DEEP CLEANING 🔴*
@@ -100,7 +100,7 @@ export function shareStoreLocationWhatsApp(storeOrCleaning, targetPhone = '') {
 
 // 1-Click WhatsApp Store Manager 5-Star Rating & Review Request
 export function formatStoreManagerRatingWhatsApp(cleaning) {
-  const vendorName = localStorage.getItem('vendor_company_name') || cleaning.teamVendor || 'Deep Cleaning Services';
+  const vendorName = localStorage.getItem('vendor_company_name') || cleaning.teamVendor || 'SK ENTERPRISES';
   const managerName = cleaning.managerName || 'Store Manager';
   const storeName = cleaning.storeName || 'Blinkit Dark Store';
   const storeCode = cleaning.storeCode || '';
