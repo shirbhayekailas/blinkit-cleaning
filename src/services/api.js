@@ -484,4 +484,18 @@ export async function saveCloudBillSettings(billSettings) {
   }
 }
 
+export async function autoHealMissingRecords({ cleanings = [], stores = [], schedules = [] }) {
+  try {
+    const res = await fetch(getApiUrl('/api/sync/auto-heal'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cleanings, stores, schedules })
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('autoHealMissingRecords warning:', err);
+    return null;
+  }
+}
+
 

@@ -150,7 +150,17 @@ function readDB() {
 function writeDB(data) {
   try {
     data.lastUpdated = new Date().toISOString();
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+    const jsonStr = JSON.stringify(data, null, 2);
+    fs.writeFileSync(DB_FILE, jsonStr, 'utf8');
+
+    // Automatically create and update rolling backup copies
+    try {
+      const BACKUP_FILE = path.join(DATA_DIR, 'database.backup.json');
+      fs.writeFileSync(BACKUP_FILE, jsonStr, 'utf8');
+    } catch (bErr) {
+      console.warn('Backup file write notice:', bErr.message);
+    }
+
     return true;
   } catch (err) {
     console.error('Error writing database file:', err);
@@ -642,6 +652,164 @@ app.post('/api/sync', (req, res) => {
     serverTime: new Date().toISOString(),
     data: currentDB
   });
+});
+
+// SMART SELF-HEALING RECONCILIATION ENDPOINT
+// Automatically restores records that were wiped by container redeployments
+app.post('/api/sync/auto-heal', (req, res) => {
+  try {
+    const { cleanings = [], stores = [], schedules = [] } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.cleanings) currentDB.cleanings = [];
+    if (!currentDB.stores) currentDB.stores = [];
+    if (!currentDB.cleaningSchedules) currentDB.cleaningSchedules = [];
+
+    const deletedCleanings = currentDB.deletedCleanings || [];
+    const deletedStores = currentDB.deletedStores || [];
+    const deletedSchedules = currentDB.deletedSchedules || [];
+
+    let healedCleanings = 0;
+    let healedStores = 0;
+    let healedSchedules = 0;
+
+    // 1. Reconcile cleanings
+    if (Array.isArray(cleanings)) {
+      cleanings.forEach(c => {
+        if (!c || (!c.storeCode && !c.storeName)) return;
+        if (isCleaningDeleted(c, deletedCleanings)) return;
+
+        const targetId = c.id ? String(c.id) : null;
+        const targetCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
+        const targetDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
+
+        const exists = currentDB.cleanings.some(item => {
+          if (!item) return false;
+          if (targetId && String(item.id) === targetId) return true;
+          if (targetCode && targetDate && item.storeCode && item.cleaningDate) {
+            return String(item.storeCode).trim().toUpperCase() === targetCode && String(item.cleaningDate).trim() === targetDate;
+          }
+          return false;
+        });
+
+        if (!exists) {
+          const nowIso = new Date().toISOString();
+          const restoredItem = {
+            ...c,
+            id: c.id || (Date.now() + Math.floor(Math.random() * 1000)),
+            syncId: c.syncId || `CLN_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            createdAt: c.createdAt || nowIso,
+            updatedAt: c.updatedAt || nowIso,
+            healedAt: nowIso
+          };
+          currentDB.cleanings.push(restoredItem);
+          healedCleanings++;
+        }
+      });
+    }
+
+    // 2. Reconcile stores
+    if (Array.isArray(stores)) {
+      stores.forEach(s => {
+        if (!s || (!s.storeCode && !s.code)) return;
+        const code = (s.storeCode || s.code || '').trim().toUpperCase();
+        const isDel = deletedStores.some(d => {
+          const dCode = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
+          return dCode === code;
+        });
+        if (isDel) return;
+
+        const exists = currentDB.stores.some(item => {
+          const itemCode = (item.storeCode || item.code || '').trim().toUpperCase();
+          return itemCode === code;
+        });
+
+        if (!exists) {
+          const nowIso = new Date().toISOString();
+          currentDB.stores.push({
+            ...s,
+            id: s.id || (Date.now() + Math.floor(Math.random() * 1000)),
+            createdAt: s.createdAt || nowIso,
+            updatedAt: s.updatedAt || nowIso,
+            healedAt: nowIso
+          });
+          healedStores++;
+        }
+      });
+    }
+
+    // 3. Reconcile schedules
+    if (Array.isArray(schedules)) {
+      schedules.forEach(sch => {
+        if (!sch || !sch.storeCode || !sch.scheduledDate) return;
+        const isDel = deletedSchedules.some(d => 
+          (d.id && String(d.id) === String(sch.id)) ||
+          (d.storeCode === sch.storeCode && d.scheduledDate === sch.scheduledDate)
+        );
+        if (isDel) return;
+
+        const exists = currentDB.cleaningSchedules.some(item => 
+          (item.id && String(item.id) === String(sch.id)) ||
+          (item.storeCode === sch.storeCode && item.scheduledDate === sch.scheduledDate)
+        );
+
+        if (!exists) {
+          currentDB.cleaningSchedules.push({ ...sch });
+          healedSchedules++;
+        }
+      });
+    }
+
+    if (healedCleanings > 0 || healedStores > 0 || healedSchedules > 0) {
+      writeDB(currentDB);
+      console.log(`[Auto-Heal Success] Restored ${healedCleanings} cleanings, ${healedStores} stores, ${healedSchedules} schedules.`);
+    }
+
+    res.json({
+      success: true,
+      healedCleanings,
+      healedStores,
+      healedSchedules,
+      totalCleanings: currentDB.cleanings.length,
+      totalStores: currentDB.stores.length
+    });
+  } catch (err) {
+    console.error('Auto-heal error:', err);
+    res.status(500).json({ success: false, message: 'Auto-heal error: ' + err.message });
+  }
+});
+
+// FULL DATABASE BACKUP DOWNLOAD ENDPOINT
+app.get('/api/database/backup', (req, res) => {
+  const currentDB = readDB();
+  const filename = `blinkit_cleaning_backup_${new Date().toISOString().slice(0, 10)}.json`;
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(JSON.stringify(currentDB, null, 2));
+});
+
+// FULL DATABASE RESTORE ENDPOINT
+app.post('/api/database/restore', (req, res) => {
+  try {
+    const backupData = req.body;
+    if (!backupData || typeof backupData !== 'object') {
+      return res.status(400).json({ success: false, message: 'Invalid backup JSON data.' });
+    }
+
+    const currentDB = readDB();
+    const merged = { ...currentDB, ...backupData };
+    if (Array.isArray(backupData.cleanings)) merged.cleanings = backupData.cleanings;
+    if (Array.isArray(backupData.stores)) merged.stores = backupData.stores;
+    if (Array.isArray(backupData.supervisors)) merged.supervisors = backupData.supervisors;
+    if (Array.isArray(backupData.cleaners)) merged.cleaners = backupData.cleaners;
+    if (Array.isArray(backupData.cleaningSchedules)) merged.cleaningSchedules = backupData.cleaningSchedules;
+    if (Array.isArray(backupData.chemicalStock)) merged.chemicalStock = backupData.chemicalStock;
+    if (Array.isArray(backupData.chemicalLogs)) merged.chemicalLogs = backupData.chemicalLogs;
+
+    writeDB(merged);
+    res.json({ success: true, message: 'Database successfully restored from backup!', totalCleanings: merged.cleanings.length });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Restore error: ' + err.message });
+  }
 });
 
 // 2. Cleanings CRUD

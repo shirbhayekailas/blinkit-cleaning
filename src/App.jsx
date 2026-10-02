@@ -38,6 +38,7 @@ import ConfirmModal from './components/ConfirmModal';
 import CommandPalette from './components/CommandPalette';
 import OperationsPulseBar from './components/OperationsPulseBar';
 import { syncSmartCredentials } from './utils/cloudSync';
+import { lockRecordInVault, purgeFromVault, reconcileVaultWithServer } from './utils/vaultManager';
 import * as api from './services/api';
 import { useLanguage } from './context/LanguageContext';
 import { 
@@ -293,8 +294,16 @@ export default function App() {
       }
       if (data && !data.unchanged) {
         lastUpdatedRef.current = data.lastUpdated || null;
+
+        // Reconcile incoming server data with local permanent vault
+        // If server was redeployed and missing recent entries, auto-heals them instantly!
+        const { mergedData, healed } = await reconcileVaultWithServer(data);
+        if (healed) {
+          toast.success('Self-Healing Engine: Missing entries restored to server database!', 'Data Auto-Healed');
+        }
+
         setServerData(prev => {
-          const next = { ...prev, ...data };
+          const next = { ...prev, ...mergedData };
           saveStateToCache(next);
           return next;
         });
@@ -466,6 +475,9 @@ export default function App() {
     const syncId = cleaningData.syncId || (cleaningData.id ? String(cleaningData.id) : `sync_${Date.now()}`);
     const optimisticRecord = { ...cleaningData, syncId, updatedAt: new Date().toISOString() };
     
+    // Lock into permanent client vault (Guarantees zero data loss on server redeploys)
+    lockRecordInVault('cleaning', optimisticRecord);
+
     setServerData(prev => {
       const existing = prev.cleanings || [];
       const idx = existing.findIndex(c => (c.id && c.id === cleaningData.id) || (c.syncId && c.syncId === syncId));
@@ -489,6 +501,7 @@ export default function App() {
     try {
       const result = await api.saveCleaning(cleaningData);
       if (result && result.data) {
+        if (result.savedRecord) lockRecordInVault('cleaning', result.savedRecord);
         setServerData(prev => {
           const next = { ...prev, ...result.data };
           saveStateToCache(next);
@@ -503,6 +516,8 @@ export default function App() {
 
   const handleUpdatePayment = async (updatedCleaning) => {
     // Instant Optimistic Update
+    lockRecordInVault('cleaning', updatedCleaning);
+
     setServerData(prev => {
       const existing = prev.cleanings || [];
       const updated = existing.map(c => 
@@ -585,6 +600,12 @@ export default function App() {
       isDanger: true,
       onConfirm: async () => {
         // Instant Optimistic Delete
+        purgeFromVault('cleaning', cleaning.id);
+        if (cleaning.syncId) purgeFromVault('cleaning', cleaning.syncId);
+        if (cleaning.storeCode && cleaning.cleaningDate) {
+          purgeFromVault('cleaning', `${cleaning.storeCode}_${cleaning.cleaningDate}`);
+        }
+
         setServerData(prev => {
           const existing = prev.cleanings || [];
           const updated = existing.filter(c => c.id !== cleaning.id && (!cleaning.syncId || c.syncId !== cleaning.syncId));
@@ -641,6 +662,8 @@ export default function App() {
   const handleSaveStore = async (storeData) => {
     // Instant Optimistic Update
     const code = (storeData.storeCode || '').trim().toUpperCase();
+    lockRecordInVault('store', storeData);
+
     setServerData(prev => {
       const existing = prev.stores || [];
       const idx = existing.findIndex(s => (s.storeCode || '').trim().toUpperCase() === code);
@@ -700,6 +723,13 @@ export default function App() {
       isDanger: true,
       onConfirm: async () => {
         // Instant Optimistic Delete
+        purgeFromVault('store', store.storeCode || store.code);
+        if (hasCleanings) {
+          relatedCleanings.forEach(c => {
+            purgeFromVault('cleaning', c.id || c.syncId || `${c.storeCode}_${c.cleaningDate}`);
+          });
+        }
+
         setServerData(prev => {
           const updatedStores = (prev.stores || []).filter(s => (s.storeCode || '').trim().toUpperCase() !== (store.storeCode || '').trim().toUpperCase());
           let updatedCleanings = prev.cleanings || [];
