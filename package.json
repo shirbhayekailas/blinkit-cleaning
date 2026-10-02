@@ -12,6 +12,8 @@
     "desktop": "electron electron/main.cjs"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
     "canvas-confetti": "^1.9.4",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
@@ -21,14 +23,13 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.475.0",
+    "postcss": "^8.5.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "xlsx": "^0.18.5",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
-    "vite": "^5.4.14"
+    "vite": "^5.4.14",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "electron": "^44.4.4"

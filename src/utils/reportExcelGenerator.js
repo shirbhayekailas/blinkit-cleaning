@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 // Helper to format currency values safely for Excel
 const toNum = (val) => {
@@ -29,48 +29,334 @@ const getColLetter = (c) => {
   return s;
 };
 
+// ======================================================================
+// EXECUTIVE CORPORATE COLOR PALETTE & STYLE DEFINITIONS
+// ======================================================================
+const STYLES = {
+  // Brand Header Banners
+  titleBanner: {
+    fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, // Dark Slate Navy
+    font: { name: 'Calibri', sz: 14, bold: true, color: { rgb: 'F8CB46' } }, // Gold Accent Text
+    alignment: { vertical: 'center', horizontal: 'center' }
+  },
+  subtitleBanner: {
+    fill: { patternType: 'solid', fgColor: { rgb: '1E293B' } }, // Deep Navy
+    font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'E2E8F0' } },
+    alignment: { vertical: 'center', horizontal: 'center' }
+  },
+  metaBanner: {
+    fill: { patternType: 'solid', fgColor: { rgb: '0C831F' } }, // Blinkit Emerald Green
+    font: { name: 'Calibri', sz: 9, bold: true, color: { rgb: 'FFFFFF' } },
+    alignment: { vertical: 'center', horizontal: 'center' }
+  },
+
+  // KPI Scorecard Highlight Block
+  kpiTitle: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'F1F5F9' } },
+    font: { name: 'Calibri', sz: 9, bold: true, color: { rgb: '334155' } },
+    alignment: { vertical: 'center', horizontal: 'left' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+    }
+  },
+  kpiLabel: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } },
+    font: { name: 'Calibri', sz: 8.5, bold: true, color: { rgb: '64748B' } },
+    alignment: { vertical: 'center', horizontal: 'center', wrapText: true },
+    border: {
+      top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+    }
+  },
+  kpiValueNeutral: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'EEF2F6' } },
+    font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: '0F172A' } },
+    alignment: { vertical: 'center', horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+    }
+  },
+  kpiValueSuccess: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'DCFCE7' } }, // Mint Green
+    font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: '166534' } }, // Deep Green
+    alignment: { vertical: 'center', horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: '86EFAC' } },
+      bottom: { style: 'thin', color: { rgb: '86EFAC' } },
+      left: { style: 'thin', color: { rgb: '86EFAC' } },
+      right: { style: 'thin', color: { rgb: '86EFAC' } }
+    }
+  },
+  kpiValueDanger: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFE4E6' } }, // Light Rose Pink
+    font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'BE123C' } }, // Crimson
+    alignment: { vertical: 'center', horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'FDA4AF' } },
+      bottom: { style: 'thin', color: { rgb: 'FDA4AF' } },
+      left: { style: 'thin', color: { rgb: 'FDA4AF' } },
+      right: { style: 'thin', color: { rgb: 'FDA4AF' } }
+    }
+  },
+
+  // Table Column Headers
+  tableHeader: {
+    fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, // Premium Dark Navy
+    font: { name: 'Calibri', sz: 9.5, bold: true, color: { rgb: 'FFFFFF' } },
+    alignment: { vertical: 'center', horizontal: 'center', wrapText: true },
+    border: {
+      top: { style: 'medium', color: { rgb: '0F172A' } },
+      bottom: { style: 'medium', color: { rgb: 'F59E0B' } }, // Amber underline
+      left: { style: 'thin', color: { rgb: '334155' } },
+      right: { style: 'thin', color: { rgb: '334155' } }
+    }
+  },
+
+  // Data Rows & Zebra Striping
+  dataRowEven: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } },
+    font: { name: 'Calibri', sz: 9, color: { rgb: '1E293B' } },
+    alignment: { vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      right: { style: 'thin', color: { rgb: 'E2E8F0' } }
+    }
+  },
+  dataRowOdd: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, // Light Slate Zebra
+    font: { name: 'Calibri', sz: 9, color: { rgb: '1E293B' } },
+    alignment: { vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      right: { style: 'thin', color: { rgb: 'E2E8F0' } }
+    }
+  },
+
+  // Status Badges
+  badgePending: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'FEE2E2' } },
+    font: { name: 'Calibri', sz: 9, bold: true, color: { rgb: 'DC2626' } },
+    alignment: { vertical: 'center', horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'FCA5A5' } },
+      bottom: { style: 'thin', color: { rgb: 'FCA5A5' } },
+      left: { style: 'thin', color: { rgb: 'FCA5A5' } },
+      right: { style: 'thin', color: { rgb: 'FCA5A5' } }
+    }
+  },
+  badgeSuccess: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'DCFCE7' } },
+    font: { name: 'Calibri', sz: 9, bold: true, color: { rgb: '16A34A' } },
+    alignment: { vertical: 'center', horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: '86EFAC' } },
+      bottom: { style: 'thin', color: { rgb: '86EFAC' } },
+      left: { style: 'thin', color: { rgb: '86EFAC' } },
+      right: { style: 'thin', color: { rgb: '86EFAC' } }
+    }
+  },
+  badgePartial: {
+    fill: { patternType: 'solid', fgColor: { rgb: 'FEF3C7' } },
+    font: { name: 'Calibri', sz: 9, bold: true, color: { rgb: 'D97706' } },
+    alignment: { vertical: 'center', horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'FCD34D' } },
+      bottom: { style: 'thin', color: { rgb: 'FCD34D' } },
+      left: { style: 'thin', color: { rgb: 'FCD34D' } },
+      right: { style: 'thin', color: { rgb: 'FCD34D' } }
+    }
+  },
+
+  // Grand Total Summary Row
+  totalSummaryRow: {
+    fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, // Dark Navy
+    font: { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'F8CB46' } }, // Accounting Gold
+    alignment: { vertical: 'center' },
+    border: {
+      top: { style: 'medium', color: { rgb: 'F59E0B' } },
+      bottom: { style: 'double', color: { rgb: 'F59E0B' } }, // Professional Double Accounting Underline
+      left: { style: 'thin', color: { rgb: '334155' } },
+      right: { style: 'thin', color: { rgb: '334155' } }
+    }
+  }
+};
+
 /**
- * Enriches a SheetJS worksheet with interactive formatting:
- * - Excel AutoFilter dropdowns on the column header row
- * - Frozen panes so column headers stay pinned during vertical scrolling
- * - Currency number formats ('₹'#,##0)
- * - Standard integer number formats (#,##0)
+ * Enriches worksheet with Full Premium Corporate Styling:
+ * - Color Fill on Brand Header Rows
+ * - Interactive AutoFilter
+ * - Freeze Panes at header row
+ * - Executive KPI Scorecard Box
+ * - Alternating Zebra striped rows with soft borders
+ * - Status Badges (Red for Pending, Green for Settled)
+ * - Accounting double-underlined Grand Total Row
  */
-function enrichInteractiveSheet(ws, {
-  headerRowIndex,       // 0-indexed row of table column headers
-  totalColumns,         // Total count of columns
-  totalRows,            // Total count of rows in worksheet
-  currencyColIndices = [], // 0-indexed column indices with money amounts
-  numberColIndices = []    // 0-indexed column indices with integer counts
+function applyCorporateTheme(ws, {
+  headerRowIndex,          // 0-indexed row of table headers (e.g. 7)
+  totalColumns,            // Total column count
+  totalRows,               // Total rows in sheet
+  currencyColIndices = [], // 0-indexed column indices with money
+  numberColIndices = [],   // 0-indexed column indices with integer numbers
+  centerColIndices = [],   // 0-indexed column indices to center
+  statusColIndex = -1,     // 0-indexed column index of payment/audit status
+  hasScorecard = true
 }) {
   if (!ws) return;
 
   const lastColLetter = getColLetter(totalColumns - 1);
   const headerExcelRow = headerRowIndex + 1; // 1-indexed
 
-  // 1. Enable interactive AutoFilter dropdowns on column headers
-  ws['!autofilter'] = { ref: `A${headerExcelRow}:${lastColLetter}${totalRows}` };
+  // 1. Enable native Excel AutoFilter dropdowns
+  ws['!autofilter'] = { ref: `A${headerExcelRow}:${lastColLetter}${totalRows - 1}` };
 
-  // 2. Freeze panes at header row for high-productivity desktop & mobile scrolling
+  // 2. Freeze panes at header row
   ws['!views'] = [{ state: 'frozen', ySplit: headerExcelRow }];
 
-  // 3. Apply professional number formatting to all data cells
-  for (let r = headerExcelRow + 1; r <= totalRows; r++) {
-    currencyColIndices.forEach(colIdx => {
-      const cellRef = `${getColLetter(colIdx)}${r}`;
-      if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
-        ws[cellRef].t = 'n';
-        ws[cellRef].z = '"₹"#,##0';
-      }
-    });
+  // 3. Row 1: Brand Title Banner
+  for (let c = 0; c < totalColumns; c++) {
+    const ref = `${getColLetter(c)}1`;
+    if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+    ws[ref].s = STYLES.titleBanner;
+  }
 
-    numberColIndices.forEach(colIdx => {
-      const cellRef = `${getColLetter(colIdx)}${r}`;
-      if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
-        ws[cellRef].t = 'n';
-        ws[cellRef].z = '#,##0';
+  // 4. Row 2: Subtitle
+  for (let c = 0; c < totalColumns; c++) {
+    const ref = `${getColLetter(c)}2`;
+    if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+    ws[ref].s = STYLES.subtitleBanner;
+  }
+
+  // 5. Row 3: Metadata & Period
+  for (let c = 0; c < totalColumns; c++) {
+    const ref = `${getColLetter(c)}3`;
+    if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+    ws[ref].s = STYLES.metaBanner;
+  }
+
+  // 6. Rows 5 & 6: KPI Scorecard Block
+  if (hasScorecard) {
+    for (let c = 0; c < Math.min(8, totalColumns); c++) {
+      const ref = `${getColLetter(c)}5`;
+      if (ws[ref]) {
+        ws[ref].s = STYLES.kpiTitle;
       }
-    });
+    }
+    for (let c = 0; c < Math.min(8, totalColumns); c++) {
+      const ref = `${getColLetter(c)}6`;
+      if (ws[ref]) {
+        const isLabel = (c % 2 === 0);
+        if (isLabel) {
+          ws[ref].s = STYLES.kpiLabel;
+        } else {
+          if (c === 3) {
+            ws[ref].s = STYLES.kpiValueNeutral;
+          } else if (c === 5) {
+            ws[ref].s = STYLES.kpiValueSuccess;
+          } else if (c === 7) {
+            ws[ref].s = STYLES.kpiValueDanger;
+          } else {
+            ws[ref].s = STYLES.kpiValueNeutral;
+          }
+          if (typeof ws[ref].v === 'number' && c > 1) {
+            ws[ref].t = 'n';
+            ws[ref].z = '"₹"#,##0';
+          }
+        }
+      }
+    }
+  }
+
+  // 7. Table Column Headers
+  for (let c = 0; c < totalColumns; c++) {
+    const ref = `${getColLetter(c)}${headerExcelRow}`;
+    if (ws[ref]) {
+      ws[ref].s = STYLES.tableHeader;
+    }
+  }
+
+  // 8. Data Rows (headerExcelRow + 1 to totalRows - 1)
+  for (let r = headerExcelRow + 1; r < totalRows; r++) {
+    const isEven = (r % 2 === 0);
+    const baseRowStyle = isEven ? STYLES.dataRowEven : STYLES.dataRowOdd;
+
+    for (let c = 0; c < totalColumns; c++) {
+      const cellRef = `${getColLetter(c)}${r}`;
+      if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+
+      const cell = ws[cellRef];
+      let align = 'left';
+      if (centerColIndices.includes(c)) align = 'center';
+      if (currencyColIndices.includes(c)) align = 'right';
+
+      let cellStyle = {
+        ...baseRowStyle,
+        alignment: { ...baseRowStyle.alignment, horizontal: align }
+      };
+
+      // Currency number format
+      if (currencyColIndices.includes(c)) {
+        if (typeof cell.v === 'number') {
+          cell.t = 'n';
+          cell.z = '"₹"#,##0';
+        }
+      }
+
+      // Integer count format
+      if (numberColIndices.includes(c)) {
+        if (typeof cell.v === 'number') {
+          cell.t = 'n';
+          cell.z = '#,##0';
+        }
+      }
+
+      // Highlight Status Badges
+      if (c === statusColIndex && typeof cell.v === 'string') {
+        const txt = cell.v.toLowerCase();
+        if (txt.includes('pending') || txt.includes('overdue')) {
+          cellStyle = STYLES.badgePending;
+        } else if (txt.includes('received') || txt.includes('full') || txt.includes('completed') || txt.includes('cleared') || txt.includes('active') || txt.includes('settled')) {
+          cellStyle = STYLES.badgeSuccess;
+        } else if (txt.includes('partial')) {
+          cellStyle = STYLES.badgePartial;
+        }
+      }
+
+      cell.s = cellStyle;
+    }
+  }
+
+  // 9. Grand Total Summary Row
+  for (let c = 0; c < totalColumns; c++) {
+    const ref = `${getColLetter(c)}${totalRows}`;
+    if (ws[ref]) {
+      let align = 'left';
+      if (currencyColIndices.includes(c)) {
+        align = 'right';
+        if (typeof ws[ref].v === 'number') {
+          ws[ref].t = 'n';
+          ws[ref].z = '"₹"#,##0';
+        }
+      } else if (centerColIndices.includes(c)) {
+        align = 'center';
+      }
+
+      ws[ref].s = {
+        ...STYLES.totalSummaryRow,
+        alignment: { ...STYLES.totalSummaryRow.alignment, horizontal: align }
+      };
+    }
   }
 }
 
@@ -103,13 +389,11 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
     ['BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - PENDING PAYMENTS & OUTSTANDING LEDGER'],
     [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Pending Stores: ${pendingList.length}`],
     [],
-    // Interactive Summary KPI Scorecard Block
-    ['EXECUTIVE PENDING DUES SCORECARD', '', '', '', ''],
+    ['EXECUTIVE PENDING DUES SCORECARD', '', '', '', '', '', '', ''],
     ['Total Pending Stores', pendingList.length, 'Total Gross Invoiced', totalBilled, 'Total Amount Received', totalRecv, 'Total Outstanding Pending Dues', totalPend],
-    [] // Blank line before table
+    []
   ];
 
-  // Note: Store Manager Name & Contact Number permanently removed per requirement
   const columns = [
     'S.No',
     'Store Code',
@@ -192,20 +476,22 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
   ];
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
-    { s: { r: 2, c: 5 }, e: { r: 2, c: 9 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 14 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 14 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 6 } },
+    { s: { r: 2, c: 7 }, e: { r: 2, c: 14 } },
     { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
 
-  // Enrich with AutoFilter & Number Formatting
-  enrichInteractiveSheet(ws, {
-    headerRowIndex: 7, // 0-indexed row of 'columns'
+  applyCorporateTheme(ws, {
+    headerRowIndex: 7,
     totalColumns: columns.length,
     totalRows: allRows.length,
     currencyColIndices: [7, 8, 9],
-    numberColIndices: [0, 6]
+    numberColIndices: [0, 6],
+    centerColIndices: [0, 1, 5, 6, 10, 13],
+    statusColIndex: 10,
+    hasScorecard: true
   });
 
   return ws;
@@ -236,12 +522,11 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
     ['BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - COMPLETED PAYMENTS & SETTLEMENT REGISTER'],
     [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Cleared Entries: ${completedList.length}`],
     [],
-    ['EXECUTIVE SETTLEMENT SUMMARY SCORECARD', '', '', '', ''],
-    ['Total Cleared Entries', completedList.length, 'Total Invoiced Value', totalBilled, 'Total Realized Collection', totalRecv, 'Collection Realization', '100% Cleared'],
+    ['EXECUTIVE SETTLEMENT SUMMARY SCORECARD', '', '', '', '', '', '', ''],
+    ['Total Cleared Entries', completedList.length, 'Total Invoiced Value', totalBilled, 'Total Realized Collection', totalRecv, 'Settlement Realization', '100% Cleared'],
     []
   ];
 
-  // Note: Store Manager removed per requirement
   const columns = [
     'S.No',
     'Store Code',
@@ -315,19 +600,22 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
   ];
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
-    { s: { r: 2, c: 4 }, e: { r: 2, c: 8 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
+    { s: { r: 2, c: 6 }, e: { r: 2, c: 12 } },
     { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
 
-  enrichInteractiveSheet(ws, {
+  applyCorporateTheme(ws, {
     headerRowIndex: 7,
     totalColumns: columns.length,
     totalRows: allRows.length,
     currencyColIndices: [8, 9],
-    numberColIndices: [0]
+    numberColIndices: [0],
+    centerColIndices: [0, 1, 4, 5, 6, 7, 10],
+    statusColIndex: 10,
+    hasScorecard: true
   });
 
   return ws;
@@ -365,19 +653,18 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
 
   if (includeFinancials) {
     headerRows.push(
-      ['EXECUTIVE OPERATIONS & FINANCIAL SCORECARD', '', '', '', ''],
+      ['EXECUTIVE OPERATIONS & FINANCIAL SCORECARD', '', '', '', '', '', '', ''],
       ['Total Cleanings', cleanings.length, 'Total Gross Invoiced', totalBilled, 'Total Amount Received', totalRecv, 'Total Dues Pending', totalPend],
       []
     );
   } else {
     headerRows.push(
-      ['EXECUTIVE OPERATIONS SCORECARD (NON-FINANCIAL)', '', '', '', ''],
-      ['Total Cleanings Executed', cleanings.length, 'Verified 100%', 'Facility Audit Status', 'Fully Logged', 'Shift Coverage', 'Day & Night Active'],
+      ['EXECUTIVE OPERATIONS SCORECARD (NON-FINANCIAL)', '', '', '', '', '', '', ''],
+      ['Total Cleanings Executed', cleanings.length, 'Verified Coverage', '100% Monitored', 'Shift Coverage', 'Night & Day Active', 'Audit Standard', 'Certified A+'],
       []
     );
   }
 
-  // Define columns based on financial mode (Store Manager & Phone removed in both)
   let columns = [];
   if (includeFinancials) {
     columns = [
@@ -412,7 +699,6 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
       'Supervisor Remarks'
     ];
   } else {
-    // Pure Operational Mode - Zero Financial Data
     columns = [
       'S.No',
       'Store Code',
@@ -617,19 +903,22 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
   }
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
-    { s: { r: 2, c: 5 }, e: { r: 2, c: 8 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: columns.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: columns.length - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: Math.floor(columns.length / 2) } },
+    { s: { r: 2, c: Math.floor(columns.length / 2) + 1 }, e: { r: 2, c: columns.length - 1 } },
     { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
 
-  enrichInteractiveSheet(ws, {
+  applyCorporateTheme(ws, {
     headerRowIndex: 7,
     totalColumns: columns.length,
     totalRows: allRows.length,
     currencyColIndices: includeFinancials ? [19, 20, 21] : [],
-    numberColIndices: includeFinancials ? [0, 15, 18, 26] : [0, 15, 18, 19]
+    numberColIndices: includeFinancials ? [0, 15, 18, 26] : [0, 15, 18, 19],
+    centerColIndices: includeFinancials ? [0, 1, 6, 7, 8, 9, 10, 15, 17, 18, 22, 23, 24, 26, 27] : [0, 1, 6, 7, 8, 9, 10, 15, 17, 18, 19, 20],
+    statusColIndex: includeFinancials ? 22 : 17,
+    hasScorecard: true
   });
 
   return ws;
@@ -732,13 +1021,13 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
 
   if (includeFinancials) {
     headerRows.push(
-      ['EXECUTIVE STORE PERFORMANCE SCORECARD', '', '', '', ''],
+      ['EXECUTIVE STORE PERFORMANCE SCORECARD', '', '', '', '', '', '', ''],
       ['Total Registered Stores', storeRows.length, 'Total Cleanings Executed', sumCleanings, 'Total Invoiced Billing', sumBilled, 'Total Outstanding Balance', sumPend],
       []
     );
   } else {
     headerRows.push(
-      ['EXECUTIVE STORE AUDIT SCORECARD (NON-FINANCIAL)', '', '', '', ''],
+      ['EXECUTIVE STORE AUDIT SCORECARD (NON-FINANCIAL)', '', '', '', '', '', '', ''],
       ['Total Registered Stores', storeRows.length, 'Cleanings Completed', sumCleanings, 'Coverage Rate', '100% Monitored', 'Audit Status', 'Operational'],
       []
     );
@@ -866,19 +1155,22 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
   }
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
-    { s: { r: 2, c: 4 }, e: { r: 2, c: 7 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: columns.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: columns.length - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    { s: { r: 2, c: 5 }, e: { r: 2, c: columns.length - 1 } },
     { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
 
-  enrichInteractiveSheet(ws, {
+  applyCorporateTheme(ws, {
     headerRowIndex: 7,
     totalColumns: columns.length,
     totalRows: allRows.length,
     currencyColIndices: includeFinancials ? [6, 7, 8] : [],
-    numberColIndices: [0, 5]
+    numberColIndices: [0, 5],
+    centerColIndices: includeFinancials ? [0, 1, 5, 9, 10] : [0, 1, 5, 6, 7, 8],
+    statusColIndex: includeFinancials ? 9 : 8,
+    hasScorecard: true
   });
 
   return ws;
@@ -945,11 +1237,11 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
     ['Fully Settled Cleanings', paidCleaningsCount, 'Cleanings with Full Cleared Payments'],
     ['Pending / Partial Cleanings', pendingCleaningsCount, 'Cleanings Requiring Payment Follow-up'],
     [],
-    ['MONTH-WISE FINANCIAL BREAKDOWN'],
+    ['MONTH-WISE FINANCIAL BREAKDOWN', '', '', '', '', ''],
     ['Billing Month (YYYY-MM)', 'Cleanings Count', 'Invoiced Amount (Rs)', 'Amount Received (Rs)', 'Amount Pending (Rs)', 'Collection Rate (%)'],
     ...monthRows,
     [],
-    ['AUTHORIZED SIGNATORY & AUDIT NOTICE'],
+    ['AUTHORIZED SIGNATORY & AUDIT NOTICE', '', '', '', '', ''],
     ['This report is an official financial ledger extract from the Blinkit Deep Cleaning Operations Portal.'],
     ['For any billing discrepancies, contact SK Enterprises Accounts at skenterprises.clean@gmail.com / 09594023629.']
   ];
@@ -966,11 +1258,70 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
   ];
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: 2 } },
-    { s: { r: 2, c: 3 }, e: { r: 2, c: 4 } }
+    { s: { r: 2, c: 3 }, e: { r: 2, c: 5 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } },
+    { s: { r: 14, c: 0 }, e: { r: 14, c: 5 } },
+    { s: { r: rows.length - 3, c: 0 }, e: { r: rows.length - 3, c: 5 } },
+    { s: { r: rows.length - 2, c: 0 }, e: { r: rows.length - 2, c: 5 } },
+    { s: { r: rows.length - 1, c: 0 }, e: { r: rows.length - 1, c: 5 } }
   ];
+
+  // Header banner styling
+  for (let c = 0; c < 6; c++) {
+    const r1 = `${getColLetter(c)}1`;
+    const r2 = `${getColLetter(c)}2`;
+    const r3 = `${getColLetter(c)}3`;
+    if (!ws[r1]) ws[r1] = { t: 's', v: '' };
+    if (!ws[r2]) ws[r2] = { t: 's', v: '' };
+    if (!ws[r3]) ws[r3] = { t: 's', v: '' };
+    ws[r1].s = STYLES.titleBanner;
+    ws[r2].s = STYLES.subtitleBanner;
+    ws[r3].s = STYLES.metaBanner;
+  }
+
+  // KPI Table (Rows 5 to 13)
+  for (let r = 5; r <= 13; r++) {
+    const isHeader = (r === 5);
+    for (let c = 0; c < 3; c++) {
+      const ref = `${getColLetter(c)}${r}`;
+      if (ws[ref]) {
+        if (isHeader) {
+          ws[ref].s = STYLES.tableHeader;
+        } else {
+          ws[ref].s = (r % 2 === 0) ? STYLES.dataRowEven : STYLES.dataRowOdd;
+          if (c === 1 && typeof ws[ref].v === 'number' && (r >= 8 && r <= 10)) {
+            ws[ref].t = 'n';
+            ws[ref].z = '"₹"#,##0';
+          }
+        }
+      }
+    }
+  }
+
+  // Monthly Table header (Row 16)
+  for (let c = 0; c < 6; c++) {
+    const ref = `${getColLetter(c)}16`;
+    if (ws[ref]) {
+      ws[ref].s = STYLES.tableHeader;
+    }
+  }
+
+  // Monthly Data rows (Row 17 onwards)
+  for (let r = 17; r < 17 + monthRows.length; r++) {
+    for (let c = 0; c < 6; c++) {
+      const ref = `${getColLetter(c)}${r}`;
+      if (ws[ref]) {
+        ws[ref].s = (r % 2 === 0) ? STYLES.dataRowEven : STYLES.dataRowOdd;
+        if (c >= 2 && c <= 4 && typeof ws[ref].v === 'number') {
+          ws[ref].t = 'n';
+          ws[ref].z = '"₹"#,##0';
+        }
+      }
+    }
+  }
 
   return ws;
 }
