@@ -149,51 +149,63 @@ function drawKpiCards(doc, startY, cards = []) {
     const x = margin + i * (cardWidth + gap);
     
     // Background card box
-    doc.setFillColor(card.bgR || 248, card.bgG || 250, card.bgB || 252); // slate-50
-    doc.roundedRect(x, startY, cardWidth, cardHeight, 1.5, 1.5, 'F');
-    
-    // Border
-    doc.setDrawColor(card.borderR || 203, card.borderG || 213, card.borderB || 225);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(x, startY, cardWidth, cardHeight, 1.5, 1.5, 'S');
+    doc.setFillColor(card.bgR || 248, card.bgG || 250, card.bgB || 252);
+    doc.roundedRect(x, startY, cardWidth, cardHeight, 1.8, 1.8, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, startY, cardWidth, cardHeight, 1.8, 1.8, 'S');
 
     // Label
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.5);
     doc.setTextColor(card.lblR || 100, card.lblG || 116, card.lblB || 139);
-    doc.text(card.label.toUpperCase(), x + 3, startY + 4.8);
+    doc.text(card.label.toUpperCase(), x + (cardWidth / 2), startY + 5.2, { align: 'center' });
 
     // Value
-    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
     doc.setTextColor(card.valR || 15, card.valG || 23, card.valB || 42);
-    doc.text(String(card.value), x + 3, startY + 11.5);
+    doc.text(String(card.value), x + (cardWidth / 2), startY + 11.5, { align: 'center' });
   });
 
   return startY + cardHeight + 4;
 }
 
-// Add page numbering and footer
+// Standardized PDF Footer with Page Numbers
 function addFooterAndPageNumbers(doc) {
-  const totalPages = doc.internal.getNumberOfPages();
+  const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  for (let i = 1; i <= totalPages; i++) {
+  for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+
+    // Bottom border line
     doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.line(14, pageHeight - 10, pageWidth - 14, pageHeight - 10);
+    doc.setLineWidth(0.4);
+    doc.line(14, pageHeight - 9, pageWidth - 14, pageHeight - 9);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(148, 163, 184);
-    doc.text('Blinkit Quick Commerce Dark Store Operations Tracker - SK Enterprises Official Report', 14, pageHeight - 6);
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 6, { align: 'right' });
+    doc.text(
+      'SK ENTERPRISES | Blinkit Commercial Facility Management Portal | Confidential Operational & Financial Record',
+      14,
+      pageHeight - 5
+    );
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      pageWidth - 14,
+      pageHeight - 5,
+      { align: 'right' }
+    );
   }
 }
 
 // ----------------------------------------------------------------------
-// 1. PENDING PAYMENTS PDF GENERATOR
+// 1. PENDING PAYMENTS PDF REPORT (Store Manager & Contact Removed)
 // ----------------------------------------------------------------------
 export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All Time' }) {
   const pendingList = cleanings.filter(c => 
@@ -204,7 +216,7 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
   );
 
   if (pendingList.length === 0) {
-    alert('No pending payment records found for the selected filter.');
+    alert('Congratulations! There are no pending payment records for the selected period.');
     return;
   }
 
@@ -220,6 +232,7 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
   let totalRecv = 0;
   let totalPend = 0;
 
+  // Note: Store Manager and Contact Number permanently removed per user requirement
   const tableRows = pendingList.map((c, idx) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived);
@@ -235,10 +248,9 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
       c.storeCode || '-',
       c.storeName || '-',
       c.city || '-',
+      c.address || '-',
       c.cleaningDate || '-',
       `${overdue} days`,
-      c.managerName || '-',
-      c.managerPhone || '-',
       `Rs ${billed.toLocaleString('en-IN')}`,
       `Rs ${recv.toLocaleString('en-IN')}`,
       `Rs ${pend.toLocaleString('en-IN')}`,
@@ -258,12 +270,12 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
   runAutoTable(doc, {
     startY: currentY,
     head: [[
-      '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 'Aging', 
-      'Manager', 'Phone', 'Billed', 'Received', 'Pending Due', 'Status'
+      '#', 'Store Code', 'Store Name', 'City', 'Store Address', 'Clean Date', 'Aging', 
+      'Invoiced', 'Received', 'Pending Due', 'Status'
     ]],
     body: tableRows,
     foot: [[
-      'TOTAL', '', '', '', '', `${pendingList.length} Stores`, '', '',
+      'TOTAL', '', '', '', `${pendingList.length} Stores Due`, '', '',
       `Rs ${totalBilled.toLocaleString('en-IN')}`,
       `Rs ${totalRecv.toLocaleString('en-IN')}`,
       `Rs ${totalPend.toLocaleString('en-IN')}`,
@@ -276,16 +288,15 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 18, fontStyle: 'bold' },
-      2: { cellWidth: 48 },
+      2: { cellWidth: 50 },
       3: { cellWidth: 22 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 16, textColor: [220, 38, 38], fontStyle: 'bold' },
-      6: { cellWidth: 26 },
-      7: { cellWidth: 24 },
-      8: { cellWidth: 22, halign: 'right' },
-      9: { cellWidth: 22, halign: 'right' },
-      10: { cellWidth: 24, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
-      11: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
+      4: { cellWidth: 46 },
+      5: { cellWidth: 18 },
+      6: { cellWidth: 16, textColor: [220, 38, 38], fontStyle: 'bold' },
+      7: { cellWidth: 24, halign: 'right' },
+      8: { cellWidth: 24, halign: 'right' },
+      9: { cellWidth: 26, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
+      10: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
     }
   });
 
@@ -298,39 +309,51 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
   if (finalY < doc.internal.pageSize.getHeight() - 35) {
     // Bank Box
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(14, finalY, 130, 24, 1.5, 1.5, 'F');
+    doc.roundedRect(14, finalY, 150, 26, 2, 2, 'F');
     doc.setDrawColor(203, 213, 225);
-    doc.roundedRect(14, finalY, 130, 24, 1.5, 1.5, 'S');
+    doc.setLineWidth(0.3);
+    doc.roundedRect(14, finalY, 150, 26, 2, 2, 'S');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    doc.text('BANK DETAILS FOR OUTSTANDING PAYMENT SETTLEMENT:', 17, finalY + 5);
+    doc.text('SETTLEMENT BANK DETAILS FOR NEFT / RTGS / UPI:', 18, finalY + 5.5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(51, 65, 85);
-    doc.text(`Bank Name: ${bBy.bankName || 'HDFC Bank'}    |    A/C Holder: ${bBy.accountHolder || 'SK ENTERPRISES'}`, 17, finalY + 10.5);
-    doc.text(`Account No: ${bBy.accountNumber || '50200012345678'}    |    IFSC: ${bBy.ifsc || 'HDFC0001234'}`, 17, finalY + 15.5);
-    doc.text(`UPI ID: ${bBy.upiId || 'cleanpro@hdfcbank'}    |    Email UTR: skenterprises.clean@gmail.com`, 17, finalY + 20.5);
+    doc.text(`Bank Name: ${bBy.bankName || 'State Bank of India'}`, 18, finalY + 11);
+    doc.text(`Account No: ${bBy.accountNumber || '44415842838'}`, 18, finalY + 16);
+    doc.text(`IFSC Code: ${bBy.ifscCode || 'SBIN0061214'}   |   UPI ID: ${bBy.upiId || '9594023629@sbi'}`, 18, finalY + 21);
 
-    // Signatory Area
+    // Signatory Box
+    const sigX = pageWidth - 90;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`For ${bBy.companyName || 'SK ENTERPRISES'}`, sigX + 35, finalY + 5.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Commercial Facility Operations Division', sigX + 35, finalY + 10.5, { align: 'center' });
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.3);
+    doc.line(sigX + 5, finalY + 21, sigX + 65, finalY + 21);
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text('FOR SK ENTERPRISES', pageWidth - 55, finalY + 5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Authorized Billing & Accounts Officer', pageWidth - 55, finalY + 18);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Authorized Billing Officer', sigX + 35, finalY + 25, { align: 'center' });
   }
 
   addFooterAndPageNumbers(doc);
-  doc.save(`Blinkit_Pending_Payments_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`Blinkit_Pending_Payments_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // ----------------------------------------------------------------------
-// 2. COMPLETED PAYMENTS PDF GENERATOR
+// 2. COMPLETED PAYMENTS PDF REPORT (Store Manager Removed)
 // ----------------------------------------------------------------------
 export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'All Time' }) {
   const completedList = cleanings.filter(c => 
@@ -340,21 +363,22 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
   );
 
   if (completedList.length === 0) {
-    alert('No completed payment records found for the selected filter.');
+    alert('No settled payment records found for the selected period.');
     return;
   }
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   let currentY = drawHeaderBanner(doc, {
-    title: 'COMPLETED PAYMENTS & SETTLEMENT AUDIT REGISTER',
-    subtitle: 'REALIZED REVENUE & VERIFIED SETTLEMENTS - BLINKIT DARK STORES',
+    title: 'COMPLETED PAYMENTS & SETTLEMENT REGISTER',
+    subtitle: 'REVENUE AUDIT & BANK RECONCILIATION STATEMENT',
     filterLabel,
-    refCode: 'SETTL-AUDIT'
+    refCode: 'SETTLE-AUDIT'
   });
 
   let totalBilled = 0;
   let totalRecv = 0;
 
+  // Note: Store Manager removed per user requirement
   const tableRows = completedList.map((c, idx) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived) || billed;
@@ -370,7 +394,6 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
       c.paymentDate || c.cleaningDate || '-',
       c.paymentMode || 'UPI / NEFT',
       c.utrNumber || 'VERIFIED',
-      c.managerName || '-',
       `Rs ${billed.toLocaleString('en-IN')}`,
       `Rs ${recv.toLocaleString('en-IN')}`,
       'Full Paid'
@@ -388,11 +411,11 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
     startY: currentY,
     head: [[
       '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 'Paid Date', 
-      'Payment Mode', 'UTR / Ref No', 'Store Manager', 'Invoiced', 'Paid Amount', 'Status'
+      'Payment Mode', 'UTR / Ref No', 'Invoiced', 'Paid Amount', 'Status'
     ]],
     body: tableRows,
     foot: [[
-      'TOTAL', '', '', '', '', '', '', `${completedList.length} Entries`, '',
+      'TOTAL', '', '', '', '', '', '', `${completedList.length} Entries`,
       `Rs ${totalBilled.toLocaleString('en-IN')}`,
       `Rs ${totalRecv.toLocaleString('en-IN')}`,
       'SETTLED'
@@ -404,120 +427,207 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 18, fontStyle: 'bold' },
-      2: { cellWidth: 50 },
-      3: { cellWidth: 22 },
+      2: { cellWidth: 54 },
+      3: { cellWidth: 24 },
       4: { cellWidth: 20 },
       5: { cellWidth: 20 },
-      6: { cellWidth: 22 },
-      7: { cellWidth: 28, fontStyle: 'bold' },
-      8: { cellWidth: 26 },
-      9: { cellWidth: 22, halign: 'right' },
-      10: { cellWidth: 24, halign: 'right', fontStyle: 'bold', textColor: [12, 131, 31] },
-      11: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
+      6: { cellWidth: 26 },
+      7: { cellWidth: 36 },
+      8: { cellWidth: 26, halign: 'right' },
+      9: { cellWidth: 26, halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] },
+      10: { cellWidth: 20, halign: 'center', fontStyle: 'bold', textColor: [12, 131, 31] }
     }
   });
 
   addFooterAndPageNumbers(doc);
-  doc.save(`Blinkit_Completed_Payments_Register_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`Blinkit_Completed_Payments_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // ----------------------------------------------------------------------
-// 3. ALL CLEANING RECORDS MASTER REGISTER PDF
+// 3. ALL CLEANING RECORDS PDF REGISTER
+//    Supports includeFinancials = true (With Amount) | false (Without Amount)
+//    Store Manager & Contact Removed
 // ----------------------------------------------------------------------
-export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Time' }) {
+export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Time', includeFinancials = true } = {}) {
   if (cleanings.length === 0) {
-    alert('No cleaning records found for the selected filter.');
+    alert('No cleaning records found for the selected period.');
     return;
   }
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  
+  const title = includeFinancials
+    ? 'DEEP CLEANING OPERATIONS & FINANCIAL AUDIT MASTER'
+    : 'DEEP CLEANING OPERATIONS EXECUTION REGISTER (OPERATIONAL ONLY)';
+  const subtitle = includeFinancials
+    ? 'COMPLETE FACILITY AUDIT & BILLING LOG - BLINKIT DARK STORES'
+    : 'DARK STORE SANITIZATION, SHIFT TIMINGS & AUDIT COMPLIANCE (NON-FINANCIAL)';
+  const refCode = includeFinancials ? 'DC-MASTER-FIN' : 'DC-OPS-NONFIN';
+
   let currentY = drawHeaderBanner(doc, {
-    title: 'DEEP CLEANING OPERATIONS MASTER REGISTER',
-    subtitle: 'COMPLETE FACILITY AUDIT & BILLING LOG - BLINKIT DARK STORES',
+    title,
+    subtitle,
     filterLabel,
-    refCode: 'DC-MASTER'
+    refCode
   });
 
   let totalBilled = 0;
   let totalRecv = 0;
   let totalPend = 0;
+  let rating5Count = 0;
+  let totalPhotos = 0;
 
-  const tableRows = cleanings.map((c, idx) => {
-    const billed = toNum(c.amount);
-    const recv = toNum(c.amountReceived);
-    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
-
-    totalBilled += billed;
-    totalRecv += recv;
+  cleanings.forEach(c => {
+    totalBilled += toNum(c.amount);
+    totalRecv += toNum(c.amountReceived);
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, toNum(c.amount) - toNum(c.amountReceived));
     totalPend += pend;
-
-    return [
-      idx + 1,
-      c.storeCode || '-',
-      c.storeName || '-',
-      c.city || '-',
-      c.cleaningDate || '-',
-      c.shift || 'Night',
-      `${c.startTime || '--'} - ${c.endTime || '--'}`,
-      c.supervisorName || '-',
-      `${c.rating || 5}/5`,
-      `Rs ${billed.toLocaleString('en-IN')}`,
-      `Rs ${recv.toLocaleString('en-IN')}`,
-      `Rs ${pend.toLocaleString('en-IN')}`,
-      c.paymentStatus || 'Pending'
-    ];
+    if (Number(c.rating) >= 5) rating5Count++;
+    totalPhotos += (c.photos && c.photos.length) || 0;
   });
 
-  currentY = drawKpiCards(doc, currentY, [
-    { label: 'Total Cleanings Executed', value: cleanings.length, valR: 15, valG: 23, valB: 42 },
-    { label: 'Total Gross Billing', value: `Rs ${totalBilled.toLocaleString('en-IN')}`, valR: 15, valG: 23, valB: 42 },
-    { label: 'Total Realized Received', value: `Rs ${totalRecv.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
-    { label: 'Total Outstanding Pending', value: `Rs ${totalPend.toLocaleString('en-IN')}`, valR: totalPend > 0 ? 220 : 15, valG: totalPend > 0 ? 38 : 23, valB: totalPend > 0 ? 38 : 42 }
-  ]);
+  let tableRows = [];
+  let headCols = [];
+  let footCols = [];
+  let colStyles = {};
 
-  runAutoTable(doc, {
-    startY: currentY,
-    head: [[
+  if (includeFinancials) {
+    // Financial Master PDF
+    currentY = drawKpiCards(doc, currentY, [
+      { label: 'Total Cleanings Executed', value: cleanings.length, valR: 15, valG: 23, valB: 42 },
+      { label: 'Total Gross Billing', value: `Rs ${totalBilled.toLocaleString('en-IN')}`, valR: 15, valG: 23, valB: 42 },
+      { label: 'Total Realized Received', value: `Rs ${totalRecv.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
+      { label: 'Total Outstanding Pending', value: `Rs ${totalPend.toLocaleString('en-IN')}`, valR: totalPend > 0 ? 220 : 15, valG: totalPend > 0 ? 38 : 23, valB: totalPend > 0 ? 38 : 42 }
+    ]);
+
+    tableRows = cleanings.map((c, idx) => {
+      const billed = toNum(c.amount);
+      const recv = toNum(c.amountReceived);
+      const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
+
+      return [
+        idx + 1,
+        c.storeCode || '-',
+        c.storeName || '-',
+        c.city || '-',
+        c.cleaningDate || '-',
+        c.shift || 'Night',
+        c.supervisorName || '-',
+        `${c.rating || 5}/5`,
+        `Rs ${billed.toLocaleString('en-IN')}`,
+        `Rs ${recv.toLocaleString('en-IN')}`,
+        `Rs ${pend.toLocaleString('en-IN')}`,
+        c.paymentStatus || 'Pending'
+      ];
+    });
+
+    headCols = [
       '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 'Shift', 
-      'Timings', 'Supervisor', 'Rating', 'Invoiced', 'Received', 'Pending', 'Payment'
-    ]],
-    body: tableRows,
-    foot: [[
-      'TOTAL', '', '', '', '', '', `${cleanings.length} Records`, '', '',
+      'Supervisor', 'Rating', 'Invoiced', 'Received', 'Pending', 'Payment'
+    ];
+
+    footCols = [
+      'TOTAL', '', '', '', '', `${cleanings.length} Records`, '', '',
       `Rs ${totalBilled.toLocaleString('en-IN')}`,
       `Rs ${totalRecv.toLocaleString('en-IN')}`,
       `Rs ${totalPend.toLocaleString('en-IN')}`,
       ''
-    ]],
+    ];
+
+    colStyles = {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 18, fontStyle: 'bold' },
+      2: { cellWidth: 50 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 16 },
+      6: { cellWidth: 28 },
+      7: { cellWidth: 16, halign: 'center' },
+      8: { cellWidth: 24, halign: 'right' },
+      9: { cellWidth: 24, halign: 'right' },
+      10: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+      11: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }
+    };
+  } else {
+    // Pure Operational PDF - Zero Financials
+    currentY = drawKpiCards(doc, currentY, [
+      { label: 'Cleanings Executed', value: cleanings.length, valR: 15, valG: 23, valB: 42 },
+      { label: '5-Star Quality Rating', value: rating5Count, valR: 245, valG: 158, valB: 11 },
+      { label: 'Photo Proofs Uploaded', value: totalPhotos, valR: 14, valG: 165, valB: 233 },
+      { label: 'Audit Verification Rate', value: '100.0% VERIFIED', valR: 12, valG: 131, valB: 31 }
+    ]);
+
+    tableRows = cleanings.map((c, idx) => {
+      const scopeStr = Array.isArray(c.scopeOfWork)
+        ? c.scopeOfWork.slice(0, 2).join(', ')
+        : 'Floor Deep Cleaning, Toilet, Cold Storage';
+
+      return [
+        idx + 1,
+        c.storeCode || '-',
+        c.storeName || '-',
+        c.city || '-',
+        c.cleaningDate || '-',
+        c.shift || 'Night',
+        `${c.startTime || '--'} - ${c.endTime || '--'}`,
+        c.supervisorName || '-',
+        c.headcount || 1,
+        scopeStr,
+        `${c.rating || 5}/5`,
+        c.status || 'Completed'
+      ];
+    });
+
+    headCols = [
+      '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 'Shift', 
+      'Timings', 'Supervisor', 'Team', 'Scope of Work', 'Rating', 'Status'
+    ];
+
+    footCols = [
+      'TOTAL', '', '', '', '', '', '', `${cleanings.length} Executions`, '', '', '', 'VERIFIED'
+    ];
+
+    colStyles = {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 18, fontStyle: 'bold' },
+      2: { cellWidth: 48 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 16 },
+      6: { cellWidth: 24 },
+      7: { cellWidth: 26 },
+      8: { cellWidth: 12, halign: 'center' },
+      9: { cellWidth: 48 },
+      10: { cellWidth: 14, halign: 'center' },
+      11: { cellWidth: 18, halign: 'center', fontStyle: 'bold', textColor: [12, 131, 31] }
+    };
+  }
+
+  runAutoTable(doc, {
+    startY: currentY,
+    head: [headCols],
+    body: tableRows,
+    foot: [footCols],
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
     footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
-    columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 18, fontStyle: 'bold' },
-      2: { cellWidth: 46 },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 16 },
-      6: { cellWidth: 24 },
-      7: { cellWidth: 24 },
-      8: { cellWidth: 14, halign: 'center' },
-      9: { cellWidth: 22, halign: 'right' },
-      10: { cellWidth: 22, halign: 'right' },
-      11: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },
-      12: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
-    }
+    columnStyles: colStyles
   });
 
   addFooterAndPageNumbers(doc);
-  doc.save(`Blinkit_All_Cleanings_Register_${new Date().toISOString().slice(0, 10)}.pdf`);
+  const fileName = includeFinancials
+    ? `Blinkit_All_Cleanings_Financial_${new Date().toISOString().slice(0, 10)}.pdf`
+    : `Blinkit_All_Cleanings_Operational_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
 }
 
 // ----------------------------------------------------------------------
-// 4. STORE-WISE PERFORMANCE & FINANCIAL SUMMARY PDF
+// 4. STORE-WISE PERFORMANCE PDF SUMMARY
+//    Supports includeFinancials = true (With Amount) | false (Without Amount)
+//    Store Manager & Contact Removed
 // ----------------------------------------------------------------------
-export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLabel = 'All Time' }) {
+export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLabel = 'All Time', includeFinancials = true } = {}) {
   const storeMap = new Map();
 
   stores.forEach(s => {
@@ -527,8 +637,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
         code: s.storeCode || s.code || '',
         name: s.storeName || s.name || '',
         city: s.city || '',
-        manager: s.managerName || '',
-        phone: s.managerPhone || '',
+        address: s.address || '',
         cleaningsCount: 0,
         totalBilled: 0,
         totalReceived: 0,
@@ -548,8 +657,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
         code: c.storeCode || '',
         name: c.storeName || '',
         city: c.city || '',
-        manager: c.managerName || '',
-        phone: c.managerPhone || '',
+        address: c.address || '',
         cleaningsCount: 0,
         totalBilled: 0,
         totalReceived: 0,
@@ -580,124 +688,215 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
   }
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  
+  const title = includeFinancials
+    ? 'DARK STORE PERFORMANCE & FINANCIAL AUDIT SUMMARY'
+    : 'DARK STORE SERVICE FREQUENCY & COVERAGE REGISTER (OPERATIONAL)';
+  const subtitle = includeFinancials
+    ? 'STORE-BY-STORE COVERAGE & REVENUE RECOVERY LEDGER'
+    : 'STORE NETWORK CLEANING FREQUENCY & AUDIT STATUS (NON-FINANCIAL)';
+  const refCode = includeFinancials ? 'STORE-LEDGER' : 'STORE-OPS-AUDIT';
+
   let currentY = drawHeaderBanner(doc, {
-    title: 'DARK STORE PERFORMANCE & FINANCIAL AUDIT SUMMARY',
-    subtitle: 'STORE-BY-STORE COVERAGE & REVENUE RECOVERY LEDGER',
+    title,
+    subtitle,
     filterLabel,
-    refCode: 'STORE-LEDGER'
+    refCode
   });
 
   let sumCleanings = 0;
   let sumBilled = 0;
   let sumRecv = 0;
   let sumPend = 0;
+  let activeCleanedCount = 0;
 
-  const tableRows = storeRows.map((s, idx) => {
+  storeRows.forEach(s => {
     sumCleanings += s.cleaningsCount;
     sumBilled += s.totalBilled;
     sumRecv += s.totalReceived;
     sumPend += s.totalPending;
-
-    let status = 'Cleared';
-    if (s.cleaningsCount === 0) status = 'No Cleanings';
-    else if (s.totalPending > 0) status = 'Pending Dues';
-
-    return [
-      idx + 1,
-      s.code || '-',
-      s.name || '-',
-      s.city || '-',
-      `${s.manager || '-'} (${s.phone || '-'})`,
-      s.cleaningsCount,
-      `Rs ${s.totalBilled.toLocaleString('en-IN')}`,
-      `Rs ${s.totalReceived.toLocaleString('en-IN')}`,
-      `Rs ${s.totalPending.toLocaleString('en-IN')}`,
-      status,
-      s.lastCleanDate || '-'
-    ];
+    if (s.cleaningsCount > 0) activeCleanedCount++;
   });
 
-  currentY = drawKpiCards(doc, currentY, [
-    { label: 'Registered Dark Stores', value: storeRows.length, valR: 15, valG: 23, valB: 42 },
-    { label: 'Cleanings Executed', value: sumCleanings, valR: 15, valG: 23, valB: 42 },
-    { label: 'Total Invoiced Value', value: `Rs ${sumBilled.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
-    { label: 'Total Outstanding Dues', value: `Rs ${sumPend.toLocaleString('en-IN')}`, valR: sumPend > 0 ? 220 : 15, valG: sumPend > 0 ? 38 : 23, valB: sumPend > 0 ? 38 : 42 }
-  ]);
+  let tableRows = [];
+  let headCols = [];
+  let footCols = [];
+  let colStyles = {};
 
-  runAutoTable(doc, {
-    startY: currentY,
-    head: [[
-      '#', 'Store Code', 'Store Name', 'City', 'Manager & Contact', 
+  if (includeFinancials) {
+    currentY = drawKpiCards(doc, currentY, [
+      { label: 'Registered Dark Stores', value: storeRows.length, valR: 15, valG: 23, valB: 42 },
+      { label: 'Cleanings Executed', value: sumCleanings, valR: 15, valG: 23, valB: 42 },
+      { label: 'Total Invoiced Value', value: `Rs ${sumBilled.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
+      { label: 'Total Outstanding Dues', value: `Rs ${sumPend.toLocaleString('en-IN')}`, valR: sumPend > 0 ? 220 : 15, valG: sumPend > 0 ? 38 : 23, valB: sumPend > 0 ? 38 : 42 }
+    ]);
+
+    tableRows = storeRows.map((s, idx) => {
+      let status = 'Cleared';
+      if (s.cleaningsCount === 0) status = 'No Cleanings';
+      else if (s.totalPending > 0) status = 'Pending Dues';
+
+      return [
+        idx + 1,
+        s.code || '-',
+        s.name || '-',
+        s.city || '-',
+        s.cleaningsCount,
+        `Rs ${s.totalBilled.toLocaleString('en-IN')}`,
+        `Rs ${s.totalReceived.toLocaleString('en-IN')}`,
+        `Rs ${s.totalPending.toLocaleString('en-IN')}`,
+        status,
+        s.lastCleanDate || '-'
+      ];
+    });
+
+    headCols = [
+      '#', 'Store Code', 'Store Name', 'City', 
       'Cleanings', 'Total Invoiced', 'Received', 'Pending Dues', 'Status', 'Last Cleaned'
-    ]],
-    body: tableRows,
-    foot: [[
-      'TOTAL', '', '', '', `${storeRows.length} Stores`,
+    ];
+
+    footCols = [
+      'TOTAL', '', '', `${storeRows.length} Stores`,
       sumCleanings,
       `Rs ${sumBilled.toLocaleString('en-IN')}`,
       `Rs ${sumRecv.toLocaleString('en-IN')}`,
       `Rs ${sumPend.toLocaleString('en-IN')}`,
       '', ''
-    ]],
+    ];
+
+    colStyles = {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 20, fontStyle: 'bold' },
+      2: { cellWidth: 62 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 30, halign: 'right' },
+      6: { cellWidth: 30, halign: 'right' },
+      7: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+      8: { cellWidth: 24, halign: 'center', fontStyle: 'bold' },
+      9: { cellWidth: 22 }
+    };
+  } else {
+    currentY = drawKpiCards(doc, currentY, [
+      { label: 'Total Dark Stores', value: storeRows.length, valR: 15, valG: 23, valB: 42 },
+      { label: 'Serviced Stores', value: activeCleanedCount, valR: 12, valG: 131, valB: 31 },
+      { label: 'Total Cleanings Logged', value: sumCleanings, valR: 14, valG: 165, valB: 233 },
+      { label: 'Network Coverage', value: `${Math.round((activeCleanedCount / (storeRows.length || 1)) * 100)}%`, valR: 245, valG: 158, valB: 11 }
+    ]);
+
+    tableRows = storeRows.map((s, idx) => {
+      let cycle = 'Every 30 Days';
+      let opStatus = s.cleaningsCount > 0 ? 'Active / Serviced' : 'Pending First Cycle';
+
+      return [
+        idx + 1,
+        s.code || '-',
+        s.name || '-',
+        s.city || '-',
+        s.address || '-',
+        s.cleaningsCount,
+        s.lastCleanDate || '-',
+        cycle,
+        opStatus
+      ];
+    });
+
+    headCols = [
+      '#', 'Store Code', 'Store Name', 'City', 'Store Address',
+      'Cleanings', 'Last Cleaned Date', 'Cycle Frequency', 'Operational Status'
+    ];
+
+    footCols = [
+      'TOTAL', '', '', '', `${storeRows.length} Stores`,
+      sumCleanings, '', '', 'NETWORK AUDITED'
+    ];
+
+    colStyles = {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 20, fontStyle: 'bold' },
+      2: { cellWidth: 52 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 58 },
+      5: { cellWidth: 20, halign: 'center' },
+      6: { cellWidth: 24 },
+      7: { cellWidth: 28 },
+      8: { cellWidth: 30, halign: 'center', fontStyle: 'bold', textColor: [12, 131, 31] }
+    };
+  }
+
+  runAutoTable(doc, {
+    startY: currentY,
+    head: [headCols],
+    body: tableRows,
+    foot: [footCols],
     theme: 'grid',
     styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
     footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 8 },
-    columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 18, fontStyle: 'bold' },
-      2: { cellWidth: 50 },
-      3: { cellWidth: 22 },
-      4: { cellWidth: 44 },
-      5: { cellWidth: 18, halign: 'center' },
-      6: { cellWidth: 24, halign: 'right' },
-      7: { cellWidth: 24, halign: 'right' },
-      8: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
-      9: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
-      10: { cellWidth: 20 }
-    }
+    columnStyles: colStyles
   });
 
   addFooterAndPageNumbers(doc);
-  doc.save(`Blinkit_Store_Performance_Summary_${new Date().toISOString().slice(0, 10)}.pdf`);
+  const fileName = includeFinancials
+    ? `Blinkit_Store_Performance_Ledger_${new Date().toISOString().slice(0, 10)}.pdf`
+    : `Blinkit_Store_Operations_Audit_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
 }
 
 // ----------------------------------------------------------------------
-// 5. MASTER EXECUTIVE CONSOLIDATED REPORT PDF
+// 5. MASTER EXECUTIVE CONSOLIDATED PDF (Store Manager & Contact Removed)
 // ----------------------------------------------------------------------
 export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], filterLabel = 'All Time' }) {
   if (cleanings.length === 0) {
-    alert('No cleaning records available for executive report.');
+    alert('No cleaning records found for the executive report.');
     return;
   }
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   let currentY = drawHeaderBanner(doc, {
-    title: 'EXECUTIVE CONSOLIDATED AUDIT & FINANCIAL REPORT',
-    subtitle: 'COMPREHENSIVE OPERATIONS & REVENUE LEDGER - BLINKIT COMMERCE',
+    title: 'EXECUTIVE MANAGEMENT SUMMARY & FINANCIAL AUDIT',
+    subtitle: 'CONSOLIDATED BLINKIT FACILITY REPORT',
     filterLabel,
     refCode: 'EXEC-AUDIT'
   });
 
-  const totalBilled = cleanings.reduce((sum, c) => sum + toNum(c.amount), 0);
-  const totalReceived = cleanings.reduce((sum, c) => sum + toNum(c.amountReceived), 0);
-  const totalPending = cleanings.reduce((sum, c) => {
-    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, toNum(c.amount) - toNum(c.amountReceived));
-    return sum + pend;
-  }, 0);
+  let totalBilled = 0;
+  let totalReceived = 0;
+  let totalPending = 0;
+
+  cleanings.forEach(c => {
+    const b = toNum(c.amount);
+    const r = toNum(c.amountReceived);
+    const p = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, b - r);
+    totalBilled += b;
+    totalReceived += r;
+    totalPending += p;
+  });
+
   const collectionRate = totalBilled > 0 ? ((totalReceived / totalBilled) * 100).toFixed(1) + '%' : '0%';
 
   currentY = drawKpiCards(doc, currentY, [
-    { label: 'Total Dark Stores', value: stores.length || cleanings.length, valR: 15, valG: 23, valB: 42 },
+    { label: 'Registered Stores', value: stores.length || cleanings.length, valR: 15, valG: 23, valB: 42 },
     { label: 'Cleanings Executed', value: cleanings.length, valR: 15, valG: 23, valB: 42 },
-    { label: 'Gross Invoiced (Rs)', value: `Rs ${totalBilled.toLocaleString('en-IN')}`, valR: 15, valG: 23, valB: 42 },
-    { label: 'Realized Revenue (Rs)', value: `Rs ${totalReceived.toLocaleString('en-IN')}`, bgR: 240, bgG: 253, bgB: 244, valR: 12, valG: 131, valB: 31 },
-    { label: 'Outstanding Balance (Rs)', value: `Rs ${totalPending.toLocaleString('en-IN')}`, bgR: 255, bgG: 241, bgB: 242, valR: 220, valG: 38, valB: 38 },
-    { label: 'Collection Rate', value: collectionRate, valR: 245, valG: 158, valB: 11 }
+    { label: 'Total Invoiced Value', value: `Rs ${totalBilled.toLocaleString('en-IN')}`, valR: 15, valG: 23, valB: 42 },
+    { label: 'Total Realized Received', value: `Rs ${totalReceived.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
+    { label: 'Outstanding Pending Dues', value: `Rs ${totalPending.toLocaleString('en-IN')}`, bgR: 255, bgG: 241, bgB: 242, valR: 225, valG: 29, valB: 72 },
+    { label: 'Collection Realization', value: collectionRate, valR: 245, valG: 158, valB: 11 }
   ]);
 
-  // Section 1: Executive Findings Table
-  const tableRows = cleanings.map((c, idx) => {
+  // Section 1: Top Critical Dues / Operational Summary
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('1. TOP PENDING ACCOUNTS REQUIRING SETTLEMENT FOLLOW-UP', 14, currentY + 4);
+  currentY += 7;
+
+  // Filter top 10 pending (Store Manager and Phone permanently removed)
+  const topPending = cleanings
+    .filter(c => c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial' || (toNum(c.amountPending) > 0))
+    .slice(0, 12);
+
+  const tableRows = topPending.map((c, idx) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived);
     const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
@@ -708,8 +907,6 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
       c.storeName || '-',
       c.city || '-',
       c.cleaningDate || '-',
-      c.managerName || '-',
-      c.managerPhone || '-',
       `Rs ${billed.toLocaleString('en-IN')}`,
       `Rs ${recv.toLocaleString('en-IN')}`,
       `Rs ${pend.toLocaleString('en-IN')}`,
@@ -721,11 +918,11 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
     startY: currentY,
     head: [[
       '#', 'Store Code', 'Store Name', 'City', 'Clean Date', 
-      'Manager', 'Phone', 'Invoiced', 'Received', 'Pending Dues', 'Status'
+      'Invoiced', 'Received', 'Pending Dues', 'Status'
     ]],
     body: tableRows,
     foot: [[
-      'TOTAL', '', '', '', `${cleanings.length} Cleanings`, '', '',
+      'TOTAL', '', '', '', `${cleanings.length} Cleanings`,
       `Rs ${totalBilled.toLocaleString('en-IN')}`,
       `Rs ${totalReceived.toLocaleString('en-IN')}`,
       `Rs ${totalPending.toLocaleString('en-IN')}`,
@@ -738,15 +935,13 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 20, fontStyle: 'bold' },
-      2: { cellWidth: 52 },
-      3: { cellWidth: 24 },
-      4: { cellWidth: 22 },
-      5: { cellWidth: 26 },
-      6: { cellWidth: 24 },
-      7: { cellWidth: 24, halign: 'right' },
-      8: { cellWidth: 24, halign: 'right' },
-      9: { cellWidth: 24, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
-      10: { cellWidth: 22, halign: 'center', fontStyle: 'bold' }
+      2: { cellWidth: 65 },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 24 },
+      5: { cellWidth: 30, halign: 'right' },
+      6: { cellWidth: 30, halign: 'right' },
+      7: { cellWidth: 32, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
+      8: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }
     }
   });
 

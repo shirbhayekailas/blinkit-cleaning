@@ -50,6 +50,9 @@ export default function ReportsCenterModal({
   const [selectedStore, setSelectedStore] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [previewTab, setPreviewTab] = useState('pending'); // 'pending' | 'completed' | 'all' | 'stores'
+  const [card4Mode, setCard4Mode] = useState('with_amount'); // 'with_amount' | 'without_amount'
+  const [card5Mode, setCard5Mode] = useState('with_amount'); // 'with_amount' | 'without_amount'
+  const [previewMode, setPreviewMode] = useState('with_amount'); // 'with_amount' | 'without_amount'
 
   // Compute date bounds for filters
   const now = new Date();
@@ -449,7 +452,7 @@ export default function ReportsCenterModal({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Outstanding dues follow-up list with overdue days, manager phone numbers, pending amounts & bank transfer info.
+                  Outstanding dues follow-up list with overdue days, dark store details, pending amounts & bank transfer info.
                 </p>
               </div>
 
@@ -523,24 +526,52 @@ export default function ReportsCenterModal({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Full deep cleaning register with shift timings, supervisors deployed, audit ratings, photo proofs & financial entries.
+                  Full deep cleaning register with shift timings, supervisors deployed, audit ratings, photo proofs & verified execution.
                 </p>
+
+                {/* Dual Option Toggle: With Amount vs Without Amount */}
+                <div className="mt-2.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCard4Mode('with_amount')}
+                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                      card4Mode === 'with_amount'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    💰 With Amount
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCard4Mode('without_amount')}
+                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                      card4Mode === 'without_amount'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    📋 Without Amount (Ops)
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
                 <button
-                  onClick={() => exportAllCleaningsExcel(filteredCleanings, filterLabel)}
+                  onClick={() => exportAllCleaningsExcel(filteredCleanings, filterLabel, { includeFinancials: card4Mode === 'with_amount' })}
                   className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  title={card4Mode === 'with_amount' ? "Excel with full billing & rates" : "Excel without money/financials"}
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel (.xlsx)</span>
+                  <span>Excel ({card4Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
                 </button>
                 <button
-                  onClick={() => generateAllCleaningsPDF({ cleanings: filteredCleanings, filterLabel })}
+                  onClick={() => generateAllCleaningsPDF({ cleanings: filteredCleanings, filterLabel, includeFinancials: card4Mode === 'with_amount' })}
                   className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  title={card4Mode === 'with_amount' ? "PDF with full billing & rates" : "PDF without money/financials"}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>PDF (.pdf)</span>
+                  <span>PDF ({card4Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
                 </button>
               </div>
             </div>
@@ -560,24 +591,52 @@ export default function ReportsCenterModal({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Store-by-store breakdown of cleaning counts, total billed, amount collected, pending balance and cycle status.
+                  Store-by-store breakdown of cleaning counts, dark store addresses, coverage frequency and audit status.
                 </p>
+
+                {/* Dual Option Toggle: With Amount vs Without Amount */}
+                <div className="mt-2.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCard5Mode('with_amount')}
+                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                      card5Mode === 'with_amount'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    💰 With Amount
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCard5Mode('without_amount')}
+                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                      card5Mode === 'without_amount'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    📋 Without Amount (Audit)
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
                 <button
-                  onClick={() => exportStorePerformanceExcel(filteredCleanings, stores, filterLabel)}
+                  onClick={() => exportStorePerformanceExcel(filteredCleanings, stores, filterLabel, { includeFinancials: card5Mode === 'with_amount' })}
                   className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  title={card5Mode === 'with_amount' ? "Excel ledger with dues & settlements" : "Excel audit without money"}
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel (.xlsx)</span>
+                  <span>Excel ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
                 </button>
                 <button
-                  onClick={() => generateStoreSummaryPDF({ cleanings: filteredCleanings, stores, filterLabel })}
+                  onClick={() => generateStoreSummaryPDF({ cleanings: filteredCleanings, stores, filterLabel, includeFinancials: card5Mode === 'with_amount' })}
                   className="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  title={card5Mode === 'with_amount' ? "PDF ledger with dues & settlements" : "PDF audit without money"}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>PDF (.pdf)</span>
+                  <span>PDF ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
                 </button>
               </div>
             </div>
@@ -650,9 +709,35 @@ export default function ReportsCenterModal({
               </button>
             </div>
 
-            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-              Live Preview of Export Data
-            </span>
+            <div className="flex items-center gap-2">
+              {(previewTab === 'all' || previewTab === 'stores') && (
+                <div className="flex items-center p-0.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <button
+                    onClick={() => setPreviewMode('with_amount')}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition ${
+                      previewMode === 'with_amount'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    💰 With Amount
+                  </button>
+                  <button
+                    onClick={() => setPreviewMode('without_amount')}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition ${
+                      previewMode === 'without_amount'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    📋 Without Amount (Ops)
+                  </button>
+                </div>
+              )}
+              <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                Live Preview of Export Data
+              </span>
+            </div>
           </div>
 
           {/* Table Container */}
@@ -666,7 +751,7 @@ export default function ReportsCenterModal({
                     <th className="py-2.5 px-3">#</th>
                     <th className="py-2.5 px-3">Store</th>
                     <th className="py-2.5 px-3">Cleaning Date</th>
-                    <th className="py-2.5 px-3">Manager</th>
+                    <th className="py-2.5 px-3">Store Address</th>
                     <th className="py-2.5 px-3 text-right">Billed</th>
                     <th className="py-2.5 px-3 text-right">Received</th>
                     <th className="py-2.5 px-3 text-right">Pending Dues</th>
@@ -694,9 +779,8 @@ export default function ReportsCenterModal({
                             <div className="text-[10px] text-slate-400 font-mono">{c.storeCode} ({c.city})</div>
                           </td>
                           <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{c.cleaningDate}</td>
-                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
-                            <div>{c.managerName || '-'}</div>
-                            {c.managerPhone && <div className="text-[10px] text-slate-400">{c.managerPhone}</div>}
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-[180px] truncate" title={c.address}>
+                            {c.address || '-'}
                           </td>
                           <td className="py-2.5 px-3 text-right font-medium">₹{billed.toLocaleString('en-IN')}</td>
                           <td className="py-2.5 px-3 text-right font-medium text-emerald-600">₹{recv.toLocaleString('en-IN')}</td>
@@ -770,17 +854,31 @@ export default function ReportsCenterModal({
             {previewTab === 'all' && (
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold sticky top-0 border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="py-2.5 px-3">#</th>
-                    <th className="py-2.5 px-3">Store</th>
-                    <th className="py-2.5 px-3">Date & Shift</th>
-                    <th className="py-2.5 px-3">Supervisor</th>
-                    <th className="py-2.5 px-3 text-center">Rating</th>
-                    <th className="py-2.5 px-3 text-right">Invoiced</th>
-                    <th className="py-2.5 px-3 text-right">Received</th>
-                    <th className="py-2.5 px-3 text-right">Pending</th>
-                    <th className="py-2.5 px-3 text-center">Payment</th>
-                  </tr>
+                  {previewMode === 'without_amount' ? (
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">Store</th>
+                      <th className="py-2.5 px-3">Date & Shift</th>
+                      <th className="py-2.5 px-3">Supervisor</th>
+                      <th className="py-2.5 px-3">Team Deployed</th>
+                      <th className="py-2.5 px-3">Scope of Work</th>
+                      <th className="py-2.5 px-3 text-center">Rating</th>
+                      <th className="py-2.5 px-3 text-center">Photos</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">Store</th>
+                      <th className="py-2.5 px-3">Date & Shift</th>
+                      <th className="py-2.5 px-3">Supervisor</th>
+                      <th className="py-2.5 px-3 text-center">Rating</th>
+                      <th className="py-2.5 px-3 text-right">Invoiced</th>
+                      <th className="py-2.5 px-3 text-right">Received</th>
+                      <th className="py-2.5 px-3 text-right">Pending</th>
+                      <th className="py-2.5 px-3 text-center">Payment</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredCleanings.length === 0 ? (
@@ -794,6 +892,42 @@ export default function ReportsCenterModal({
                       const billed = Number(c.amount) || 0;
                       const recv = Number(c.amountReceived) || 0;
                       const pend = c.amountPending !== undefined ? Number(c.amountPending) : Math.max(0, billed - recv);
+                      const scopeStr = Array.isArray(c.scopeOfWork)
+                        ? c.scopeOfWork.slice(0, 2).join(', ')
+                        : 'Floor, Washroom, Cold Room';
+
+                      if (previewMode === 'without_amount') {
+                        return (
+                          <tr key={c.id || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                            <td className="py-2.5 px-3 font-semibold text-slate-400">{i + 1}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">
+                              <div>{c.storeName || '-'}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{c.storeCode} ({c.city})</div>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+                              <div>{c.cleaningDate}</div>
+                              <div className="text-[10px] text-slate-400">{c.shift || 'Night Shift'}</div>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{c.supervisorName || '-'}</td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+                              <div>{c.teamMembers || 'Trained Staff'}</div>
+                              <div className="text-[10px] text-slate-400">{c.headcount || 1} cleaners</div>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-[160px] truncate" title={Array.isArray(c.scopeOfWork) ? c.scopeOfWork.join(', ') : scopeStr}>
+                              {scopeStr}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-amber-500">⭐ {c.rating || 5}</td>
+                            <td className="py-2.5 px-3 text-center font-medium text-slate-600 dark:text-slate-300">
+                              {(c.photos && c.photos.length) || 0} pics
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                {c.status || 'Completed'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      }
 
                       return (
                         <tr key={c.id || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
@@ -832,43 +966,82 @@ export default function ReportsCenterModal({
             {previewTab === 'stores' && (
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold sticky top-0 border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="py-2.5 px-3">#</th>
-                    <th className="py-2.5 px-3">Store Name & Code</th>
-                    <th className="py-2.5 px-3">City</th>
-                    <th className="py-2.5 px-3">Manager</th>
-                    <th className="py-2.5 px-3 text-center">Cleanings Done</th>
-                    <th className="py-2.5 px-3 text-right">Invoiced</th>
-                    <th className="py-2.5 px-3 text-right">Received</th>
-                    <th className="py-2.5 px-3 text-right">Pending Dues</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                  </tr>
+                  {previewMode === 'without_amount' ? (
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">Store Name & Code</th>
+                      <th className="py-2.5 px-3">City</th>
+                      <th className="py-2.5 px-3">Store Address</th>
+                      <th className="py-2.5 px-3 text-center">Cleanings Done</th>
+                      <th className="py-2.5 px-3">Last Cleaned Date</th>
+                      <th className="py-2.5 px-3 text-center">Operational Status</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">Store Name & Code</th>
+                      <th className="py-2.5 px-3">City</th>
+                      <th className="py-2.5 px-3 text-center">Cleanings Done</th>
+                      <th className="py-2.5 px-3 text-right">Invoiced</th>
+                      <th className="py-2.5 px-3 text-right">Received</th>
+                      <th className="py-2.5 px-3 text-right">Pending Dues</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {storeSummaryList.map((s, i) => (
-                    <tr key={s.code || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                      <td className="py-2.5 px-3 font-semibold text-slate-400">{i + 1}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">
-                        <div>{s.name || '-'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{s.code}</div>
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{s.city || '-'}</td>
-                      <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{s.manager || '-'}</td>
-                      <td className="py-2.5 px-3 text-center font-bold">{s.cleaningsCount}</td>
-                      <td className="py-2.5 px-3 text-right font-medium">₹{s.totalBilled.toLocaleString('en-IN')}</td>
-                      <td className="py-2.5 px-3 text-right font-medium text-emerald-600">₹{s.totalReceived.toLocaleString('en-IN')}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-600">₹{s.totalPending.toLocaleString('en-IN')}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          s.totalPending === 0
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
-                        }`}>
-                          {s.totalPending === 0 ? 'All Cleared' : 'Pending Dues'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {storeSummaryList.map((s, i) => {
+                    if (previewMode === 'without_amount') {
+                      return (
+                        <tr key={s.code || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                          <td className="py-2.5 px-3 font-semibold text-slate-400">{i + 1}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">
+                            <div>{s.name || '-'}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{s.code}</div>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{s.city || '-'}</td>
+                          <td className="py-2.5 px-3 text-slate-500 max-w-[200px] truncate" title={s.address || '-'}>
+                            {s.address || '-'}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-bold text-blue-600">{s.cleaningsCount}</td>
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{s.lastCleanDate || '-'}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              s.cleaningsCount > 0
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                            }`}>
+                              {s.cleaningsCount > 0 ? 'Active / Serviced' : 'Pending First Cycle'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={s.code || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <td className="py-2.5 px-3 font-semibold text-slate-400">{i + 1}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">
+                          <div>{s.name || '-'}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{s.code}</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{s.city || '-'}</td>
+                        <td className="py-2.5 px-3 text-center font-bold">{s.cleaningsCount}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">₹{s.totalBilled.toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 px-3 text-right font-medium text-emerald-600">₹{s.totalReceived.toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600">₹{s.totalPending.toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            s.totalPending === 0
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                          }`}>
+                            {s.totalPending === 0 ? 'All Cleared' : 'Pending Dues'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

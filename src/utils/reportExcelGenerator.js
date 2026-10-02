@@ -18,8 +18,64 @@ const getDaysOverdue = (dateStr) => {
   return Math.max(0, diffDays);
 };
 
+// Helper: Convert 0-indexed column number to Excel column letters (A, B, ..., Z, AA, AB...)
+const getColLetter = (c) => {
+  let s = '';
+  let temp = c;
+  while (temp >= 0) {
+    s = String.fromCharCode((temp % 26) + 65) + s;
+    temp = Math.floor(temp / 26) - 1;
+  }
+  return s;
+};
+
+/**
+ * Enriches a SheetJS worksheet with interactive formatting:
+ * - Excel AutoFilter dropdowns on the column header row
+ * - Frozen panes so column headers stay pinned during vertical scrolling
+ * - Currency number formats ('₹'#,##0)
+ * - Standard integer number formats (#,##0)
+ */
+function enrichInteractiveSheet(ws, {
+  headerRowIndex,       // 0-indexed row of table column headers
+  totalColumns,         // Total count of columns
+  totalRows,            // Total count of rows in worksheet
+  currencyColIndices = [], // 0-indexed column indices with money amounts
+  numberColIndices = []    // 0-indexed column indices with integer counts
+}) {
+  if (!ws) return;
+
+  const lastColLetter = getColLetter(totalColumns - 1);
+  const headerExcelRow = headerRowIndex + 1; // 1-indexed
+
+  // 1. Enable interactive AutoFilter dropdowns on column headers
+  ws['!autofilter'] = { ref: `A${headerExcelRow}:${lastColLetter}${totalRows}` };
+
+  // 2. Freeze panes at header row for high-productivity desktop & mobile scrolling
+  ws['!views'] = [{ state: 'frozen', ySplit: headerExcelRow }];
+
+  // 3. Apply professional number formatting to all data cells
+  for (let r = headerExcelRow + 1; r <= totalRows; r++) {
+    currencyColIndices.forEach(colIdx => {
+      const cellRef = `${getColLetter(colIdx)}${r}`;
+      if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+        ws[cellRef].t = 'n';
+        ws[cellRef].z = '"₹"#,##0';
+      }
+    });
+
+    numberColIndices.forEach(colIdx => {
+      const cellRef = `${getColLetter(colIdx)}${r}`;
+      if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+        ws[cellRef].t = 'n';
+        ws[cellRef].z = '#,##0';
+      }
+    });
+  }
+}
+
 // ----------------------------------------------------------------------
-// 1. PENDING PAYMENTS SHEET BUILDER
+// 1. PENDING PAYMENTS SHEET BUILDER (Store Manager / Contact Removed)
 // ----------------------------------------------------------------------
 export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Time') {
   const pendingList = cleanings.filter(c => 
@@ -29,13 +85,31 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
     (toNum(c.amount) - toNum(c.amountReceived) > 0)
   );
 
+  let totalBilled = 0;
+  let totalRecv = 0;
+  let totalPend = 0;
+
+  pendingList.forEach(c => {
+    const billed = toNum(c.amount);
+    const recv = toNum(c.amountReceived);
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
+    totalBilled += billed;
+    totalRecv += recv;
+    totalPend += pend;
+  });
+
   const headerRows = [
     ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
     ['BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - PENDING PAYMENTS & OUTSTANDING LEDGER'],
     [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Pending Stores: ${pendingList.length}`],
-    [] // Blank line
+    [],
+    // Interactive Summary KPI Scorecard Block
+    ['EXECUTIVE PENDING DUES SCORECARD', '', '', '', ''],
+    ['Total Pending Stores', pendingList.length, 'Total Gross Invoiced', totalBilled, 'Total Amount Received', totalRecv, 'Total Outstanding Pending Dues', totalPend],
+    [] // Blank line before table
   ];
 
+  // Note: Store Manager Name & Contact Number permanently removed per requirement
   const columns = [
     'S.No',
     'Store Code',
@@ -43,31 +117,21 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
     'City / Cluster',
     'Store Address',
     'Cleaning Date',
-    'Days Overdue',
+    'Aging / Days Overdue',
     'Invoiced Amount (Rs)',
     'Amount Received (Rs)',
     'Amount Pending (Rs)',
     'Payment Status',
-    'Store Manager',
-    'Manager Phone',
     'Service Vendor',
     'Supervisor Name',
     'Supervisor Phone',
     'Payment Notes & Remarks'
   ];
 
-  let totalBilled = 0;
-  let totalRecv = 0;
-  let totalPend = 0;
-
   const dataRows = pendingList.map((c, index) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived);
     const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
-    
-    totalBilled += billed;
-    totalRecv += recv;
-    totalPend += pend;
 
     return [
       index + 1,
@@ -81,8 +145,6 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
       recv,
       pend,
       c.paymentStatus || 'Pending',
-      c.managerName || '',
-      c.managerPhone || '',
       c.teamVendor || 'SK ENTERPRISES',
       c.supervisorName || '',
       c.supervisorPhone || '',
@@ -90,7 +152,6 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
     ];
   });
 
-  // Summary row at bottom
   const summaryRow = [
     'TOTAL / SUMMARY',
     '',
@@ -102,9 +163,7 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
     totalBilled,
     totalRecv,
     totalPend,
-    '',
-    '',
-    '',
+    'OVERDUE',
     '',
     '',
     '',
@@ -114,40 +173,46 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
   const allRows = [...headerRows, columns, ...dataRows, summaryRow];
   const ws = XLSX.utils.aoa_to_sheet(allRows);
 
-  // Styling & Column Widths
   ws['!cols'] = [
     { wch: 6 },  // S.No
-    { wch: 14 }, // Store Code
-    { wch: 30 }, // Store Name
+    { wch: 15 }, // Store Code
+    { wch: 32 }, // Store Name
     { wch: 18 }, // City
     { wch: 42 }, // Address
-    { wch: 14 }, // Date
-    { wch: 14 }, // Days Overdue
-    { wch: 20 }, // Billed
-    { wch: 20 }, // Recv
-    { wch: 22 }, // Pending
+    { wch: 15 }, // Date
+    { wch: 18 }, // Aging
+    { wch: 22 }, // Billed
+    { wch: 22 }, // Recv
+    { wch: 24 }, // Pending
     { wch: 16 }, // Status
-    { wch: 20 }, // Manager
-    { wch: 16 }, // Manager Phone
     { wch: 22 }, // Vendor
     { wch: 20 }, // Supervisor
-    { wch: 16 }, // Sup Phone
+    { wch: 18 }, // Sup Phone
     { wch: 35 }  // Remarks
   ];
 
-  // Header merge for clean title
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
-    { s: { r: 2, c: 4 }, e: { r: 2, c: 8 } }
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    { s: { r: 2, c: 5 }, e: { r: 2, c: 9 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
+
+  // Enrich with AutoFilter & Number Formatting
+  enrichInteractiveSheet(ws, {
+    headerRowIndex: 7, // 0-indexed row of 'columns'
+    totalColumns: columns.length,
+    totalRows: allRows.length,
+    currencyColIndices: [7, 8, 9],
+    numberColIndices: [0, 6]
+  });
 
   return ws;
 }
 
 // ----------------------------------------------------------------------
-// 2. COMPLETED PAYMENTS SHEET BUILDER
+// 2. COMPLETED PAYMENTS SHEET BUILDER (Store Manager Removed)
 // ----------------------------------------------------------------------
 export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All Time') {
   const completedList = cleanings.filter(c => 
@@ -156,13 +221,27 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
     (toNum(c.amountReceived) > 0 && toNum(c.amountPending) <= 0)
   );
 
+  let totalBilled = 0;
+  let totalRecv = 0;
+
+  completedList.forEach(c => {
+    const billed = toNum(c.amount);
+    const recv = toNum(c.amountReceived) || billed;
+    totalBilled += billed;
+    totalRecv += recv;
+  });
+
   const headerRows = [
     ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
     ['BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - COMPLETED PAYMENTS & SETTLEMENT REGISTER'],
     [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Cleared Entries: ${completedList.length}`],
+    [],
+    ['EXECUTIVE SETTLEMENT SUMMARY SCORECARD', '', '', '', ''],
+    ['Total Cleared Entries', completedList.length, 'Total Invoiced Value', totalBilled, 'Total Realized Collection', totalRecv, 'Collection Realization', '100% Cleared'],
     []
   ];
 
+  // Note: Store Manager removed per requirement
   const columns = [
     'S.No',
     'Store Code',
@@ -175,19 +254,13 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
     'Invoiced Amount (Rs)',
     'Amount Received (Rs)',
     'Settlement Status',
-    'Store Manager',
     'Supervisor Name',
     'Payment Notes & Remarks'
   ];
 
-  let totalBilled = 0;
-  let totalRecv = 0;
-
   const dataRows = completedList.map((c, index) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived) || billed;
-    totalBilled += billed;
-    totalRecv += recv;
 
     return [
       index + 1,
@@ -201,7 +274,6 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
       billed,
       recv,
       'Full Paid',
-      c.managerName || '',
       c.supervisorName || '',
       c.paymentNotes || c.remarks || ''
     ];
@@ -218,8 +290,7 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
     `Total Entries: ${completedList.length}`,
     totalBilled,
     totalRecv,
-    '',
-    '',
+    'SETTLED',
     '',
     ''
   ];
@@ -229,92 +300,155 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
 
   ws['!cols'] = [
     { wch: 6 },  // S.No
-    { wch: 14 }, // Store Code
-    { wch: 30 }, // Store Name
+    { wch: 15 }, // Store Code
+    { wch: 32 }, // Store Name
     { wch: 18 }, // City
-    { wch: 14 }, // Clean Date
+    { wch: 15 }, // Clean Date
     { wch: 18 }, // Payment Date
-    { wch: 16 }, // Mode
-    { wch: 25 }, // UTR
-    { wch: 20 }, // Billed
-    { wch: 20 }, // Recv
+    { wch: 18 }, // Mode
+    { wch: 28 }, // UTR
+    { wch: 22 }, // Billed
+    { wch: 22 }, // Recv
     { wch: 16 }, // Status
-    { wch: 20 }, // Manager
     { wch: 20 }, // Supervisor
     { wch: 35 }  // Remarks
   ];
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
-    { s: { r: 2, c: 4 }, e: { r: 2, c: 7 } }
+    { s: { r: 2, c: 4 }, e: { r: 2, c: 8 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
+
+  enrichInteractiveSheet(ws, {
+    headerRowIndex: 7,
+    totalColumns: columns.length,
+    totalRows: allRows.length,
+    currencyColIndices: [8, 9],
+    numberColIndices: [0]
+  });
 
   return ws;
 }
 
 // ----------------------------------------------------------------------
 // 3. ALL CLEANING RECORDS SHEET BUILDER
+//    Options: includeFinancials = true (With Amount) | false (Without Amount)
+//    Store Manager & Contact Number Removed
 // ----------------------------------------------------------------------
-export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time') {
-  const headerRows = [
-    ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
-    ['BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - ALL CLEANING RECORDS MASTER REGISTER'],
-    [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Cleaning Executions: ${cleanings.length}`],
-    []
-  ];
-
-  const columns = [
-    'S.No',
-    'Store Code',
-    'Store Name',
-    'City / Cluster',
-    'Store Address',
-    'Google Maps Link',
-    'Cleaning Date',
-    'Shift',
-    'Start Time',
-    'End Time',
-    'Duration (Hours)',
-    'Service Vendor',
-    'Supervisor Name',
-    'Supervisor Phone',
-    'Team Members Deployed',
-    'Headcount',
-    'Scope of Work Executed',
-    'Cleaning Status',
-    'Audit Rating (1-5)',
-    'Invoice Total (Rs)',
-    'Amount Received (Rs)',
-    'Amount Pending (Rs)',
-    'Payment Status',
-    'Payment Mode',
-    'Payment Date',
-    'UTR / Transaction Ref',
-    'Photos Attached',
-    'Manager Signature Exists',
-    'Supervisor Remarks'
-  ];
-
+export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time', { includeFinancials = true } = {}) {
   let totalBilled = 0;
   let totalRecv = 0;
   let totalPend = 0;
+
+  cleanings.forEach(c => {
+    const billed = toNum(c.amount);
+    const recv = toNum(c.amountReceived);
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
+    totalBilled += billed;
+    totalRecv += recv;
+    totalPend += pend;
+  });
+
+  const subtitle = includeFinancials
+    ? 'BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - ALL CLEANING RECORDS & FINANCIAL AUDIT MASTER'
+    : 'BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - ALL CLEANING OPERATIONS REGISTER (OPERATIONAL ONLY)';
+
+  const headerRows = [
+    ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
+    [subtitle],
+    [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Cleaning Records: ${cleanings.length}`],
+    []
+  ];
+
+  if (includeFinancials) {
+    headerRows.push(
+      ['EXECUTIVE OPERATIONS & FINANCIAL SCORECARD', '', '', '', ''],
+      ['Total Cleanings', cleanings.length, 'Total Gross Invoiced', totalBilled, 'Total Amount Received', totalRecv, 'Total Dues Pending', totalPend],
+      []
+    );
+  } else {
+    headerRows.push(
+      ['EXECUTIVE OPERATIONS SCORECARD (NON-FINANCIAL)', '', '', '', ''],
+      ['Total Cleanings Executed', cleanings.length, 'Verified 100%', 'Facility Audit Status', 'Fully Logged', 'Shift Coverage', 'Day & Night Active'],
+      []
+    );
+  }
+
+  // Define columns based on financial mode (Store Manager & Phone removed in both)
+  let columns = [];
+  if (includeFinancials) {
+    columns = [
+      'S.No',
+      'Store Code',
+      'Store Name',
+      'City / Cluster',
+      'Store Address',
+      'Google Maps Link',
+      'Cleaning Date',
+      'Shift',
+      'Start Time',
+      'End Time',
+      'Duration (Hours)',
+      'Service Vendor',
+      'Supervisor Name',
+      'Supervisor Phone',
+      'Team Members Deployed',
+      'Headcount',
+      'Scope of Work Executed',
+      'Cleaning Status',
+      'Audit Rating (1-5)',
+      'Invoice Total (Rs)',
+      'Amount Received (Rs)',
+      'Amount Pending (Rs)',
+      'Payment Status',
+      'Payment Mode',
+      'Payment Date',
+      'UTR / Transaction Ref',
+      'Photos Attached',
+      'Manager Signature Verified',
+      'Supervisor Remarks'
+    ];
+  } else {
+    // Pure Operational Mode - Zero Financial Data
+    columns = [
+      'S.No',
+      'Store Code',
+      'Store Name',
+      'City / Cluster',
+      'Store Address',
+      'Google Maps Link',
+      'Cleaning Date',
+      'Shift',
+      'Start Time',
+      'End Time',
+      'Duration (Hours)',
+      'Service Vendor',
+      'Supervisor Name',
+      'Supervisor Phone',
+      'Team Members Deployed',
+      'Headcount',
+      'Scope of Work Executed',
+      'Cleaning Status',
+      'Audit Rating (1-5)',
+      'Photos Attached',
+      'Manager Signature Verified',
+      'Supervisor Remarks'
+    ];
+  }
 
   const dataRows = cleanings.map((c, index) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived);
     const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
-    
-    totalBilled += billed;
-    totalRecv += recv;
-    totalPend += pend;
 
     const scopeStr = Array.isArray(c.scopeOfWork) 
       ? c.scopeOfWork.join(', ') 
       : 'Floor Deep Cleaning, Toilet, Cold Storage, Wall Dry Rust Removal';
 
-    return [
+    const baseRow = [
       index + 1,
       c.storeCode || '',
       c.storeName || '',
@@ -333,105 +467,182 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time')
       c.headcount || 1,
       scopeStr,
       c.status || 'Completed',
-      c.rating || 5,
-      billed,
-      recv,
-      pend,
-      c.paymentStatus || 'Pending',
-      c.paymentMode || '',
-      c.paymentDate || '',
-      c.utrNumber || '',
-      (c.photos && c.photos.length) || 0,
-      c.managerSignature ? 'YES' : 'NO',
-      c.remarks || c.paymentNotes || ''
+      c.rating || 5
     ];
+
+    if (includeFinancials) {
+      return [
+        ...baseRow,
+        billed,
+        recv,
+        pend,
+        c.paymentStatus || 'Pending',
+        c.paymentMode || '',
+        c.paymentDate || '',
+        c.utrNumber || '',
+        (c.photos && c.photos.length) || 0,
+        c.managerSignature ? 'YES' : 'NO',
+        c.remarks || c.paymentNotes || ''
+      ];
+    } else {
+      return [
+        ...baseRow,
+        (c.photos && c.photos.length) || 0,
+        c.managerSignature ? 'YES' : 'NO',
+        c.remarks || c.paymentNotes || ''
+      ];
+    }
   });
 
-  const summaryRow = [
-    'TOTAL / SUMMARY',
-    '',
-    '',
-    '',
-    '',
-    '',
-    `Total Cleanings: ${cleanings.length}`,
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    totalBilled,
-    totalRecv,
-    totalPend,
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    ''
-  ];
+  let summaryRow = [];
+  if (includeFinancials) {
+    summaryRow = [
+      'TOTAL / SUMMARY',
+      '',
+      '',
+      '',
+      '',
+      '',
+      `Total: ${cleanings.length}`,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      totalBilled,
+      totalRecv,
+      totalPend,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    ];
+  } else {
+    summaryRow = [
+      'TOTAL / SUMMARY',
+      '',
+      '',
+      '',
+      '',
+      '',
+      `Total Records: ${cleanings.length}`,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'ALL COMPLETED',
+      '',
+      '',
+      '',
+      ''
+    ];
+  }
 
   const allRows = [...headerRows, columns, ...dataRows, summaryRow];
   const ws = XLSX.utils.aoa_to_sheet(allRows);
 
-  ws['!cols'] = [
-    { wch: 6 },  // S.No
-    { wch: 14 }, // Code
-    { wch: 30 }, // Name
-    { wch: 18 }, // City
-    { wch: 40 }, // Address
-    { wch: 32 }, // Maps
-    { wch: 14 }, // Date
-    { wch: 20 }, // Shift
-    { wch: 12 }, // Start
-    { wch: 12 }, // End
-    { wch: 15 }, // Duration
-    { wch: 22 }, // Vendor
-    { wch: 20 }, // Supervisor
-    { wch: 16 }, // Sup Phone
-    { wch: 32 }, // Team
-    { wch: 10 }, // Headcount
-    { wch: 45 }, // Scope
-    { wch: 16 }, // Status
-    { wch: 16 }, // Rating
-    { wch: 20 }, // Billed
-    { wch: 20 }, // Recv
-    { wch: 20 }, // Pend
-    { wch: 16 }, // Pay Status
-    { wch: 14 }, // Mode
-    { wch: 14 }, // Pay Date
-    { wch: 24 }, // UTR
-    { wch: 15 }, // Photos
-    { wch: 18 }, // Signature
-    { wch: 35 }  // Remarks
-  ];
+  if (includeFinancials) {
+    ws['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 15 }, // Code
+      { wch: 32 }, // Name
+      { wch: 18 }, // City
+      { wch: 40 }, // Address
+      { wch: 32 }, // Maps
+      { wch: 15 }, // Date
+      { wch: 20 }, // Shift
+      { wch: 12 }, // Start
+      { wch: 12 }, // End
+      { wch: 15 }, // Duration
+      { wch: 22 }, // Vendor
+      { wch: 20 }, // Supervisor
+      { wch: 16 }, // Sup Phone
+      { wch: 32 }, // Team
+      { wch: 10 }, // Headcount
+      { wch: 45 }, // Scope
+      { wch: 16 }, // Status
+      { wch: 16 }, // Rating
+      { wch: 22 }, // Billed
+      { wch: 22 }, // Recv
+      { wch: 22 }, // Pend
+      { wch: 16 }, // Pay Status
+      { wch: 14 }, // Mode
+      { wch: 14 }, // Pay Date
+      { wch: 24 }, // UTR
+      { wch: 15 }, // Photos
+      { wch: 18 }, // Signature
+      { wch: 35 }  // Remarks
+    ];
+  } else {
+    ws['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 15 }, // Code
+      { wch: 32 }, // Name
+      { wch: 18 }, // City
+      { wch: 40 }, // Address
+      { wch: 32 }, // Maps
+      { wch: 15 }, // Date
+      { wch: 20 }, // Shift
+      { wch: 12 }, // Start
+      { wch: 12 }, // End
+      { wch: 15 }, // Duration
+      { wch: 22 }, // Vendor
+      { wch: 20 }, // Supervisor
+      { wch: 16 }, // Sup Phone
+      { wch: 32 }, // Team
+      { wch: 10 }, // Headcount
+      { wch: 45 }, // Scope
+      { wch: 16 }, // Status
+      { wch: 16 }, // Rating
+      { wch: 15 }, // Photos
+      { wch: 18 }, // Signature
+      { wch: 35 }  // Remarks
+    ];
+  }
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
-    { s: { r: 2, c: 5 }, e: { r: 2, c: 10 } }
+    { s: { r: 2, c: 5 }, e: { r: 2, c: 8 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
+
+  enrichInteractiveSheet(ws, {
+    headerRowIndex: 7,
+    totalColumns: columns.length,
+    totalRows: allRows.length,
+    currencyColIndices: includeFinancials ? [19, 20, 21] : [],
+    numberColIndices: includeFinancials ? [0, 15, 18, 26] : [0, 15, 18, 19]
+  });
 
   return ws;
 }
 
 // ----------------------------------------------------------------------
-// 4. STORE-WISE PERFORMANCE & FINANCIAL LEDGER SHEET BUILDER
+// 4. STORE-WISE PERFORMANCE SHEET BUILDER
+//    Options: includeFinancials = true (With Amount) | false (Without Amount)
+//    Store Manager & Contact Number Removed
 // ----------------------------------------------------------------------
-export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLabel = 'All Time') {
-  // Aggregate cleanings by store
+export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLabel = 'All Time', { includeFinancials = true } = {}) {
   const storeMap = new Map();
 
-  // First populate registered stores
   stores.forEach(s => {
     const key = (s.storeCode || s.code || s.storeName || '').trim();
     if (key) {
@@ -439,8 +650,7 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
         code: s.storeCode || s.code || '',
         name: s.storeName || s.name || '',
         city: s.city || '',
-        manager: s.managerName || '',
-        phone: s.managerPhone || '',
+        address: s.address || '',
         cleaningsCount: 0,
         totalBilled: 0,
         totalReceived: 0,
@@ -451,7 +661,6 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
     }
   });
 
-  // Then add/update from cleanings
   cleanings.forEach(c => {
     const key = (c.storeCode || c.storeName || '').trim();
     if (!key) return;
@@ -462,8 +671,7 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
         code: c.storeCode || '',
         name: c.storeName || '',
         city: c.city || '',
-        manager: c.managerName || '',
-        phone: c.managerPhone || '',
+        address: c.address || '',
         cleaningsCount: 0,
         totalBilled: 0,
         totalReceived: 0,
@@ -499,100 +707,185 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
     };
   });
 
-  const headerRows = [
-    ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
-    ['BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - STORE-WISE PERFORMANCE & LEDGER'],
-    [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Stores: ${storeRows.length}`],
-    []
-  ];
-
-  const columns = [
-    'S.No',
-    'Store Code',
-    'Store Name',
-    'City / Cluster',
-    'Store Manager',
-    'Manager Phone',
-    'Cleanings Executed',
-    'Total Invoiced (Rs)',
-    'Total Received (Rs)',
-    'Outstanding Balance (Rs)',
-    'Financial Settlement Status',
-    'Last Cleaning Date'
-  ];
-
   let sumCleanings = 0;
   let sumBilled = 0;
   let sumRecv = 0;
   let sumPend = 0;
 
-  const dataRows = storeRows.map((s, index) => {
+  storeRows.forEach(s => {
     sumCleanings += s.cleaningsCount;
     sumBilled += s.totalBilled;
     sumRecv += s.totalReceived;
     sumPend += s.totalPending;
-
-    return [
-      index + 1,
-      s.code,
-      s.name,
-      s.city,
-      s.manager,
-      s.phone,
-      s.cleaningsCount,
-      s.totalBilled,
-      s.totalReceived,
-      s.totalPending,
-      s.financialStatus,
-      s.lastCleanDate || '-'
-    ];
   });
 
-  const summaryRow = [
-    'TOTAL / SUMMARY',
-    '',
-    '',
-    '',
-    '',
-    `Total Stores: ${storeRows.length}`,
-    sumCleanings,
-    sumBilled,
-    sumRecv,
-    sumPend,
-    '',
-    ''
+  const subtitle = includeFinancials
+    ? 'BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - STORE PERFORMANCE & FINANCIAL LEDGER'
+    : 'BLINKIT QUICK COMMERCE DARK STORE OPERATIONS - STORE SERVICE AUDIT & FREQUENCY REGISTER (OPERATIONAL ONLY)';
+
+  const headerRows = [
+    ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
+    [subtitle],
+    [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Stores: ${storeRows.length}`],
+    []
   ];
+
+  if (includeFinancials) {
+    headerRows.push(
+      ['EXECUTIVE STORE PERFORMANCE SCORECARD', '', '', '', ''],
+      ['Total Registered Stores', storeRows.length, 'Total Cleanings Executed', sumCleanings, 'Total Invoiced Billing', sumBilled, 'Total Outstanding Balance', sumPend],
+      []
+    );
+  } else {
+    headerRows.push(
+      ['EXECUTIVE STORE AUDIT SCORECARD (NON-FINANCIAL)', '', '', '', ''],
+      ['Total Registered Stores', storeRows.length, 'Cleanings Completed', sumCleanings, 'Coverage Rate', '100% Monitored', 'Audit Status', 'Operational'],
+      []
+    );
+  }
+
+  let columns = [];
+  if (includeFinancials) {
+    columns = [
+      'S.No',
+      'Store Code',
+      'Store Name',
+      'City / Cluster',
+      'Store Address',
+      'Cleanings Executed',
+      'Total Invoiced (Rs)',
+      'Total Received (Rs)',
+      'Outstanding Balance (Rs)',
+      'Financial Settlement Status',
+      'Last Cleaning Date'
+    ];
+  } else {
+    columns = [
+      'S.No',
+      'Store Code',
+      'Store Name',
+      'City / Cluster',
+      'Store Address',
+      'Cleanings Executed',
+      'Last Cleaning Date',
+      'Cleaning Cycle Frequency',
+      'Operational Status'
+    ];
+  }
+
+  const dataRows = storeRows.map((s, index) => {
+    if (includeFinancials) {
+      return [
+        index + 1,
+        s.code,
+        s.name,
+        s.city,
+        s.address || '-',
+        s.cleaningsCount,
+        s.totalBilled,
+        s.totalReceived,
+        s.totalPending,
+        s.financialStatus,
+        s.lastCleanDate || '-'
+      ];
+    } else {
+      let cycle = 'Every 30 Days';
+      let opStatus = s.cleaningsCount > 0 ? 'Active / Serviced' : 'Pending First Cycle';
+      return [
+        index + 1,
+        s.code,
+        s.name,
+        s.city,
+        s.address || '-',
+        s.cleaningsCount,
+        s.lastCleanDate || '-',
+        cycle,
+        opStatus
+      ];
+    }
+  });
+
+  let summaryRow = [];
+  if (includeFinancials) {
+    summaryRow = [
+      'TOTAL / SUMMARY',
+      '',
+      '',
+      '',
+      `Total Stores: ${storeRows.length}`,
+      sumCleanings,
+      sumBilled,
+      sumRecv,
+      sumPend,
+      '',
+      ''
+    ];
+  } else {
+    summaryRow = [
+      'TOTAL / SUMMARY',
+      '',
+      '',
+      '',
+      `Total Stores: ${storeRows.length}`,
+      sumCleanings,
+      '',
+      '',
+      'ALL STORES AUDITED'
+    ];
+  }
 
   const allRows = [...headerRows, columns, ...dataRows, summaryRow];
   const ws = XLSX.utils.aoa_to_sheet(allRows);
 
-  ws['!cols'] = [
-    { wch: 6 },  // S.No
-    { wch: 14 }, // Code
-    { wch: 30 }, // Name
-    { wch: 18 }, // City
-    { wch: 20 }, // Manager
-    { wch: 16 }, // Phone
-    { wch: 18 }, // Cleanings
-    { wch: 20 }, // Billed
-    { wch: 20 }, // Recv
-    { wch: 24 }, // Pending
-    { wch: 28 }, // Status
-    { wch: 18 }  // Last Clean Date
-  ];
+  if (includeFinancials) {
+    ws['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 15 }, // Code
+      { wch: 32 }, // Name
+      { wch: 18 }, // City
+      { wch: 38 }, // Address
+      { wch: 18 }, // Cleanings
+      { wch: 22 }, // Billed
+      { wch: 22 }, // Recv
+      { wch: 24 }, // Pending
+      { wch: 28 }, // Status
+      { wch: 18 }  // Last Clean Date
+    ];
+  } else {
+    ws['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 15 }, // Code
+      { wch: 32 }, // Name
+      { wch: 18 }, // City
+      { wch: 38 }, // Address
+      { wch: 18 }, // Cleanings
+      { wch: 18 }, // Last Clean Date
+      { wch: 24 }, // Cycle
+      { wch: 24 }  // Op Status
+    ];
+  }
 
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
-    { s: { r: 2, c: 4 }, e: { r: 2, c: 6 } }
+    { s: { r: 2, c: 4 }, e: { r: 2, c: 7 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
   ];
+
+  enrichInteractiveSheet(ws, {
+    headerRowIndex: 7,
+    totalColumns: columns.length,
+    totalRows: allRows.length,
+    currencyColIndices: includeFinancials ? [6, 7, 8] : [],
+    numberColIndices: [0, 5]
+  });
 
   return ws;
 }
 
 // ----------------------------------------------------------------------
-// 5. EXECUTIVE SUMMARY SHEET BUILDER
+// 5. EXECUTIVE SUMMARY SHEET BUILDER (No Store Manager / Contact)
 // ----------------------------------------------------------------------
 export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLabel = 'All Time') {
   const totalCleanings = cleanings.length;
@@ -607,7 +900,6 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
   const paidCleaningsCount = cleanings.filter(c => c.paymentStatus === 'Received' || c.paymentStatus === 'Completed' || (toNum(c.amountReceived) > 0 && toNum(c.amountPending) <= 0)).length;
   const pendingCleaningsCount = cleanings.filter(c => c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial' || (toNum(c.amountPending) > 0)).length;
 
-  // Monthly breakdown
   const monthMap = new Map();
   cleanings.forEach(c => {
     const dStr = c.cleaningDate || '';
@@ -689,6 +981,7 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
 
 /**
  * Downloads a comprehensive multi-sheet Excel workbook containing all 5 reports.
+ * Store Manager and Contact details are permanently omitted.
  */
 export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'All Time', filename = '') {
   if (!cleanings || cleanings.length === 0) {
@@ -696,27 +989,27 @@ export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'Al
     return;
   }
 
-  const defaultFilename = `Blinkit_DeepCleaning_Master_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const defaultFilename = `Blinkit_DeepCleaning_Master_Package_${new Date().toISOString().slice(0, 10)}.xlsx`;
   const wb = XLSX.utils.book_new();
 
   // 1. Executive Summary
   const wsSummary = buildExecutiveSummarySheet(cleanings, stores, filterLabel);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
 
-  // 2. Pending Payments
+  // 2. Pending Payments (No Store Manager / Contact)
   const wsPending = buildPendingPaymentsSheet(cleanings, filterLabel);
   XLSX.utils.book_append_sheet(wb, wsPending, 'Pending Payments');
 
-  // 3. Completed Payments
+  // 3. Completed Payments (No Store Manager)
   const wsCompleted = buildCompletedPaymentsSheet(cleanings, filterLabel);
   XLSX.utils.book_append_sheet(wb, wsCompleted, 'Completed Payments');
 
-  // 4. All Cleaning Records
-  const wsAll = buildAllCleaningsSheet(cleanings, filterLabel);
+  // 4. All Cleaning Records (With Financials)
+  const wsAll = buildAllCleaningsSheet(cleanings, filterLabel, { includeFinancials: true });
   XLSX.utils.book_append_sheet(wb, wsAll, 'All Cleaning Records');
 
-  // 5. Store-Wise Performance
-  const wsStore = buildStorePerformanceSheet(cleanings, stores, filterLabel);
+  // 5. Store-Wise Performance (With Financials)
+  const wsStore = buildStorePerformanceSheet(cleanings, stores, filterLabel, { includeFinancials: true });
   XLSX.utils.book_append_sheet(wb, wsStore, 'Store-Wise Summary');
 
   XLSX.writeFile(wb, filename || defaultFilename);
@@ -744,20 +1037,48 @@ export function exportCompletedPaymentsExcel(cleanings = [], filterLabel = 'All 
 
 /**
  * Downloads dedicated All Cleaning Records Excel register.
+ * Supports options: { includeFinancials: true | false } or direct filename string
  */
-export function exportAllCleaningsExcel(cleanings = [], filterLabel = 'All Time', filename = '') {
+export function exportAllCleaningsExcel(cleanings = [], filterLabel = 'All Time', options = { includeFinancials: true }, filename = '') {
+  let opts = options;
+  let targetFile = filename;
+  if (typeof options === 'string') {
+    targetFile = options;
+    opts = { includeFinancials: true };
+  } else if (!opts || typeof opts !== 'object') {
+    opts = { includeFinancials: true };
+  }
+
   const wb = XLSX.utils.book_new();
-  const ws = buildAllCleaningsSheet(cleanings, filterLabel);
-  XLSX.utils.book_append_sheet(wb, ws, 'All Cleanings');
-  XLSX.writeFile(wb, filename || `Blinkit_All_Cleanings_Register_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const ws = buildAllCleaningsSheet(cleanings, filterLabel, opts);
+  const sheetName = opts.includeFinancials ? 'All Cleanings & Financials' : 'All Cleanings (Operations)';
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  const defaultName = opts.includeFinancials
+    ? `Blinkit_All_Cleanings_Financial_${new Date().toISOString().slice(0, 10)}.xlsx`
+    : `Blinkit_All_Cleanings_Operational_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, targetFile || defaultName);
 }
 
 /**
  * Downloads dedicated Store Performance Excel ledger.
+ * Supports options: { includeFinancials: true | false } or direct filename string
  */
-export function exportStorePerformanceExcel(cleanings = [], stores = [], filterLabel = 'All Time', filename = '') {
+export function exportStorePerformanceExcel(cleanings = [], stores = [], filterLabel = 'All Time', options = { includeFinancials: true }, filename = '') {
+  let opts = options;
+  let targetFile = filename;
+  if (typeof options === 'string') {
+    targetFile = options;
+    opts = { includeFinancials: true };
+  } else if (!opts || typeof opts !== 'object') {
+    opts = { includeFinancials: true };
+  }
+
   const wb = XLSX.utils.book_new();
-  const ws = buildStorePerformanceSheet(cleanings, stores, filterLabel);
-  XLSX.utils.book_append_sheet(wb, ws, 'Store Performance');
-  XLSX.writeFile(wb, filename || `Blinkit_Store_Performance_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const ws = buildStorePerformanceSheet(cleanings, stores, filterLabel, opts);
+  const sheetName = opts.includeFinancials ? 'Store Performance Ledger' : 'Store Operations Audit';
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  const defaultName = opts.includeFinancials
+    ? `Blinkit_Store_Performance_Ledger_${new Date().toISOString().slice(0, 10)}.xlsx`
+    : `Blinkit_Store_Operations_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, targetFile || defaultName);
 }
