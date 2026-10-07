@@ -980,3 +980,104 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
   addFooterAndPageNumbers(doc);
   doc.save(`Blinkit_Master_Executive_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+// ----------------------------------------------------------------------
+// 6. STORE MASTER DIRECTORY & REGISTER PDF
+// ----------------------------------------------------------------------
+export function generateStoreListPDF({ stores = [], cleanings = [], filterLabel = 'All Time' } = {}) {
+  const sortedStores = naturalSortByStoreCode(stores, s => s.storeCode);
+  if (sortedStores.length === 0) {
+    alert('No store records available to generate PDF.');
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  drawHeaderBanner(doc, {
+    title: 'STORE MASTER DIRECTORY & REGISTER',
+    subtitle: 'Registered Dark Store Locations, Managers & Operations Directory',
+    filterLabel,
+    refCode: 'DIR-STR'
+  });
+
+  const totalStores = sortedStores.length;
+  const uniqueCities = new Set(sortedStores.map(s => s.city).filter(Boolean)).size;
+  const totalVisits = cleanings.length;
+
+  // KPI summary cards
+  const kpiY = 41;
+  const cards = [
+    { label: 'TOTAL REGISTERED STORES', val: `${totalStores} Stores`, bg: [240, 253, 244], text: [22, 101, 52], border: [187, 247, 208] },
+    { label: 'OPERATIONAL CITIES / ZONES', val: `${uniqueCities} Cities`, bg: [238, 242, 255], text: [55, 48, 163], border: [199, 210, 254] },
+    { label: 'TOTAL CLEANING VISITS LOGGED', val: `${totalVisits} Visits`, bg: [254, 243, 199], text: [146, 64, 14], border: [253, 230, 138] }
+  ];
+
+  const cardW = (pageWidth - 28 - (cards.length - 1) * 4) / cards.length;
+  cards.forEach((c, idx) => {
+    const x = 14 + idx * (cardW + 4);
+    doc.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+    doc.roundedRect(x, kpiY, cardW, 13, 2, 2, 'F');
+    doc.setDrawColor(c.border[0], c.border[1], c.border[2]);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, kpiY, cardW, 13, 2, 2, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(c.text[0], c.text[1], c.text[2]);
+    doc.text(c.label, x + cardW / 2, kpiY + 4.5, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.text(c.val, x + cardW / 2, kpiY + 10, { align: 'center' });
+  });
+
+  const tableRows = sortedStores.map((s, idx) => {
+    const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+    const storeVisits = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === sCode);
+    const visitCount = storeVisits.length;
+    const lastDate = storeVisits.length > 0 
+      ? storeVisits.map(c => c.cleaningDate).filter(Boolean).sort().reverse()[0] || '--'
+      : 'None';
+
+    const managerStr = s.managerName ? `${s.managerName}${s.managerPhone ? `\nPh: ${s.managerPhone}` : ''}` : 'Not Assigned';
+
+    return [
+      idx + 1,
+      s.storeCode || s.code || 'N/A',
+      s.storeName || s.name || 'N/A',
+      s.city || 'N/A',
+      s.address || 'Address not registered',
+      managerStr,
+      visitCount > 0 ? `${visitCount} Visits\n(Last: ${lastDate})` : '0 Visits',
+      s.status || 'Active'
+    ];
+  });
+
+  runAutoTable(doc, {
+    startY: 58,
+    margin: { left: 14, right: 14 },
+    head: [[
+      '#', 'Store Code', 'Store Name', 'City / Hub', 'Complete Address', 
+      'Store Manager & Phone', 'Cleaning Visits', 'Status'
+    ]],
+    body: tableRows,
+    theme: 'grid',
+    styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 41, 59] },
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 22, fontStyle: 'bold', textColor: [12, 131, 31] },
+      2: { cellWidth: 55, fontStyle: 'bold' },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 68 },
+      5: { cellWidth: 42 },
+      6: { cellWidth: 28, halign: 'center' },
+      7: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }
+    }
+  });
+
+  addFooterAndPageNumbers(doc);
+  doc.save(`Blinkit_Store_Master_Directory_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+

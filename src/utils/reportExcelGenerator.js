@@ -1522,3 +1522,76 @@ export function exportStorePerformanceExcel(cleanings = [], stores = [], filterL
     : `Blinkit_Store_Operations_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, targetFile || defaultName);
 }
+
+/**
+ * ----------------------------------------------------------------------
+ * STORE MASTER DIRECTORY & REGISTER EXCEL BUILDER
+ * ----------------------------------------------------------------------
+ */
+export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = 'All Time') {
+  const sortedStores = naturalSortByStoreCode(stores, s => s.storeCode);
+  const totalStores = sortedStores.length;
+  const uniqueCities = new Set(sortedStores.map(s => s.city).filter(Boolean)).size;
+  const totalVisits = cleanings.length;
+
+  const headerRows = [
+    ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
+    ['BLINKIT DARK STORE MASTER DIRECTORY & REGISTER'],
+    [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`, `Total Stores Registered: ${totalStores}`],
+    [],
+    ['EXECUTIVE STORE DIRECTORY SCORECARD', '', '', '', '', '', '', ''],
+    ['Total Registered Stores', totalStores, 'Operational Cities / Hubs', uniqueCities, 'Lifetime Cleanings Logged', totalVisits, 'Master Register Status', 'Active & Verified'],
+    []
+  ];
+
+  const columns = [
+    'S.No',
+    'Store Code',
+    'Store Name',
+    'City / Hub',
+    'Full Store Address',
+    'Store Manager',
+    'Manager Contact',
+    'Cleanings Completed',
+    'Last Cleaning Date',
+    'Status',
+    'Google Maps Location'
+  ];
+
+  const dataRows = sortedStores.map((s, idx) => {
+    const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+    const storeVisits = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === sCode);
+    const visitCount = storeVisits.length;
+    const lastDate = storeVisits.length > 0 
+      ? storeVisits.map(c => c.cleaningDate).filter(Boolean).sort().reverse()[0] || '--'
+      : 'None';
+
+    return [
+      idx + 1,
+      s.storeCode || s.code || 'N/A',
+      s.storeName || s.name || 'N/A',
+      s.city || 'N/A',
+      s.address || 'Address not registered',
+      s.managerName || 'Not Assigned',
+      s.managerPhone || 'N/A',
+      visitCount,
+      lastDate,
+      s.status || 'Active',
+      s.googleMapsUrl || 'N/A'
+    ];
+  });
+
+  const fullSheetData = [...headerRows, columns, ...dataRows];
+  const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
+  applyCorporateTheme(ws);
+  return ws;
+}
+
+export function exportStoreListExcel(stores = [], cleanings = [], filterLabel = 'All Time', filename = '') {
+  const wb = XLSX.utils.book_new();
+  const ws = buildStoreListSheet(stores, cleanings, filterLabel);
+  XLSX.utils.book_append_sheet(wb, ws, 'Store Master Directory');
+  const defaultName = `Blinkit_Store_Master_Directory_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename || defaultName);
+}
+

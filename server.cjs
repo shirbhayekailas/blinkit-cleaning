@@ -191,6 +191,7 @@ function isCleaningDeleted(c, deletedCleanings = []) {
       if (cId && d === `id_${cId}`) return true;
       return false;
     }
+    if (d.id && cId && String(d.id) === cId) return true;
     if (d.syncId && cSyncId && String(d.syncId) === cSyncId) return true;
     if (d.key) {
       if (cSyncId && d.key === cSyncId) return true;
@@ -770,7 +771,9 @@ app.post('/api/sync/auto-heal', (req, res) => {
       healedStores,
       healedSchedules,
       totalCleanings: currentDB.cleanings.length,
-      totalStores: currentDB.stores.length
+      totalStores: currentDB.stores.length,
+      deletedCleanings: currentDB.deletedCleanings || [],
+      deletedStores: currentDB.deletedStores || []
     });
   } catch (err) {
     console.error('Auto-heal error:', err);
@@ -943,23 +946,76 @@ app.post('/api/cleanings/delete', (req, res) => {
     const { id, syncId, storeCode, cleaningDate } = req.body || {};
     const currentDB = readDB();
     if (!currentDB.cleanings) currentDB.cleanings = [];
+    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
 
     const cleanCode = storeCode ? String(storeCode).trim().toUpperCase() : null;
     const cleanDate = cleaningDate ? String(cleaningDate).trim() : null;
+    const targetId = id ? String(id) : null;
+    const targetSyncId = syncId ? String(syncId) : null;
 
+    // Find all matching cleanings to capture their exact metadata for tombstones
+    const matchedCleanings = currentDB.cleanings.filter(c => {
+      if (!c) return false;
+      if (targetId && String(c.id) === targetId) return true;
+      if (targetSyncId && c.syncId && String(c.syncId) === targetSyncId) return true;
+      if (cleanCode && cleanDate && String(c.storeCode).trim().toUpperCase() === cleanCode && String(c.cleaningDate).trim() === cleanDate) return true;
+      return false;
+    });
+
+    const nowIso = new Date().toISOString();
+
+    if (matchedCleanings.length > 0) {
+      matchedCleanings.forEach(c => {
+        const cCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
+        const cDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
+        currentDB.deletedCleanings.push({
+          id: c.id ? String(c.id) : null,
+          syncId: c.syncId ? String(c.syncId) : null,
+          storeCode: cCode,
+          cleaningDate: cDate,
+          key: (cCode && cDate) ? `${cCode}_${cDate}` : (c.id ? `id_${c.id}` : null),
+          deletedAt: nowIso
+        });
+      });
+    }
+
+    // Always record explicit tombstone from request arguments
+    currentDB.deletedCleanings.push({
+      id: targetId,
+      syncId: targetSyncId,
+      storeCode: cleanCode,
+      cleaningDate: cleanDate,
+      key: (cleanCode && cleanDate) ? `${cleanCode}_${cleanDate}` : (targetId ? `id_${targetId}` : (targetSyncId ? String(targetSyncId) : null)),
+      deletedAt: nowIso
+    });
+
+    // Deduplicate deletedCleanings & keep most recent 1000
+    const seenTombstones = new Set();
+    currentDB.deletedCleanings = currentDB.deletedCleanings.filter(d => {
+      if (!d) return false;
+      const key = `${d.id || ''}_${d.syncId || ''}_${d.storeCode || ''}_${d.cleaningDate || ''}`;
+      if (seenTombstones.has(key)) return false;
+      seenTombstones.add(key);
+      return true;
+    }).slice(-1000);
+
+    // Remove matching records
     currentDB.cleanings = currentDB.cleanings.filter(c => {
       if (!c) return false;
-      if (id && String(c.id) === String(id)) return false;
-      if (syncId && c.syncId && String(c.syncId) === String(syncId)) return false;
+      if (targetId && String(c.id) === targetId) return false;
+      if (targetSyncId && c.syncId && String(c.syncId) === targetSyncId) return false;
       if (cleanCode && cleanDate && String(c.storeCode).trim().toUpperCase() === cleanCode && String(c.cleaningDate).trim() === cleanDate) return false;
       return true;
     });
 
+    currentDB.lastUpdated = nowIso;
     writeDB(currentDB);
+
     res.json({
       success: true,
       message: 'Cleaning record permanently deleted from server database.',
       cleanings: currentDB.cleanings,
+      deletedCleanings: currentDB.deletedCleanings,
       data: currentDB
     });
   } catch (err) {
@@ -1048,12 +1104,55 @@ app.post('/api/stores/delete', (req, res) => {
       });
     }
 
-    // Delete cleanings if requested or forced
+    const nowIso = new Date().toISOString();
+    if (!currentDB.deletedStores) currentDB.deletedStores = [];
+    if (!currentDB.deletedCleanings) currentDB.deletedCleanings = [];
+
+    // Delete cleanings if requested or forced and record tombstones
     if (deleteCleanings || force) {
+      relatedCleanings.forEach(c => {
+        const cCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
+        const cDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
+        currentDB.deletedCleanings.push({
+          id: c.id ? String(c.id) : null,
+          syncId: c.syncId ? String(c.syncId) : null,
+          storeCode: cCode,
+          cleaningDate: cDate,
+          key: (cCode && cDate) ? `${cCode}_${cDate}` : (c.id ? `id_${c.id}` : null),
+          deletedAt: nowIso
+        });
+      });
+
+      // Deduplicate deletedCleanings & keep most recent 1000
+      const seenTombstones = new Set();
+      currentDB.deletedCleanings = currentDB.deletedCleanings.filter(d => {
+        if (!d) return false;
+        const key = `${d.id || ''}_${d.syncId || ''}_${d.storeCode || ''}_${d.cleaningDate || ''}`;
+        if (seenTombstones.has(key)) return false;
+        seenTombstones.add(key);
+        return true;
+      }).slice(-1000);
+
       currentDB.cleanings = currentDB.cleanings.filter(
         c => !c || String(c.storeCode).trim().toUpperCase() !== cleanCode
       );
     }
+
+    // Record store tombstone
+    currentDB.deletedStores.push({
+      storeCode: cleanCode,
+      deletedAt: nowIso
+    });
+
+    // Deduplicate deletedStores
+    const seenStores = new Set();
+    currentDB.deletedStores = currentDB.deletedStores.filter(d => {
+      if (!d) return false;
+      const code = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
+      if (!code || seenStores.has(code)) return false;
+      seenStores.add(code);
+      return true;
+    }).slice(-1000);
 
     // Delete store
     currentDB.stores = currentDB.stores.filter(
@@ -1067,12 +1166,15 @@ app.post('/api/stores/delete', (req, res) => {
       );
     }
 
+    currentDB.lastUpdated = nowIso;
     writeDB(currentDB);
     res.json({
       success: true,
       message: `Store ${cleanCode} permanently deleted from server database.`,
       stores: currentDB.stores,
       cleanings: currentDB.cleanings,
+      deletedStores: currentDB.deletedStores,
+      deletedCleanings: currentDB.deletedCleanings,
       data: currentDB
     });
   } catch (err) {

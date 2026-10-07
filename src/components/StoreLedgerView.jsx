@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   Building2, 
@@ -18,10 +18,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Share2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText,
+  Download,
+  ArrowUpDown,
+  Filter
 } from 'lucide-react';
-import { shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
-import { naturalSortByStoreCode } from '../utils/reportExcelGenerator';
+import { shareStoreLocationWhatsApp, shareStoreDirectoryWhatsApp } from '../utils/whatsappFormatter';
+import { naturalSortByStoreCode, exportStoreListExcel } from '../utils/reportExcelGenerator';
+import { generateStoreListPDF } from '../utils/reportPdfGenerator';
 
 export default function StoreLedgerView({
   stores = [],
@@ -36,51 +41,206 @@ export default function StoreLedgerView({
   onOpenReportsCenter
 }) {
   const { t } = useLanguage();
-  // Filter stores by search and sort strictly by store number
-  const filteredStores = naturalSortByStoreCode(
-    stores.filter(s => 
-      (s.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.storeCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.managerName || '').toLowerCase().includes(searchTerm.toLowerCase())
-    ),
-    s => s.storeCode
-  );
+  const [storeSortBy, setStoreSortBy] = useState('storeCodeAsc');
+  const [cityFilter, setCityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // Extract unique cities
+  const uniqueCities = useMemo(() => {
+    return Array.from(new Set(stores.map(s => s.city).filter(Boolean))).sort();
+  }, [stores]);
+
+  // Compute store metrics map for sorting by activity or balance
+  const storeMetricsMap = useMemo(() => {
+    const map = new Map();
+    stores.forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      const sCleanings = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === code);
+      const totalPending = sCleanings.reduce((sum, c) => sum + (Number(c.amountPending) || 0), 0);
+      const dates = sCleanings.map(c => c.cleaningDate).filter(Boolean).sort().reverse();
+      const lastDate = dates[0] || '';
+      map.set(code, { visitCount: sCleanings.length, totalPending, lastDate });
+    });
+    return map;
+  }, [stores, cleanings]);
+
+  // Filter and sort stores
+  const filteredStores = useMemo(() => {
+    let list = stores.filter(s => {
+      const matchesSearch = 
+        (s.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.storeCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.managerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesCity = cityFilter === 'all' || s.city === cityFilter;
+
+      let matchesStatus = true;
+      if (statusFilter === 'active') {
+        matchesStatus = s.status !== 'Inactive';
+      } else if (statusFilter === 'pendingDues') {
+        const metrics = storeMetricsMap.get((s.storeCode || s.code || '').trim().toUpperCase());
+        matchesStatus = metrics && metrics.totalPending > 0;
+      }
+
+      return matchesSearch && matchesCity && matchesStatus;
+    });
+
+    // Apply sorting
+    if (storeSortBy === 'storeCodeAsc') {
+      return naturalSortByStoreCode(list, s => s.storeCode);
+    } else if (storeSortBy === 'storeCodeDesc') {
+      return naturalSortByStoreCode(list, s => s.storeCode).reverse();
+    } else if (storeSortBy === 'nameAsc') {
+      return [...list].sort((a, b) => (a.storeName || '').localeCompare(b.storeName || ''));
+    } else if (storeSortBy === 'cityAsc') {
+      return [...list].sort((a, b) => (a.city || '').localeCompare(b.city || ''));
+    } else if (storeSortBy === 'recentCleaned') {
+      return [...list].sort((a, b) => {
+        const mA = storeMetricsMap.get((a.storeCode || a.code || '').trim().toUpperCase())?.lastDate || '';
+        const mB = storeMetricsMap.get((b.storeCode || b.code || '').trim().toUpperCase())?.lastDate || '';
+        return mB.localeCompare(mA);
+      });
+    } else if (storeSortBy === 'pendingDesc') {
+      return [...list].sort((a, b) => {
+        const pA = storeMetricsMap.get((a.storeCode || a.code || '').trim().toUpperCase())?.totalPending || 0;
+        const pB = storeMetricsMap.get((b.storeCode || b.code || '').trim().toUpperCase())?.totalPending || 0;
+        return pB - pA;
+      });
+    }
+
+    return list;
+  }, [stores, searchTerm, cityFilter, statusFilter, storeSortBy, storeMetricsMap]);
 
   return (
     <div className="space-y-4 sm:space-y-5 min-w-0">
       
       {/* Ledger Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs min-w-0">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 p-3.5 sm:p-4 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs min-w-0">
         <div className="min-w-0">
-          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-            <Building2 className="w-5 h-5 text-blinkit-green shrink-0" />
-            <span>{t('ledger_title', 'Store Master Ledger & Directory')}</span>
-          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blinkit-green shrink-0" />
+              <span>{t('ledger_title', 'Store Master Ledger & Directory')}</span>
+            </h2>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+              {filteredStores.length} {filteredStores.length === 1 ? 'store' : 'stores'}
+            </span>
+          </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 break-words">
             {t('ledger_desc', 'Manage registered dark stores, store-wise cleaning records & pending payments')}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+        {/* Action Buttons: Export PDF, Excel, WhatsApp, Reports, Add Store */}
+        <div className="flex items-center gap-2 flex-wrap self-start lg:self-auto">
+          {/* Share Store List on WhatsApp */}
+          <button
+            onClick={() => shareStoreDirectoryWhatsApp(filteredStores)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 shadow-2xs transition shrink-0 active:scale-95"
+            title="Share Store Master Directory on WhatsApp"
+          >
+            <Share2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>Share List</span>
+          </button>
+
+          {/* Download Store List PDF */}
+          <button
+            onClick={() => generateStoreListPDF({ stores: filteredStores, cleanings })}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 shadow-2xs transition shrink-0 active:scale-95"
+            title="Download Store Master Directory PDF"
+          >
+            <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+            <span>PDF List</span>
+          </button>
+
+          {/* Download Store List Excel */}
+          <button
+            onClick={() => exportStoreListExcel(filteredStores, cleanings)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 shadow-2xs transition shrink-0 active:scale-95"
+            title="Download Store Master Directory Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>Excel List</span>
+          </button>
+
           {onOpenReportsCenter && (
             <button
               onClick={onOpenReportsCenter}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-bold rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 shadow-2xs transition shrink-0"
-              title="Download formatted Store Ledger & Performance reports in Excel (.xlsx) and PDF (.pdf)"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 shadow-2xs transition shrink-0"
+              title="Open Reports Center for Ledger & Audits"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>{t('btn_reports', 'Ledger Reports (Excel / PDF)')}</span>
+              <span>📊 Reports</span>
             </button>
           )}
 
           <button
             onClick={onAddNewStore}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 transition shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white shadow-md shadow-emerald-700/20 transition shrink-0 active:scale-95"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>{t('ledger_add_store', 'Add New Store')}</span>
+            <span>{t('ledger_add_store', 'Add Store')}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Sorting & Filter Controls Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs">
+        {/* City & Status Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <Filter className="w-3.5 h-3.5" /> Filter:
+          </span>
+
+          {/* City / Cluster Filter */}
+          {uniqueCities.length > 0 && (
+            <div className="flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="px-2.5 py-1 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blinkit-green"
+              >
+                <option value="all">All Cities ({stores.length})</option>
+                {uniqueCities.map(c => (
+                  <option key={c} value={c}>📍 {c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Status Filter */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setStatusFilter(statusFilter === 'all' ? 'pendingDues' : 'all')}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                statusFilter === 'pendingDues'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <span>⏳ Has Pending Dues</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Sort Controls */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <ArrowUpDown className="w-3.5 h-3.5" /> Sort:
+          </span>
+          <select
+            value={storeSortBy}
+            onChange={(e) => setStoreSortBy(e.target.value)}
+            className="px-2.5 py-1 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blinkit-green"
+          >
+            <option value="storeCodeAsc">🏬 Store Code: ES2 → ES308</option>
+            <option value="storeCodeDesc">🏬 Store Code: ES308 → ES2</option>
+            <option value="nameAsc">🏪 Store Name: A → Z</option>
+            <option value="cityAsc">📍 City: A → Z</option>
+            <option value="recentCleaned">📅 Last Cleaned (Recent First)</option>
+            <option value="pendingDesc">💰 Pending Dues (Highest First)</option>
+          </select>
         </div>
       </div>
 

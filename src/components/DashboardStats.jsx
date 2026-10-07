@@ -10,7 +10,8 @@ import {
   Filter,
   MapPin,
   Bell,
-  Calendar
+  Calendar,
+  ArrowUpDown
 } from 'lucide-react';
 
 function DashboardStats({
@@ -23,6 +24,11 @@ function DashboardStats({
   setClusterFilter,
   cycleFilter = 'all',
   setCycleFilter,
+  storeCodeFilter = 'all',
+  setStoreCodeFilter,
+  uniqueStoreCodes = [],
+  cleaningSortBy = 'dateDesc',
+  setCleaningSortBy,
   onOpenReportsCenter
 }) {
   const { t } = useLanguage();
@@ -262,9 +268,28 @@ function DashboardStats({
               </select>
             </div>
           )}
+
+          {/* Store Code Filter Dropdown */}
+          {uniqueStoreCodes && uniqueStoreCodes.length > 0 && (
+            <div className="flex items-center gap-1 ml-1">
+              <Building2 className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={storeCodeFilter}
+                onChange={(e) => setStoreCodeFilter && setStoreCodeFilter(e.target.value)}
+                className="px-2.5 py-1 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blinkit-green"
+              >
+                <option value="all">🏬 All Stores ({uniqueStoreCodes.length})</option>
+                {uniqueStoreCodes.map((code) => (
+                  <option key={code} value={code}>
+                    🏬 {code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-        {/* Right Side: Payment & Work Status */}
+        {/* Right Side: Payment & Work Status & Sort */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Payment Filter */}
           <div className="flex items-center gap-1 flex-wrap">
@@ -307,6 +332,28 @@ function DashboardStats({
               </button>
             ))}
           </div>
+
+          {/* Sort Selector */}
+          {setCleaningSortBy && (
+            <>
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+              <div className="flex items-center gap-1">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={cleaningSortBy || 'dateDesc'}
+                  onChange={(e) => setCleaningSortBy(e.target.value)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blinkit-green"
+                >
+                  <option value="dateDesc">📅 Date (Newest First)</option>
+                  <option value="dateAsc">📅 Date (Oldest First)</option>
+                  <option value="storeCodeAsc">🏬 Store Code (ES2 → ES308)</option>
+                  <option value="storeCodeDesc">🏬 Store Code (ES308 → ES2)</option>
+                  <option value="amountDesc">💰 Amount (High to Low)</option>
+                  <option value="amountPendingDesc">⏳ Pending Dues (Highest)</option>
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
       </div>

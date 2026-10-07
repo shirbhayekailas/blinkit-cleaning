@@ -52,7 +52,9 @@ import {
   CheckCircle2,
   AlertCircle,
   LogOut,
-  Clock
+  Clock,
+  ArrowUpDown,
+  RotateCcw
 } from 'lucide-react';
 
 export default function App() {
@@ -113,6 +115,22 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [clusterFilter, setClusterFilter] = useState('all');
   const [cycleFilter, setCycleFilter] = useState('all'); // 'all' | 'overdue' | 'dueSoon'
+  const [storeCodeFilter, setStoreCodeFilter] = useState('all');
+  const [cleaningSortBy, setCleaningSortBy] = useState(() => {
+    try {
+      return localStorage.getItem('blinkit_cleaning_sort') || 'dateDesc';
+    } catch {
+      return 'dateDesc';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('blinkit_cleaning_sort', cleaningSortBy);
+    } catch (e) {
+      // ignore
+    }
+  }, [cleaningSortBy]);
 
   // Modal States
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
@@ -423,8 +441,21 @@ export default function App() {
   const cleanerAdvances = serverData.cleanerAdvances || [];
   const loginLogs = serverData.loginLogs || [];
 
+  // Unique registered store codes for quick dropdown filter
+  const uniqueStoreCodes = useMemo(() => {
+    const set = new Set();
+    (serverData.stores || []).forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      if (code) set.add(code);
+    });
+    (serverData.cleanings || []).forEach(c => {
+      const code = (c.storeCode || '').trim().toUpperCase();
+      if (code) set.add(code);
+    });
+    return naturalSortByStoreCode(Array.from(set).map(c => ({ storeCode: c })), i => i.storeCode).map(i => i.storeCode);
+  }, [serverData.stores, serverData.cleanings]);
 
-  // Filtered cleanings based on search, payment, status, cluster, and due cycle
+  // Filtered cleanings based on search, payment, status, cluster, store code, and due cycle
   const filteredCleanings = cleanings.filter((c) => {
     const matchesSearch = 
       (c.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -442,6 +473,10 @@ export default function App() {
     const matchesCluster = 
       clusterFilter === 'all' || c.city === clusterFilter;
 
+    const matchesStoreCode = 
+      storeCodeFilter === 'all' || 
+      (c.storeCode && String(c.storeCode).trim().toUpperCase() === storeCodeFilter.trim().toUpperCase());
+
     let matchesCycle = true;
     if (cycleFilter === 'overdue' || cycleFilter === 'dueSoon') {
       const today = new Date();
@@ -458,17 +493,36 @@ export default function App() {
       }
     }
 
-    return matchesSearch && matchesPayment && matchesStatus && matchesCluster && matchesCycle;
+    return matchesSearch && matchesPayment && matchesStatus && matchesCluster && matchesCycle && matchesStoreCode;
   });
+
+  // Dynamic user-selected sorting (Date, Store Code, Amount)
+  const sortedCleanings = useMemo(() => {
+    let list = [...filteredCleanings];
+    if (cleaningSortBy === 'dateDesc') {
+      return list.sort((a, b) => (b.cleaningDate || '').localeCompare(a.cleaningDate || ''));
+    } else if (cleaningSortBy === 'dateAsc') {
+      return list.sort((a, b) => (a.cleaningDate || '').localeCompare(b.cleaningDate || ''));
+    } else if (cleaningSortBy === 'storeCodeAsc') {
+      return naturalSortByStoreCode(list, c => c.storeCode);
+    } else if (cleaningSortBy === 'storeCodeDesc') {
+      return naturalSortByStoreCode(list, c => c.storeCode).reverse();
+    } else if (cleaningSortBy === 'amountDesc') {
+      return list.sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+    } else if (cleaningSortBy === 'amountPendingDesc') {
+      return list.sort((a, b) => (Number(b.amountPending) || 0) - (Number(a.amountPending) || 0));
+    }
+    return list;
+  }, [filteredCleanings, cleaningSortBy]);
 
   // Smooth DOM Virtualization / Progressive Batch Loading (Keeps mobile frame rates locked at 60 FPS)
   const [visibleCleaningsCount, setVisibleCleaningsCount] = useState(15);
 
   useEffect(() => {
     setVisibleCleaningsCount(15);
-  }, [searchTerm, paymentFilter, statusFilter, clusterFilter, cycleFilter]);
+  }, [searchTerm, paymentFilter, statusFilter, clusterFilter, cycleFilter, storeCodeFilter, cleaningSortBy]);
 
-  const visibleCleanings = filteredCleanings.slice(0, visibleCleaningsCount);
+  const visibleCleanings = sortedCleanings.slice(0, visibleCleaningsCount);
 
   // Handlers for Cleanings with Instant 0ms Optimistic UI
   const handleSaveCleaning = async (cleaningData) => {
@@ -1118,38 +1172,98 @@ export default function App() {
               setClusterFilter={setClusterFilter}
               cycleFilter={cycleFilter}
               setCycleFilter={setCycleFilter}
+              storeCodeFilter={storeCodeFilter}
+              setStoreCodeFilter={setStoreCodeFilter}
+              uniqueStoreCodes={uniqueStoreCodes}
+              cleaningSortBy={cleaningSortBy}
+              setCleaningSortBy={setCleaningSortBy}
               onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
             />
 
             {/* Store Cards Grid / Records View */}
             <div className="space-y-3 sm:space-y-4 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-blinkit-green shrink-0" />
                     <span>{t('records_heading', 'Store Deep Cleaning Records')}</span>
                   </h2>
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {filteredCleanings.length} {filteredCleanings.length === 1 ? t('store_singular', 'store') : t('store_plural', 'stores')}
+                    {filteredCleanings.length} {filteredCleanings.length === 1 ? t('store_singular', 'entry') : t('store_plural', 'entries')}
                   </span>
+
+                  {(searchTerm || paymentFilter !== 'all' || statusFilter !== 'all' || clusterFilter !== 'all' || cycleFilter !== 'all' || storeCodeFilter !== 'all') && (
+                    <button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setPaymentFilter('all');
+                        setStatusFilter('all');
+                        setClusterFilter('all');
+                        setCycleFilter('all');
+                        setStoreCodeFilter('all');
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 transition"
+                      title="Clear all active filters"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset Filters</span>
+                    </button>
+                  )}
                 </div>
 
-                {filteredCleanings.length > 0 && (
-                  <div className="flex items-center gap-3 self-start sm:self-auto">
-                    <button
-                      onClick={() => setIsReportsCenterOpen(true)}
-                      className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1"
+                <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                  {/* Quick Store Code Filter */}
+                  {uniqueStoreCodes.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={storeCodeFilter}
+                        onChange={(e) => setStoreCodeFilter(e.target.value)}
+                        className="px-2 py-1 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 shadow-2xs focus:ring-2 focus:ring-blinkit-green"
+                        title="Filter by Store Code"
+                      >
+                        <option value="all">🏬 All Stores ({uniqueStoreCodes.length})</option>
+                        {uniqueStoreCodes.map(code => (
+                          <option key={code} value={code}>🏬 {code}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Quick Sort Control */}
+                  <div className="flex items-center gap-1">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={cleaningSortBy}
+                      onChange={(e) => setCleaningSortBy(e.target.value)}
+                      className="px-2 py-1 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-blinkit-green"
+                      title="Sort Cleaning Records"
                     >
-                      <span>📊 {t('btn_reports', 'Reports Center')}</span>
-                    </button>
-                    <button
-                      onClick={() => exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx')}
-                      className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold"
-                    >
-                      Excel ({filteredCleanings.length})
-                    </button>
+                      <option value="dateDesc">📅 Date (Newest First)</option>
+                      <option value="dateAsc">📅 Date (Oldest First)</option>
+                      <option value="storeCodeAsc">🏬 Store Code (ES2 → ES308)</option>
+                      <option value="storeCodeDesc">🏬 Store Code (ES308 → ES2)</option>
+                      <option value="amountDesc">💰 Amount (High to Low)</option>
+                      <option value="amountPendingDesc">⏳ Pending Dues (Highest)</option>
+                    </select>
                   </div>
-                )}
+
+                  {filteredCleanings.length > 0 && (
+                    <div className="flex items-center gap-2 ml-1">
+                      <button
+                        onClick={() => setIsReportsCenterOpen(true)}
+                        className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1"
+                      >
+                        <span>📊 Reports</span>
+                      </button>
+                      <button
+                        onClick={() => exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx')}
+                        className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold"
+                      >
+                        Excel ({filteredCleanings.length})
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {filteredCleanings.length > 0 ? (

@@ -111,31 +111,74 @@ export function lockRecordInVault(type, record) {
 /**
  * Purges an intentionally deleted record from the vault so it doesn't resurrect.
  */
+/**
+ * Purges an intentionally deleted record from the vault so it doesn't resurrect.
+ */
 export function purgeFromVault(type, identifier) {
   const vault = readVaultFromStorage();
-  const idStr = String(identifier).trim().toUpperCase();
-
+  
   if (type === 'cleaning') {
+    let matchId = null;
+    let matchSync = null;
+    let matchKey = null;
+
+    if (identifier && typeof identifier === 'object') {
+      matchId = identifier.id ? String(identifier.id).trim().toUpperCase() : null;
+      matchSync = identifier.syncId ? String(identifier.syncId).trim().toUpperCase() : null;
+      if (identifier.storeCode && identifier.cleaningDate) {
+        matchKey = `${String(identifier.storeCode).trim()}_${String(identifier.cleaningDate).trim()}`.toUpperCase();
+      }
+    } else {
+      const idStr = String(identifier || '').trim().toUpperCase();
+      matchId = idStr;
+      matchSync = idStr;
+      matchKey = idStr;
+    }
+
     vault.cleanings = vault.cleanings.filter(c => {
       if (!c) return false;
-      if (String(c.id) === idStr) return false;
-      if (c.syncId && String(c.syncId) === idStr) return false;
-      if (c.storeCode && c.cleaningDate && `${c.storeCode}_${c.cleaningDate}`.toUpperCase() === idStr) return false;
+      const cId = c.id ? String(c.id).trim().toUpperCase() : null;
+      const cSync = c.syncId ? String(c.syncId).trim().toUpperCase() : null;
+      const cKey = (c.storeCode && c.cleaningDate) ? `${String(c.storeCode).trim()}_${String(c.cleaningDate).trim()}`.toUpperCase() : null;
+
+      if (matchId && (cId === matchId || cSync === matchId || cKey === matchId)) return false;
+      if (matchSync && (cId === matchSync || cSync === matchSync || cKey === matchSync)) return false;
+      if (matchKey && (cId === matchKey || cSync === matchKey || cKey === matchKey)) return false;
       return true;
     });
   } else if (type === 'store') {
+    const codeStr = (typeof identifier === 'object' ? (identifier.storeCode || identifier.code) : identifier) || '';
+    const targetCode = String(codeStr).trim().toUpperCase();
     vault.stores = vault.stores.filter(s => {
       const code = (s.storeCode || s.code || '').trim().toUpperCase();
-      return code !== idStr;
+      return code !== targetCode;
     });
   } else if (type === 'schedule') {
+    const idStr = String(typeof identifier === 'object' ? identifier.id : identifier).trim().toUpperCase();
     vault.schedules = vault.schedules.filter(s => {
-      if (s.id && String(s.id) === idStr) return false;
+      if (s.id && String(s.id).trim().toUpperCase() === idStr) return false;
       return true;
     });
   }
 
   writeVaultToStorage(vault);
+
+  // Also clean cached state in localStorage if present
+  try {
+    const cachedRaw = localStorage.getItem('blinkit_cached_state_v2');
+    if (cachedRaw) {
+      const parsed = JSON.parse(cachedRaw);
+      if (type === 'cleaning' && Array.isArray(parsed.cleanings)) {
+        parsed.cleanings = vault.cleanings;
+        localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(parsed));
+      } else if (type === 'store' && Array.isArray(parsed.stores)) {
+        parsed.stores = vault.stores;
+        localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(parsed));
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
 }
 
 /**
@@ -160,9 +203,9 @@ export async function reconcileVaultWithServer(serverData = {}) {
   // Helper to check deletion
   const isDeleted = (c) => {
     if (!c || deletedCleanings.length === 0) return false;
-    const cId = c.id ? String(c.id) : null;
-    const cSync = c.syncId ? String(c.syncId) : null;
-    const cKey = (c.storeCode && c.cleaningDate) ? `${c.storeCode}_${c.cleaningDate}`.toUpperCase() : null;
+    const cId = c.id ? String(c.id).trim().toUpperCase() : null;
+    const cSync = c.syncId ? String(c.syncId).trim().toUpperCase() : null;
+    const cKey = (c.storeCode && c.cleaningDate) ? `${String(c.storeCode).trim()}_${String(c.cleaningDate).trim()}`.toUpperCase() : null;
 
     return deletedCleanings.some(d => {
       if (!d) return false;
@@ -170,22 +213,51 @@ export async function reconcileVaultWithServer(serverData = {}) {
         const dUp = d.trim().toUpperCase();
         return dUp === cId || dUp === cSync || dUp === cKey;
       }
-      if (d.id && String(d.id) === cId) return true;
-      if (d.syncId && String(d.syncId) === cSync) return true;
-      if (d.storeCode && d.cleaningDate && `${d.storeCode}_${d.cleaningDate}`.toUpperCase() === cKey) return true;
+      if (d.id && String(d.id).trim().toUpperCase() === cId) return true;
+      if (d.syncId && String(d.syncId).trim().toUpperCase() === cSync) return true;
+      if (d.key && (d.key.trim().toUpperCase() === cKey || d.key.trim().toUpperCase() === cSync || d.key.trim().toUpperCase() === cId)) return true;
+      if (d.storeCode && d.cleaningDate && cKey) {
+        const dKey = `${String(d.storeCode).trim()}_${String(d.cleaningDate).trim()}`.toUpperCase();
+        if (dKey === cKey) return true;
+      }
       return false;
     });
   };
 
-  // 1. Identify missing cleanings
+  // Immediate purge of local vault records matching server tombstones
+  let vaultModified = false;
+  vault.cleanings = vault.cleanings.filter(vc => {
+    if (!vc) return false;
+    if (isDeleted(vc)) {
+      vaultModified = true;
+      return false;
+    }
+    return true;
+  });
+
+  vault.stores = vault.stores.filter(vs => {
+    if (!vs) return false;
+    const code = (vs.storeCode || vs.code || '').trim().toUpperCase();
+    if (!code) return false;
+    const isStoreDel = deletedStores.some(d => {
+      const dCode = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
+      return dCode === code;
+    });
+    if (isStoreDel) {
+      vaultModified = true;
+      return false;
+    }
+    return true;
+  });
+
+  if (vaultModified) {
+    writeVaultToStorage(vault);
+  }
+
+  // 1. Identify missing cleanings (strictly ignoring deleted items)
   const missingCleanings = [];
   vault.cleanings.forEach(vc => {
-    if (!vc) return;
-    if (isDeleted(vc)) {
-      // Intentionally deleted on server: remove from local vault too
-      purgeFromVault('cleaning', vc.id);
-      return;
-    }
+    if (!vc || isDeleted(vc)) return;
 
     const vcId = vc.id ? String(vc.id) : null;
     const vcCode = vc.storeCode ? String(vc.storeCode).trim().toUpperCase() : null;
@@ -205,7 +277,7 @@ export async function reconcileVaultWithServer(serverData = {}) {
     }
   });
 
-  // 2. Identify missing stores
+  // 2. Identify missing stores (strictly ignoring deleted items)
   const missingStores = [];
   vault.stores.forEach(vs => {
     if (!vs) return;
@@ -216,10 +288,7 @@ export async function reconcileVaultWithServer(serverData = {}) {
       const dCode = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
       return dCode === code;
     });
-    if (isStoreDel) {
-      purgeFromVault('store', code);
-      return;
-    }
+    if (isStoreDel) return;
 
     const existsOnServer = serverStores.some(ss => {
       const sCode = (ss.storeCode || ss.code || '').trim().toUpperCase();

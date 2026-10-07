@@ -138,3 +138,39 @@ export function sendStoreManagerRatingWhatsApp(cleaning) {
   window.open(url, '_blank');
 }
 
+// 1-Click WhatsApp Store Directory / Master List Share
+export function formatStoreDirectoryWhatsApp(stores = []) {
+  const vendorName = localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES';
+  const total = stores.length;
+  
+  const storeItems = stores.map((s, idx) => {
+    const code = s.storeCode || s.code || 'N/A';
+    const name = s.storeName || s.name || 'Dark Store';
+    const city = s.city ? ` [${s.city}]` : '';
+    const mgr = s.managerName ? `\n   👤 Mgr: ${s.managerName}${s.managerPhone ? ` (📞 ${s.managerPhone})` : ''}` : '';
+    const addr = s.address ? `\n   📍 ${s.address}` : '';
+    return `${idx + 1}. *${code}* - ${name}${city}${mgr}${addr}`;
+  }).join('\n\n');
+
+  return `*🏢 BLINKIT DARK STORE MASTER DIRECTORY 🏢*
+---------------------------------------
+Total Registered Stores: *${total}*
+Facility Vendor: *${vendorName}*
+---------------------------------------
+
+${storeItems || 'No stores registered.'}
+
+---------------------------------------
+_Shared via Blinkit Deep Cleaning Operations Tracker_`;
+}
+
+export function shareStoreDirectoryWhatsApp(stores = [], targetPhone = '') {
+  const msg = formatStoreDirectoryWhatsApp(stores);
+  const cleanPhone = (targetPhone || '').replace(/[^0-9]/g, '');
+  const url = cleanPhone
+    ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
+    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+
