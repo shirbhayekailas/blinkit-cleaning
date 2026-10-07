@@ -448,16 +448,96 @@ export function naturalSortByStoreCode(list = [], getCode = item => item.storeCo
   return [...list].sort((a, b) => compareStoreCodes(getCode(a), getCode(b)));
 }
 
+/**
+ * Universal dynamic sorter for cleaning operations lists
+ */
+export function sortCleaningsList(list = [], sortBy = 'storeCodeAsc') {
+  if (!Array.isArray(list)) return [];
+  const copy = [...list];
+  switch (sortBy) {
+    case 'dateDesc':
+      return copy.sort((a, b) => (b.cleaningDate || '').localeCompare(a.cleaningDate || ''));
+    case 'dateAsc':
+      return copy.sort((a, b) => (a.cleaningDate || '').localeCompare(b.cleaningDate || ''));
+    case 'storeCodeAsc':
+      return naturalSortByStoreCode(copy, c => c.storeCode);
+    case 'storeCodeDesc':
+      return naturalSortByStoreCode(copy, c => c.storeCode).reverse();
+    case 'amountDesc':
+      return copy.sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+    case 'amountPendingDesc':
+      return copy.sort((a, b) => (Number(b.amountPending) || 0) - (Number(a.amountPending) || 0));
+    case 'preserve':
+      return copy;
+    default:
+      return naturalSortByStoreCode(copy, c => c.storeCode);
+  }
+}
+
+/**
+ * Universal dynamic sorter for stores directory / ledger
+ */
+export function sortStoresList(list = [], sortBy = 'storeCodeAsc', cleanings = []) {
+  if (!Array.isArray(list)) return [];
+  const copy = [...list];
+  switch (sortBy) {
+    case 'storeCodeAsc':
+      return naturalSortByStoreCode(copy, s => s.storeCode || s.code || '');
+    case 'storeCodeDesc':
+      return naturalSortByStoreCode(copy, s => s.storeCode || s.code || '').reverse();
+    case 'nameAsc':
+      return copy.sort((a, b) => (a.storeName || a.name || '').localeCompare(b.storeName || b.name || ''));
+    case 'cityAsc':
+      return copy.sort((a, b) => (a.city || '').localeCompare(b.city || ''));
+    case 'dateDesc':
+    case 'recentCleaned': {
+      const lastCleanDateMap = new Map();
+      cleanings.forEach(c => {
+        const code = (c.storeCode || '').trim().toUpperCase();
+        if (code && c.cleaningDate) {
+          const prev = lastCleanDateMap.get(code) || '';
+          if (c.cleaningDate > prev) lastCleanDateMap.set(code, c.cleaningDate);
+        }
+      });
+      return copy.sort((a, b) => {
+        const codeA = (a.storeCode || a.code || '').trim().toUpperCase();
+        const codeB = (b.storeCode || b.code || '').trim().toUpperCase();
+        return (lastCleanDateMap.get(codeB) || '').localeCompare(lastCleanDateMap.get(codeA) || '');
+      });
+    }
+    case 'amountPendingDesc':
+    case 'pendingDesc': {
+      const pendingMap = new Map();
+      cleanings.forEach(c => {
+        const code = (c.storeCode || '').trim().toUpperCase();
+        if (code) {
+          pendingMap.set(code, (pendingMap.get(code) || 0) + (Number(c.amountPending) || 0));
+        }
+      });
+      return copy.sort((a, b) => {
+        const codeA = (a.storeCode || a.code || '').trim().toUpperCase();
+        const codeB = (b.storeCode || b.code || '').trim().toUpperCase();
+        return (pendingMap.get(codeB) || 0) - (pendingMap.get(codeA) || 0);
+      });
+    }
+    case 'preserve':
+      return copy;
+    default:
+      return naturalSortByStoreCode(copy, s => s.storeCode || s.code || '');
+  }
+}
+
 // ----------------------------------------------------------------------
 // 1. PENDING PAYMENTS SHEET BUILDER (Store Manager / Contact Removed)
 // ----------------------------------------------------------------------
-export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Time') {
-  const pendingList = naturalSortByStoreCode(cleanings.filter(c => 
+export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Time', { sortBy = 'storeCodeAsc' } = {}) {
+  const filtered = cleanings.filter(c => 
     c.paymentStatus === 'Pending' || 
     c.paymentStatus === 'Partial' || 
     (toNum(c.amountPending) > 0) ||
     (toNum(c.amount) - toNum(c.amountReceived) > 0)
-  ));
+  );
+  const pendingList = sortCleaningsList(filtered, sortBy);
 
   let totalBilled = 0;
   let totalRecv = 0;
@@ -588,12 +668,13 @@ export function buildPendingPaymentsSheet(cleanings = [], filterLabel = 'All Tim
 // ----------------------------------------------------------------------
 // 2. COMPLETED PAYMENTS SHEET BUILDER (Store Manager Removed)
 // ----------------------------------------------------------------------
-export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All Time') {
-  const completedList = naturalSortByStoreCode(cleanings.filter(c => 
+export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All Time', { sortBy = 'storeCodeAsc' } = {}) {
+  const filtered = cleanings.filter(c => 
     c.paymentStatus === 'Received' || 
     c.paymentStatus === 'Completed' ||
     (toNum(c.amountReceived) > 0 && toNum(c.amountPending) <= 0)
-  ));
+  );
+  const completedList = sortCleaningsList(filtered, sortBy);
 
   let totalBilled = 0;
   let totalRecv = 0;
@@ -714,7 +795,7 @@ export function buildCompletedPaymentsSheet(cleanings = [], filterLabel = 'All T
 //    Options: includeFinancials = true (With Amount) | false (Without Amount)
 //    Store Manager & Contact Number Removed
 // ----------------------------------------------------------------------
-export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time', { includeFinancials = true } = {}) {
+export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time', { includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
   let totalBilled = 0;
   let totalRecv = 0;
   let totalPend = 0;
@@ -813,7 +894,7 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
     ];
   }
 
-  const sortedCleanings = naturalSortByStoreCode(cleanings);
+  const sortedCleanings = sortCleaningsList(cleanings, sortBy);
   const dataRows = sortedCleanings.map((c, index) => {
     const billed = toNum(c.amount);
     const recv = toNum(c.amountReceived);
@@ -1018,7 +1099,7 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
 //    Options: includeFinancials = true (With Amount) | false (Without Amount)
 //    Store Manager & Contact Number Removed
 // ----------------------------------------------------------------------
-export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLabel = 'All Time', { includeFinancials = true } = {}) {
+export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLabel = 'All Time', { includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
   const storeMap = new Map();
 
   stores.forEach(s => {
@@ -1074,7 +1155,7 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
     }
   });
 
-  const storeRows = naturalSortByStoreCode(Array.from(storeMap.values()).map(item => {
+  const storeRows = sortStoresList(Array.from(storeMap.values()).map(item => {
     let financialStatus = 'All Cleared';
     if (item.cleaningsCount === 0) financialStatus = 'Not Started';
     else if (item.totalPending > 0) financialStatus = `Pending Dues (Rs ${item.totalPending})`;
@@ -1083,7 +1164,7 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
       ...item,
       financialStatus
     };
-  }), s => s.code);
+  }), sortBy, cleanings);
 
   let sumCleanings = 0;
   let sumBilled = 0;
@@ -1423,11 +1504,15 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
  * Downloads a comprehensive multi-sheet Excel workbook containing all 5 reports.
  * Store Manager and Contact details are permanently omitted.
  */
-export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'All Time', filename = '') {
+export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'All Time', filenameOrOptions = '', options = {}) {
   if (!cleanings || cleanings.length === 0) {
     alert('No cleaning records available for export!');
     return;
   }
+
+  let filename = typeof filenameOrOptions === 'string' ? filenameOrOptions : '';
+  let opts = typeof filenameOrOptions === 'object' && filenameOrOptions !== null ? filenameOrOptions : options;
+  const sortBy = opts?.sortBy || 'storeCodeAsc';
 
   const defaultFilename = `Blinkit_DeepCleaning_Master_Package_${new Date().toISOString().slice(0, 10)}.xlsx`;
   const wb = XLSX.utils.book_new();
@@ -1436,20 +1521,20 @@ export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'Al
   const wsSummary = buildExecutiveSummarySheet(cleanings, stores, filterLabel);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
 
-  // 2. Pending Payments (No Store Manager / Contact)
-  const wsPending = buildPendingPaymentsSheet(cleanings, filterLabel);
+  // 2. Pending Payments (Supports sortBy)
+  const wsPending = buildPendingPaymentsSheet(cleanings, filterLabel, { sortBy });
   XLSX.utils.book_append_sheet(wb, wsPending, 'Pending Payments');
 
-  // 3. Completed Payments (No Store Manager)
-  const wsCompleted = buildCompletedPaymentsSheet(cleanings, filterLabel);
+  // 3. Completed Payments (Supports sortBy)
+  const wsCompleted = buildCompletedPaymentsSheet(cleanings, filterLabel, { sortBy });
   XLSX.utils.book_append_sheet(wb, wsCompleted, 'Completed Payments');
 
-  // 4. All Cleaning Records (With Financials)
-  const wsAll = buildAllCleaningsSheet(cleanings, filterLabel, { includeFinancials: true });
+  // 4. All Cleaning Records (Supports sortBy)
+  const wsAll = buildAllCleaningsSheet(cleanings, filterLabel, { includeFinancials: true, sortBy });
   XLSX.utils.book_append_sheet(wb, wsAll, 'All Cleaning Records');
 
-  // 5. Store-Wise Performance (With Financials)
-  const wsStore = buildStorePerformanceSheet(cleanings, stores, filterLabel, { includeFinancials: true });
+  // 5. Store-Wise Performance (Supports sortBy)
+  const wsStore = buildStorePerformanceSheet(cleanings, stores, filterLabel, { includeFinancials: true, sortBy });
   XLSX.utils.book_append_sheet(wb, wsStore, 'Store-Wise Summary');
 
   XLSX.writeFile(wb, filename || defaultFilename);
@@ -1458,9 +1543,13 @@ export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'Al
 /**
  * Downloads dedicated Pending Payments Excel report.
  */
-export function exportPendingPaymentsExcel(cleanings = [], filterLabel = 'All Time', filename = '') {
+export function exportPendingPaymentsExcel(cleanings = [], filterLabel = 'All Time', filenameOrOptions = '', options = {}) {
+  let filename = typeof filenameOrOptions === 'string' ? filenameOrOptions : '';
+  let opts = typeof filenameOrOptions === 'object' && filenameOrOptions !== null ? filenameOrOptions : options;
+  const sortBy = opts?.sortBy || 'storeCodeAsc';
+
   const wb = XLSX.utils.book_new();
-  const ws = buildPendingPaymentsSheet(cleanings, filterLabel);
+  const ws = buildPendingPaymentsSheet(cleanings, filterLabel, { sortBy });
   XLSX.utils.book_append_sheet(wb, ws, 'Pending Payments');
   XLSX.writeFile(wb, filename || `Blinkit_Pending_Payments_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
@@ -1468,25 +1557,29 @@ export function exportPendingPaymentsExcel(cleanings = [], filterLabel = 'All Ti
 /**
  * Downloads dedicated Completed Payments Excel report.
  */
-export function exportCompletedPaymentsExcel(cleanings = [], filterLabel = 'All Time', filename = '') {
+export function exportCompletedPaymentsExcel(cleanings = [], filterLabel = 'All Time', filenameOrOptions = '', options = {}) {
+  let filename = typeof filenameOrOptions === 'string' ? filenameOrOptions : '';
+  let opts = typeof filenameOrOptions === 'object' && filenameOrOptions !== null ? filenameOrOptions : options;
+  const sortBy = opts?.sortBy || 'storeCodeAsc';
+
   const wb = XLSX.utils.book_new();
-  const ws = buildCompletedPaymentsSheet(cleanings, filterLabel);
+  const ws = buildCompletedPaymentsSheet(cleanings, filterLabel, { sortBy });
   XLSX.utils.book_append_sheet(wb, ws, 'Completed Payments');
   XLSX.writeFile(wb, filename || `Blinkit_Completed_Payments_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 /**
  * Downloads dedicated All Cleaning Records Excel register.
- * Supports options: { includeFinancials: true | false } or direct filename string
+ * Supports options: { includeFinancials: true | false, sortBy: '...' } or direct filename string
  */
-export function exportAllCleaningsExcel(cleanings = [], filterLabel = 'All Time', options = { includeFinancials: true }, filename = '') {
+export function exportAllCleaningsExcel(cleanings = [], filterLabel = 'All Time', options = { includeFinancials: true, sortBy: 'storeCodeAsc' }, filename = '') {
   let opts = options;
   let targetFile = filename;
   if (typeof options === 'string') {
     targetFile = options;
-    opts = { includeFinancials: true };
+    opts = { includeFinancials: true, sortBy: 'storeCodeAsc' };
   } else if (!opts || typeof opts !== 'object') {
-    opts = { includeFinancials: true };
+    opts = { includeFinancials: true, sortBy: 'storeCodeAsc' };
   }
 
   const wb = XLSX.utils.book_new();
@@ -1501,16 +1594,16 @@ export function exportAllCleaningsExcel(cleanings = [], filterLabel = 'All Time'
 
 /**
  * Downloads dedicated Store Performance Excel ledger.
- * Supports options: { includeFinancials: true | false } or direct filename string
+ * Supports options: { includeFinancials: true | false, sortBy: '...' } or direct filename string
  */
-export function exportStorePerformanceExcel(cleanings = [], stores = [], filterLabel = 'All Time', options = { includeFinancials: true }, filename = '') {
+export function exportStorePerformanceExcel(cleanings = [], stores = [], filterLabel = 'All Time', options = { includeFinancials: true, sortBy: 'storeCodeAsc' }, filename = '') {
   let opts = options;
   let targetFile = filename;
   if (typeof options === 'string') {
     targetFile = options;
-    opts = { includeFinancials: true };
+    opts = { includeFinancials: true, sortBy: 'storeCodeAsc' };
   } else if (!opts || typeof opts !== 'object') {
-    opts = { includeFinancials: true };
+    opts = { includeFinancials: true, sortBy: 'storeCodeAsc' };
   }
 
   const wb = XLSX.utils.book_new();
@@ -1528,8 +1621,8 @@ export function exportStorePerformanceExcel(cleanings = [], stores = [], filterL
  * STORE MASTER DIRECTORY & REGISTER EXCEL BUILDER
  * ----------------------------------------------------------------------
  */
-export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = 'All Time') {
-  const sortedStores = naturalSortByStoreCode(stores, s => s.storeCode);
+export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = 'All Time', { sortBy = 'storeCodeAsc' } = {}) {
+  const sortedStores = sortStoresList(stores, sortBy, cleanings);
   const totalStores = sortedStores.length;
   const uniqueCities = new Set(sortedStores.map(s => s.city).filter(Boolean)).size;
   const totalVisits = cleanings.length;
@@ -1587,9 +1680,13 @@ export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = '
   return ws;
 }
 
-export function exportStoreListExcel(stores = [], cleanings = [], filterLabel = 'All Time', filename = '') {
+export function exportStoreListExcel(stores = [], cleanings = [], filterLabel = 'All Time', filenameOrOptions = '', options = {}) {
+  let filename = typeof filenameOrOptions === 'string' ? filenameOrOptions : '';
+  let opts = typeof filenameOrOptions === 'object' && filenameOrOptions !== null ? filenameOrOptions : options;
+  const sortBy = opts?.sortBy || 'storeCodeAsc';
+
   const wb = XLSX.utils.book_new();
-  const ws = buildStoreListSheet(stores, cleanings, filterLabel);
+  const ws = buildStoreListSheet(stores, cleanings, filterLabel, { sortBy });
   XLSX.utils.book_append_sheet(wb, ws, 'Store Master Directory');
   const defaultName = `Blinkit_Store_Master_Directory_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename || defaultName);

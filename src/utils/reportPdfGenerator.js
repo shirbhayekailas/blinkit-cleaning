@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getBillSettings } from './billSettingsHelper';
-import { naturalSortByStoreCode } from './reportExcelGenerator';
+import { naturalSortByStoreCode, sortCleaningsList, sortStoresList } from './reportExcelGenerator';
 
 // Safe helper for autoTable compatibility
 function runAutoTable(doc, options) {
@@ -208,13 +208,14 @@ function addFooterAndPageNumbers(doc) {
 // ----------------------------------------------------------------------
 // 1. PENDING PAYMENTS PDF REPORT (Store Manager & Contact Removed)
 // ----------------------------------------------------------------------
-export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All Time' }) {
-  const pendingList = naturalSortByStoreCode(cleanings.filter(c => 
+export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All Time', sortBy = 'storeCodeAsc' }) {
+  const pendingFiltered = cleanings.filter(c => 
     c.paymentStatus === 'Pending' || 
     c.paymentStatus === 'Partial' || 
     (toNum(c.amountPending) > 0) ||
     (toNum(c.amount) - toNum(c.amountReceived) > 0)
-  ));
+  );
+  const pendingList = sortCleaningsList(pendingFiltered, sortBy);
 
   if (pendingList.length === 0) {
     alert('Congratulations! There are no pending payment records for the selected period.');
@@ -360,12 +361,13 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
 // ----------------------------------------------------------------------
 // 2. COMPLETED PAYMENTS PDF REPORT (Store Manager Removed)
 // ----------------------------------------------------------------------
-export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'All Time' }) {
-  const completedList = naturalSortByStoreCode(cleanings.filter(c => 
+export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'All Time', sortBy = 'storeCodeAsc' }) {
+  const completedFiltered = cleanings.filter(c => 
     c.paymentStatus === 'Received' || 
     c.paymentStatus === 'Completed' ||
     (toNum(c.amountReceived) > 0 && toNum(c.amountPending) <= 0)
-  ));
+  );
+  const completedList = sortCleaningsList(completedFiltered, sortBy);
 
   if (completedList.length === 0) {
     alert('No settled payment records found for the selected period.');
@@ -457,7 +459,7 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
 //    Supports includeFinancials = true (With Amount) | false (Without Amount)
 //    Store Manager & Contact Removed
 // ----------------------------------------------------------------------
-export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Time', includeFinancials = true } = {}) {
+export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Time', includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
   if (cleanings.length === 0) {
     alert('No cleaning records found for the selected period.');
     return;
@@ -495,7 +497,7 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
     totalPhotos += (c.photos && c.photos.length) || 0;
   });
 
-  const sortedCleanings = naturalSortByStoreCode(cleanings);
+  const sortedCleanings = sortCleaningsList(cleanings, sortBy);
   let tableRows = [];
   let headCols = [];
   let footCols = [];
@@ -646,7 +648,7 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
 //    Supports includeFinancials = true (With Amount) | false (Without Amount)
 //    Store Manager & Contact Removed
 // ----------------------------------------------------------------------
-export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLabel = 'All Time', includeFinancials = true } = {}) {
+export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLabel = 'All Time', includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
   const storeMap = new Map();
 
   stores.forEach(s => {
@@ -700,7 +702,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
     }
   });
 
-  const storeRows = naturalSortByStoreCode(Array.from(storeMap.values()), s => s.code);
+  const storeRows = sortStoresList(Array.from(storeMap.values()), sortBy, cleanings);
   if (storeRows.length === 0) {
     alert('No store records found.');
     return;
@@ -874,7 +876,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
 // ----------------------------------------------------------------------
 // 5. MASTER EXECUTIVE CONSOLIDATED PDF (Store Manager & Contact Removed)
 // ----------------------------------------------------------------------
-export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], filterLabel = 'All Time' }) {
+export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], filterLabel = 'All Time', sortBy = 'storeCodeAsc' }) {
   if (cleanings.length === 0) {
     alert('No cleaning records found for the executive report.');
     return;
@@ -919,10 +921,11 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
   doc.text('1. TOP PENDING ACCOUNTS REQUIRING SETTLEMENT FOLLOW-UP', 14, currentY + 4);
   currentY += 7;
 
-  // Filter top 10 pending (Store Manager and Phone permanently removed)
-  const topPending = cleanings
-    .filter(c => c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial' || (toNum(c.amountPending) > 0))
-    .slice(0, 12);
+  // Filter top pending (Store Manager and Phone permanently removed)
+  const topPending = sortCleaningsList(
+    cleanings.filter(c => c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial' || (toNum(c.amountPending) > 0)),
+    sortBy === 'preserve' ? 'preserve' : sortBy
+  ).slice(0, 12);
 
   const tableRows = topPending.map((c, idx) => {
     const billed = toNum(c.amount);
@@ -984,8 +987,8 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
 // ----------------------------------------------------------------------
 // 6. STORE MASTER DIRECTORY & REGISTER PDF
 // ----------------------------------------------------------------------
-export function generateStoreListPDF({ stores = [], cleanings = [], filterLabel = 'All Time' } = {}) {
-  const sortedStores = naturalSortByStoreCode(stores, s => s.storeCode);
+export function generateStoreListPDF({ stores = [], cleanings = [], filterLabel = 'All Time', sortBy = 'storeCodeAsc' } = {}) {
+  const sortedStores = sortStoresList(stores, sortBy, cleanings);
   if (sortedStores.length === 0) {
     alert('No store records available to generate PDF.');
     return;

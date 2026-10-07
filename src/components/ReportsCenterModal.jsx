@@ -18,7 +18,11 @@ import {
   Sparkles,
   ArrowDownToLine,
   Phone,
-  FileCheck
+  FileCheck,
+  ArrowUpDown,
+  RotateCcw,
+  MapPin,
+  FolderTree
 } from 'lucide-react';
 import {
   exportMasterExcel,
@@ -26,14 +30,18 @@ import {
   exportCompletedPaymentsExcel,
   exportAllCleaningsExcel,
   exportStorePerformanceExcel,
-  naturalSortByStoreCode
+  exportStoreListExcel,
+  naturalSortByStoreCode,
+  sortCleaningsList,
+  sortStoresList
 } from '../utils/reportExcelGenerator';
 import {
   generateMasterExecutiveReportPDF,
   generatePendingPaymentsPDF,
   generateCompletedPaymentsPDF,
   generateAllCleaningsPDF,
-  generateStoreSummaryPDF
+  generateStoreSummaryPDF,
+  generateStoreListPDF
 } from '../utils/reportPdfGenerator';
 
 export default function ReportsCenterModal({
@@ -56,13 +64,16 @@ export default function ReportsCenterModal({
     reportsRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Filter states
+  // Filter & Sorting states
   const [periodFilter, setPeriodFilter] = useState('all'); // 'all' | 'this_month' | 'last_month' | 'custom'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [cityFilter, setCityFilter] = useState('all');
   const [selectedStore, setSelectedStore] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'Pending' | 'Received' | 'Partial'
+  const [sortBy, setSortBy] = useState('dateDesc'); // 'dateDesc' | 'dateAsc' | 'storeCodeAsc' | 'storeCodeDesc' | 'amountDesc' | 'amountPendingDesc'
   const [searchTerm, setSearchTerm] = useState('');
-  const [previewTab, setPreviewTab] = useState('pending'); // 'pending' | 'completed' | 'all' | 'stores'
+  const [previewTab, setPreviewTab] = useState('pending'); // 'pending' | 'completed' | 'all' | 'stores' | 'directory'
   const [card4Mode, setCard4Mode] = useState('with_amount'); // 'with_amount' | 'without_amount'
   const [card5Mode, setCard5Mode] = useState('with_amount'); // 'with_amount' | 'without_amount'
   const [previewMode, setPreviewMode] = useState('with_amount'); // 'with_amount' | 'without_amount'
@@ -77,19 +88,107 @@ export default function ReportsCenterModal({
   const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
   const lastMonthPrefix = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
-  // Filter label for reports
-  let filterLabel = 'All Time Records';
-  if (periodFilter === 'this_month') {
-    filterLabel = `This Month (${now.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
-  } else if (periodFilter === 'last_month') {
-    filterLabel = `Last Month (${lastMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`;
-  } else if (periodFilter === 'custom' && (customStartDate || customEndDate)) {
-    filterLabel = `Custom Range (${customStartDate || 'Start'} to ${customEndDate || 'End'})`;
-  }
+  // Unique cities list
+  const uniqueCities = useMemo(() => {
+    const set = new Set();
+    stores.forEach(s => {
+      if (s.city && s.city.trim()) set.add(s.city.trim());
+    });
+    cleanings.forEach(c => {
+      if (c.city && c.city.trim()) set.add(c.city.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [stores, cleanings]);
 
-  // Filtered cleanings based on user inputs
+  // Unique stores for dropdown (context-aware of selected city)
+  const storeOptions = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    stores.forEach(s => {
+      const code = s.storeCode || s.code;
+      if (code && !seen.has(code)) {
+        if (cityFilter === 'all' || (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase()) {
+          seen.add(code);
+          list.push({ code, name: s.storeName || s.name || code, city: s.city || '' });
+        }
+      }
+    });
+    cleanings.forEach(c => {
+      const code = c.storeCode;
+      if (code && !seen.has(code)) {
+        if (cityFilter === 'all' || (c.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase()) {
+          seen.add(code);
+          list.push({ code, name: c.storeName || code, city: c.city || '' });
+        }
+      }
+    });
+    return naturalSortByStoreCode(list, item => item.code);
+  }, [stores, cleanings, cityFilter]);
+
+  // Descriptive filter label for generated reports (banner metadata)
+  const filterLabel = useMemo(() => {
+    let parts = [];
+    if (periodFilter === 'this_month') {
+      parts.push(`This Month (${now.toLocaleString('default', { month: 'long', year: 'numeric' })})`);
+    } else if (periodFilter === 'last_month') {
+      parts.push(`Last Month (${lastMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' })})`);
+    } else if (periodFilter === 'custom' && (customStartDate || customEndDate)) {
+      parts.push(`Custom Range (${customStartDate || 'Start'} to ${customEndDate || 'End'})`);
+    } else {
+      parts.push('All Time Records');
+    }
+
+    if (cityFilter !== 'all') {
+      parts.push(`City: ${cityFilter}`);
+    }
+    if (selectedStore !== 'all') {
+      parts.push(`Store: ${selectedStore}`);
+    }
+    if (paymentFilter !== 'all') {
+      parts.push(`Payment: ${paymentFilter}`);
+    }
+    const sortLabelMap = {
+      dateDesc: 'Sorted: Date (Newest)',
+      dateAsc: 'Sorted: Date (Oldest)',
+      storeCodeAsc: 'Sorted: Store Code (ES2→ES308)',
+      storeCodeDesc: 'Sorted: Store Code (ES308→ES2)',
+      amountDesc: 'Sorted: Highest Amount',
+      amountPendingDesc: 'Sorted: Highest Pending Dues'
+    };
+    if (sortBy && sortLabelMap[sortBy]) {
+      parts.push(sortLabelMap[sortBy]);
+    }
+    return parts.join(' | ');
+  }, [periodFilter, customStartDate, customEndDate, cityFilter, selectedStore, paymentFilter, sortBy]);
+
+  // Check if any non-default filter is applied
+  const hasActiveFilters = useMemo(() => {
+    return (
+      periodFilter !== 'all' ||
+      customStartDate !== '' ||
+      customEndDate !== '' ||
+      cityFilter !== 'all' ||
+      selectedStore !== 'all' ||
+      paymentFilter !== 'all' ||
+      searchTerm.trim() !== '' ||
+      sortBy !== 'dateDesc'
+    );
+  }, [periodFilter, customStartDate, customEndDate, cityFilter, selectedStore, paymentFilter, searchTerm, sortBy]);
+
+  const resetFilters = () => {
+    setPeriodFilter('all');
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setCityFilter('all');
+    setSelectedStore('all');
+    setPaymentFilter('all');
+    setSortBy('dateDesc');
+    setSearchTerm('');
+  };
+
+  // Filtered cleanings based on user inputs and active sorting
   const filteredCleanings = useMemo(() => {
-    return cleanings.filter(c => {
+    const list = cleanings.filter(c => {
       // 1. Period filter
       if (periodFilter === 'this_month') {
         if (!c.cleaningDate || !c.cleaningDate.startsWith(thisMonthPrefix)) return false;
@@ -100,14 +199,38 @@ export default function ReportsCenterModal({
         if (customEndDate && (!c.cleaningDate || c.cleaningDate > customEndDate)) return false;
       }
 
-      // 2. Store filter
+      // 2. City filter
+      if (cityFilter !== 'all') {
+        if ((c.city || '').trim().toLowerCase() !== cityFilter.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 3. Store filter
       if (selectedStore !== 'all') {
         if ((c.storeCode || '') !== selectedStore && (c.storeName || '') !== selectedStore) {
           return false;
         }
       }
 
-      // 3. Search query
+      // 4. Payment status filter
+      if (paymentFilter !== 'all') {
+        const billed = Number(c.amount) || 0;
+        const recv = Number(c.amountReceived) || 0;
+        const pend = c.amountPending !== undefined ? Number(c.amountPending) : Math.max(0, billed - recv);
+
+        if (paymentFilter === 'Pending') {
+          const isPending = c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial' || pend > 0;
+          if (!isPending) return false;
+        } else if (paymentFilter === 'Received') {
+          const isReceived = (c.paymentStatus === 'Received' || c.paymentStatus === 'Completed') && pend <= 0;
+          if (!isReceived) return false;
+        } else if (paymentFilter === 'Partial') {
+          if (c.paymentStatus !== 'Partial') return false;
+        }
+      }
+
+      // 5. Search query
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const match = 
@@ -122,8 +245,9 @@ export default function ReportsCenterModal({
 
       return true;
     });
-    return naturalSortByStoreCode(list);
-  }, [cleanings, periodFilter, thisMonthPrefix, lastMonthPrefix, customStartDate, customEndDate, selectedStore, searchTerm]);
+
+    return sortCleaningsList(list, sortBy);
+  }, [cleanings, periodFilter, thisMonthPrefix, lastMonthPrefix, customStartDate, customEndDate, cityFilter, selectedStore, paymentFilter, searchTerm, sortBy]);
 
   // Derived datasets
   const pendingCleanings = useMemo(() => {
@@ -133,8 +257,8 @@ export default function ReportsCenterModal({
       Number(c.amountPending) > 0 ||
       (Number(c.amount) - Number(c.amountReceived) > 0)
     );
-    return naturalSortByStoreCode(list);
-  }, [filteredCleanings]);
+    return sortCleaningsList(list, sortBy);
+  }, [filteredCleanings, sortBy]);
 
   const completedCleanings = useMemo(() => {
     const list = filteredCleanings.filter(c => 
@@ -142,14 +266,18 @@ export default function ReportsCenterModal({
       c.paymentStatus === 'Completed' ||
       (Number(c.amountReceived) > 0 && Number(c.amountPending) <= 0)
     );
-    return naturalSortByStoreCode(list);
-  }, [filteredCleanings]);
+    return sortCleaningsList(list, sortBy);
+  }, [filteredCleanings, sortBy]);
 
   // Store performance summary
   const storeSummaryList = useMemo(() => {
     const map = new Map();
 
-    stores.forEach(s => {
+    const relevantStores = cityFilter === 'all'
+      ? stores
+      : stores.filter(s => (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase());
+
+    relevantStores.forEach(s => {
       const key = (s.storeCode || s.code || s.storeName || '').trim();
       if (key) {
         map.set(key, {
@@ -173,6 +301,9 @@ export default function ReportsCenterModal({
 
       let item = map.get(key);
       if (!item) {
+        if (cityFilter !== 'all' && (c.city || '').trim().toLowerCase() !== cityFilter.trim().toLowerCase()) {
+          return;
+        }
         item = {
           code: c.storeCode || '',
           name: c.storeName || '',
@@ -202,8 +333,30 @@ export default function ReportsCenterModal({
       }
     });
 
-    return naturalSortByStoreCode(Array.from(map.values()), s => s.code);
-  }, [filteredCleanings, stores]);
+    return sortStoresList(Array.from(map.values()), sortBy, filteredCleanings);
+  }, [filteredCleanings, stores, cityFilter, sortBy]);
+
+  // Filtered store master directory
+  const directoryStores = useMemo(() => {
+    let list = stores;
+    if (cityFilter !== 'all') {
+      list = list.filter(s => (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase());
+    }
+    if (selectedStore !== 'all') {
+      list = list.filter(s => (s.storeCode || s.code) === selectedStore || (s.storeName || s.name) === selectedStore);
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(s =>
+        (s.storeCode || s.code || '').toLowerCase().includes(q) ||
+        (s.storeName || s.name || '').toLowerCase().includes(q) ||
+        (s.city || '').toLowerCase().includes(q) ||
+        (s.managerName || '').toLowerCase().includes(q) ||
+        (s.address || '').toLowerCase().includes(q)
+      );
+    }
+    return sortStoresList(list, sortBy, cleanings);
+  }, [stores, cityFilter, selectedStore, searchTerm, sortBy, cleanings]);
 
   // Summary totals
   const totalBilled = filteredCleanings.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
@@ -213,27 +366,6 @@ export default function ReportsCenterModal({
     return sum + pend;
   }, 0);
   const collectionRate = totalBilled > 0 ? Math.round((totalReceived / totalBilled) * 100) : 0;
-
-  // Unique stores for dropdown
-  const storeOptions = useMemo(() => {
-    const seen = new Set();
-    const list = [];
-    stores.forEach(s => {
-      const code = s.storeCode || s.code;
-      if (code && !seen.has(code)) {
-        seen.add(code);
-        list.push({ code, name: s.storeName || s.name || code });
-      }
-    });
-    cleanings.forEach(c => {
-      const code = c.storeCode;
-      if (code && !seen.has(code)) {
-        seen.add(code);
-        list.push({ code, name: c.storeName || code });
-      }
-    });
-    return naturalSortByStoreCode(list, item => item.code);
-  }, [stores, cleanings]);
 
   if (!isOpen) return null;
 
@@ -299,383 +431,523 @@ export default function ReportsCenterModal({
           {/* ========================================================= */}
           <div ref={reportsRef} className="p-3.5 sm:p-5 bg-slate-100/60 dark:bg-slate-850/40 space-y-3">
           
-          {/* Row 1: Period Presets & Store Dropdown */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            {/* Period Filter Buttons */}
-            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-              <button
-                onClick={() => setPeriodFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  periodFilter === 'all'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                All Time
-              </button>
-              <button
-                onClick={() => setPeriodFilter('this_month')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  periodFilter === 'this_month'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                This Month
-              </button>
-              <button
-                onClick={() => setPeriodFilter('last_month')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  periodFilter === 'last_month'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                Last Month
-              </button>
-              <button
-                onClick={() => setPeriodFilter('custom')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  periodFilter === 'custom'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                Custom
-              </button>
+            {/* Row 1: Period Filter Buttons & City / Store Dropdowns */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              {/* Period Filter Buttons */}
+              <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <button
+                  onClick={() => setPeriodFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    periodFilter === 'all'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  All Time
+                </button>
+                <button
+                  onClick={() => setPeriodFilter('this_month')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    periodFilter === 'this_month'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  This Month
+                </button>
+                <button
+                  onClick={() => setPeriodFilter('last_month')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    periodFilter === 'last_month'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  Last Month
+                </button>
+                <button
+                  onClick={() => setPeriodFilter('custom')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    periodFilter === 'custom'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+
+              {/* City Filter & Store Filter Dropdowns */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {/* City Dropdown */}
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => {
+                      setCityFilter(e.target.value);
+                      setSelectedStore('all');
+                    }}
+                    className="text-xs font-bold bg-transparent text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">All Cities ({uniqueCities.length})</option>
+                    {uniqueCities.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Store Dropdown */}
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <select
+                    value={selectedStore}
+                    onChange={(e) => setSelectedStore(e.target.value)}
+                    className="text-xs font-bold bg-transparent text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[170px] truncate"
+                  >
+                    <option value="all">All Dark Stores ({storeOptions.length})</option>
+                    {storeOptions.map(s => (
+                      <option key={s.code} value={s.code}>
+                        {s.code} - {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {/* Store Dropdown & Search */}
-            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
-              <select
-                value={selectedStore}
-                onChange={(e) => setSelectedStore(e.target.value)}
-                className="px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
-              >
-                <option value="all">All Dark Stores ({storeOptions.length})</option>
-                {storeOptions.map(s => (
-                  <option key={s.code} value={s.code}>
-                    {s.code} - {s.name}
-                  </option>
-                ))}
-              </select>
+            {/* Row 2: Sort By, Payment Status Filter & Search / Reset */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-0.5">
+              {/* Sort By Dropdown */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <ArrowUpDown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="text-xs font-bold bg-transparent text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  <option value="dateDesc">📅 Date: Newest First</option>
+                  <option value="dateAsc">📅 Date: Oldest First</option>
+                  <option value="storeCodeAsc">🏬 Store Code (ES2 → ES308)</option>
+                  <option value="storeCodeDesc">🏬 Store Code (ES308 → ES2)</option>
+                  <option value="amountDesc">💰 Highest Invoiced Amount</option>
+                  <option value="amountPendingDesc">⏳ Highest Pending Dues</option>
+                </select>
+              </div>
 
-              <div className="relative flex-1 sm:w-52">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              {/* Payment Status Filter Buttons */}
+              <div className="flex items-center gap-1 p-0.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <button
+                  onClick={() => setPaymentFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    paymentFilter === 'all'
+                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  All Status
+                </button>
+                <button
+                  onClick={() => setPaymentFilter('Pending')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    paymentFilter === 'Pending'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                  }`}
+                >
+                  <span>⏳ Pending</span>
+                </button>
+                <button
+                  onClick={() => setPaymentFilter('Received')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    paymentFilter === 'Received'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                  }`}
+                >
+                  <span>✅ Received</span>
+                </button>
+                <button
+                  onClick={() => setPaymentFilter('Partial')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    paymentFilter === 'Partial'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                  }`}
+                >
+                  <span>⚠️ Partial</span>
+                </button>
+              </div>
+
+              {/* Search Box & Reset Filters */}
+              <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                <div className="relative flex-1 sm:w-48">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search records..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                  />
+                </div>
+
+                {hasActiveFilters && (
+                  <button
+                    onClick={resetFilters}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1 shrink-0"
+                    title="Reset all filters to defaults"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span className="hidden sm:inline">Reset</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Row 3: Custom Date Inputs (if custom selected) */}
+            {periodFilter === 'custom' && (
+              <div className="flex items-center gap-3 pt-1 animate-in fade-in duration-100">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Date Range:</span>
                 <input
-                  type="text"
-                  placeholder="Filter table..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                />
+                <span className="text-xs text-slate-400">to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
                 />
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Row 2: Custom Date Inputs (if custom selected) */}
-          {periodFilter === 'custom' && (
-            <div className="flex items-center gap-3 pt-1 animate-in fade-in duration-100">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Date Range:</span>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-              />
-              <span className="text-xs text-slate-400">to</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-              />
-            </div>
-          )}
-
-          {/* Row 3: Live KPI Numbers Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
-              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cleanings</div>
-              <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">{filteredCleanings.length}</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
-              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Billed</div>
-              <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">₹{totalBilled.toLocaleString('en-IN')}</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
-              <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Collected</div>
-              <div className="text-base font-black text-emerald-800 dark:text-emerald-300 mt-0.5">₹{totalReceived.toLocaleString('en-IN')}</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/80 shadow-2xs">
-              <div className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Pending Dues</div>
-              <div className="text-base font-black text-rose-800 dark:text-rose-300 mt-0.5">₹{totalPending.toLocaleString('en-IN')}</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs col-span-2 sm:col-span-1">
-              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Collection Rate</div>
-              <div className="text-base font-black text-amber-600 dark:text-amber-400 mt-0.5">{collectionRate}%</div>
-            </div>
-          </div>
-
-        </div>
-
-        {/* ========================================================= */}
-        {/* DOWNLOAD ACTION CARDS SECTION */}
-        {/* ========================================================= */}
-        <div className="p-3.5 sm:p-5 bg-white dark:bg-slate-900">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              Download Audit Reports ({filterLabel})
-            </span>
-            <span className="text-[11px] text-slate-400 font-normal">Instant 1-Click Generation</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            
-            {/* Card 1: ALL-IN-ONE MASTER PACKAGE */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border-2 border-emerald-500/30 dark:border-emerald-500/20 shadow-xs relative flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-2xs">
-                      ★
-                    </div>
-                    <span className="text-xs font-black text-slate-900 dark:text-white">Master Package (All-in-One)</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-600 text-white uppercase">5 Sheets</span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Full consolidated package: Executive Summary, Pending Payments, Completed Settlements, Cleaning Log & Store Ledger.
-                </p>
+            {/* Row 4: Live KPI Numbers Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cleanings</div>
+                <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">{filteredCleanings.length}</div>
               </div>
-
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-emerald-500/20">
-                <button
-                  onClick={() => exportMasterExcel(filteredCleanings, stores, filterLabel)}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
-                  title="Download complete 5-sheet formatted Excel workbook"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Master Excel</span>
-                </button>
-                <button
-                  onClick={() => generateMasterExecutiveReportPDF({ cleanings: filteredCleanings, stores, filterLabel })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
-                  title="Download Executive Consolidated PDF statement"
-                >
-                  <FileText className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Master PDF</span>
-                </button>
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Billed</div>
+                <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">₹{totalBilled.toLocaleString('en-IN')}</div>
               </div>
-            </div>
-
-            {/* Card 2: PENDING PAYMENTS REPORT */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 flex items-center justify-center">
-                      <Clock className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-black text-slate-900 dark:text-white">Pending Payments Report</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
-                    {pendingCleanings.length} Stores Due
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Outstanding dues follow-up list with overdue days, dark store details, pending amounts & bank transfer info.
-                </p>
+              <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
+                <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Collected</div>
+                <div className="text-base font-black text-emerald-800 dark:text-emerald-300 mt-0.5">₹{totalReceived.toLocaleString('en-IN')}</div>
               </div>
-
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
-                <button
-                  onClick={() => exportPendingPaymentsExcel(filteredCleanings, filterLabel)}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel (.xlsx)</span>
-                </button>
-                <button
-                  onClick={() => generatePendingPaymentsPDF({ cleanings: filteredCleanings, filterLabel })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF (.pdf)</span>
-                </button>
+              <div className="p-2.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/80 shadow-2xs">
+                <div className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Pending Dues</div>
+                <div className="text-base font-black text-rose-800 dark:text-rose-300 mt-0.5">₹{totalPending.toLocaleString('en-IN')}</div>
               </div>
-            </div>
-
-            {/* Card 3: COMPLETED PAYMENTS REGISTER */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 flex items-center justify-center">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-black text-slate-900 dark:text-white">Completed Payments Log</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300">
-                    {completedCleanings.length} Cleared
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Realized revenue & settled accounts with settlement dates, payment modes (UPI/NEFT) and UTR verification numbers.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
-                <button
-                  onClick={() => exportCompletedPaymentsExcel(filteredCleanings, filterLabel)}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel (.xlsx)</span>
-                </button>
-                <button
-                  onClick={() => generateCompletedPaymentsPDF({ cleanings: filteredCleanings, filterLabel })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200 dark:border-teal-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF (.pdf)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Card 4: ALL CLEANING RECORDS MASTER */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center">
-                      <Layers className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-black text-slate-900 dark:text-white">All Cleaning Operations Master</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
-                    {filteredCleanings.length} Records
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Full deep cleaning register with shift timings, supervisors deployed, audit ratings, photo proofs & verified execution.
-                </p>
-
-                {/* Dual Option Toggle: With Amount vs Without Amount */}
-                <div className="mt-2.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setCard4Mode('with_amount')}
-                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
-                      card4Mode === 'with_amount'
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    💰 With Amount
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCard4Mode('without_amount')}
-                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
-                      card4Mode === 'without_amount'
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    📋 Without Amount (Ops)
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
-                <button
-                  onClick={() => exportAllCleaningsExcel(filteredCleanings, filterLabel, { includeFinancials: card4Mode === 'with_amount' })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  title={card4Mode === 'with_amount' ? "Excel with full billing & rates" : "Excel without money/financials"}
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel ({card4Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
-                </button>
-                <button
-                  onClick={() => generateAllCleaningsPDF({ cleanings: filteredCleanings, filterLabel, includeFinancials: card4Mode === 'with_amount' })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  title={card4Mode === 'with_amount' ? "PDF with full billing & rates" : "PDF without money/financials"}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF ({card4Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Card 5: STORE-WISE PERFORMANCE & LEDGER */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center">
-                      <Building2 className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-black text-slate-900 dark:text-white">Store Performance & Ledger</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                    {storeSummaryList.length} Stores
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Store-by-store breakdown of cleaning counts, dark store addresses, coverage frequency and audit status.
-                </p>
-
-                {/* Dual Option Toggle: With Amount vs Without Amount */}
-                <div className="mt-2.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setCard5Mode('with_amount')}
-                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
-                      card5Mode === 'with_amount'
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    💰 With Amount
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCard5Mode('without_amount')}
-                    className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
-                      card5Mode === 'without_amount'
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    📋 Without Amount (Audit)
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
-                <button
-                  onClick={() => exportStorePerformanceExcel(filteredCleanings, stores, filterLabel, { includeFinancials: card5Mode === 'with_amount' })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  title={card5Mode === 'with_amount' ? "Excel ledger with dues & settlements" : "Excel audit without money"}
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Excel ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
-                </button>
-                <button
-                  onClick={() => generateStoreSummaryPDF({ cleanings: filteredCleanings, stores, filterLabel, includeFinancials: card5Mode === 'with_amount' })}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  title={card5Mode === 'with_amount' ? "PDF ledger with dues & settlements" : "PDF audit without money"}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>PDF ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
-                </button>
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs col-span-2 sm:col-span-1">
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Collection Rate</div>
+                <div className="text-base font-black text-amber-600 dark:text-amber-400 mt-0.5">{collectionRate}%</div>
               </div>
             </div>
 
           </div>
-        </div>
+
+          {/* ========================================================= */}
+          {/* DOWNLOAD ACTION CARDS SECTION */}
+          {/* ========================================================= */}
+          <div className="p-3.5 sm:p-5 bg-white dark:bg-slate-900">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                Download Audit Reports ({filterLabel})
+              </span>
+              <span className="text-[11px] text-slate-400 font-normal">Formatted According to Active Sort & Filters</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              
+              {/* Card 1: ALL-IN-ONE MASTER PACKAGE */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border-2 border-emerald-500/30 dark:border-emerald-500/20 shadow-xs relative flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-2xs">
+                        ★
+                      </div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">Master Package (All-in-One)</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-600 text-white uppercase">5 Sheets</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    Full consolidated package: Executive Summary, Pending Payments, Completed Settlements, Cleaning Log & Store Ledger.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-emerald-500/20">
+                  <button
+                    onClick={() => exportMasterExcel(filteredCleanings, stores, filterLabel, { sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
+                    title="Download complete 5-sheet formatted Excel workbook"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Master Excel</span>
+                  </button>
+                  <button
+                    onClick={() => generateMasterExecutiveReportPDF({ cleanings: filteredCleanings, stores, filterLabel, sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
+                    title="Download Executive Consolidated PDF statement"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Master PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: PENDING PAYMENTS REPORT */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 flex items-center justify-center">
+                        <Clock className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">Pending Payments Report</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                      {pendingCleanings.length} Stores Due
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    Outstanding dues follow-up list with overdue days, dark store details, pending amounts & bank transfer info.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
+                  <button
+                    onClick={() => exportPendingPaymentsExcel(filteredCleanings, filterLabel, { sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excel (.xlsx)</span>
+                  </button>
+                  <button
+                    onClick={() => generatePendingPaymentsPDF({ cleanings: filteredCleanings, filterLabel, sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>PDF (.pdf)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3: COMPLETED PAYMENTS REGISTER */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 flex items-center justify-center">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">Completed Payments Log</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300">
+                      {completedCleanings.length} Cleared
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    Realized revenue & settled accounts with settlement dates, payment modes (UPI/NEFT) and UTR verification numbers.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
+                  <button
+                    onClick={() => exportCompletedPaymentsExcel(filteredCleanings, filterLabel, { sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excel (.xlsx)</span>
+                  </button>
+                  <button
+                    onClick={() => generateCompletedPaymentsPDF({ cleanings: filteredCleanings, filterLabel, sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200 dark:border-teal-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>PDF (.pdf)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 4: ALL CLEANING RECORDS MASTER */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center">
+                        <Layers className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">All Cleaning Operations Master</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                      {filteredCleanings.length} Records
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    Full deep cleaning register with shift timings, supervisors deployed, audit ratings, photo proofs & verified execution.
+                  </p>
+
+                  {/* Dual Option Toggle: With Amount vs Without Amount */}
+                  <div className="mt-2.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCard4Mode('with_amount')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                        card4Mode === 'with_amount'
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      💰 With Amount
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCard4Mode('without_amount')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                        card4Mode === 'without_amount'
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      📋 Without Amount (Ops)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
+                  <button
+                    onClick={() => exportAllCleaningsExcel(filteredCleanings, filterLabel, { includeFinancials: card4Mode === 'with_amount', sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                    title={card4Mode === 'with_amount' ? "Excel with full billing & rates" : "Excel without money/financials"}
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excel ({card4Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
+                  </button>
+                  <button
+                    onClick={() => generateAllCleaningsPDF({ cleanings: filteredCleanings, filterLabel, includeFinancials: card4Mode === 'with_amount', sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                    title={card4Mode === 'with_amount' ? "PDF with full billing & rates" : "PDF without money/financials"}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>PDF ({card4Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 5: STORE-WISE PERFORMANCE & LEDGER */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center">
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">Store Performance & Ledger</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                      {storeSummaryList.length} Stores
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    Store-by-store breakdown of cleaning counts, dark store addresses, coverage frequency and audit status.
+                  </p>
+
+                  {/* Dual Option Toggle: With Amount vs Without Amount */}
+                  <div className="mt-2.5 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCard5Mode('with_amount')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                        card5Mode === 'with_amount'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      💰 With Amount
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCard5Mode('without_amount')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold transition ${
+                        card5Mode === 'without_amount'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      📋 Without Amount (Audit)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
+                  <button
+                    onClick={() => exportStorePerformanceExcel(filteredCleanings, stores, filterLabel, { includeFinancials: card5Mode === 'with_amount', sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                    title={card5Mode === 'with_amount' ? "Excel ledger with dues & settlements" : "Excel audit without money"}
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excel ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
+                  </button>
+                  <button
+                    onClick={() => generateStoreSummaryPDF({ cleanings: filteredCleanings, stores, filterLabel, includeFinancials: card5Mode === 'with_amount', sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                    title={card5Mode === 'with_amount' ? "PDF ledger with dues & settlements" : "PDF audit without money"}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>PDF ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 6: STORE MASTER DIRECTORY & REGISTER */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 flex items-center justify-center">
+                        <FolderTree className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">Store Master Directory</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
+                      {directoryStores.length} Stores
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    Official register of registered dark store locations, city clusters, managers, total cleaning visits & status.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
+                  <button
+                    onClick={() => exportStoreListExcel(directoryStores, filteredCleanings, filterLabel, { sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                    title="Download complete Store Directory Excel"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excel (.xlsx)</span>
+                  </button>
+                  <button
+                    onClick={() => generateStoreListPDF({ stores: directoryStores, cleanings: filteredCleanings, filterLabel, sortBy })}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                    title="Download complete Store Directory PDF"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>PDF (.pdf)</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
 
         {/* ========================================================= */}
         {/* INTERACTIVE LIVE PREVIEW SECTION */}
@@ -738,6 +1010,20 @@ export default function ReportsCenterModal({
                 <span>🏬 Store Performance</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-black">
                   {storeSummaryList.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setPreviewTab('directory')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                  previewTab === 'directory'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span>📁 Store Directory</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-black">
+                  {directoryStores.length}
                 </span>
               </button>
             </div>
@@ -1083,6 +1369,57 @@ export default function ReportsCenterModal({
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            )}
+
+            {/* 5. Store Master Directory Table */}
+            {previewTab === 'directory' && (
+              <table className="w-full text-left text-xs min-w-[720px]">
+                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold sticky top-0 border-b border-slate-200 dark:border-slate-700">
+                  <tr>
+                    <th className="py-2.5 px-3">#</th>
+                    <th className="py-2.5 px-3">Store Code</th>
+                    <th className="py-2.5 px-3">Store Name</th>
+                    <th className="py-2.5 px-3">City / Zone</th>
+                    <th className="py-2.5 px-3">Address</th>
+                    <th className="py-2.5 px-3">Manager & Phone</th>
+                    <th className="py-2.5 px-3 text-center">Visits Logged</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {directoryStores.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="text-center py-8 text-slate-400">
+                        No stores found matching your criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    directoryStores.map((s, i) => {
+                      const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+                      const storeVisits = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === sCode);
+                      return (
+                        <tr key={s.id || s.code || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                          <td className="py-2.5 px-3 font-semibold text-slate-400">{i + 1}</td>
+                          <td className="py-2.5 px-3 font-bold font-mono text-emerald-700 dark:text-emerald-400">{s.storeCode || s.code || '-'}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">{s.storeName || s.name || '-'}</td>
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{s.city || '-'}</td>
+                          <td className="py-2.5 px-3 text-slate-500 max-w-[200px] truncate" title={s.address || '-'}>{s.address || '-'}</td>
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+                            <div>{s.managerName || '-'}</div>
+                            {s.managerPhone && <div className="text-[10px] text-slate-400 font-mono">Ph: {s.managerPhone}</div>}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-bold text-blue-600">{storeVisits.length} visits</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                              {s.status || 'Active'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             )}
