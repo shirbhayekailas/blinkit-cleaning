@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Navbar from './components/Navbar';
 import DashboardStats from './components/DashboardStats';
 import StoreCard from './components/StoreCard';
