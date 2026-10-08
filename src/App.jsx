@@ -1558,7 +1558,17 @@ export default function App() {
         toolAllocations={toolAllocations}
         storeExpenses={storeExpenses}
         teamDispatches={teamDispatches}
-        onDataUpdated={() => loadServerData(true)}
+        onDataUpdated={(patch) => {
+          if (patch && typeof patch === 'object') {
+            setServerData(prev => {
+              const updated = { ...prev, ...patch, lastUpdated: new Date().toISOString() };
+              saveStateToCache(updated);
+              return updated;
+            });
+          } else {
+            loadServerData();
+          }
+        }}
       />
 
       <CloudSyncModal

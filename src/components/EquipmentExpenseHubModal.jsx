@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
   X,
@@ -83,14 +83,33 @@ export default function EquipmentExpenseHubModal({
   supervisors = [],
   cleaners = [],
   cleanings = [],
-  equipments = [],
-  equipmentMovements = [],
-  toolAllocations = [],
-  storeExpenses = [],
-  teamDispatches = [],
+  equipments: propEquipments = [],
+  equipmentMovements: propEquipmentMovements = [],
+  toolAllocations: propToolAllocations = [],
+  storeExpenses: propStoreExpenses = [],
+  teamDispatches: propTeamDispatches = [],
   onDataUpdated
 }) {
   const { t } = useLanguage();
+
+  // Instant Optimistic Local State (Zero latency for entry, update & deletion)
+  const [localEquipments, setLocalEquipments] = useState(propEquipments);
+  const [localExpenses, setLocalExpenses] = useState(propStoreExpenses);
+  const [localDispatches, setLocalDispatches] = useState(propTeamDispatches);
+  const [localMovements, setLocalMovements] = useState(propEquipmentMovements);
+  const [localToolAllocations, setLocalToolAllocations] = useState(propToolAllocations);
+
+  useEffect(() => { setLocalEquipments(propEquipments); }, [propEquipments]);
+  useEffect(() => { setLocalExpenses(propStoreExpenses); }, [propStoreExpenses]);
+  useEffect(() => { setLocalDispatches(propTeamDispatches); }, [propTeamDispatches]);
+  useEffect(() => { setLocalMovements(propEquipmentMovements); }, [propEquipmentMovements]);
+  useEffect(() => { setLocalToolAllocations(propToolAllocations); }, [propToolAllocations]);
+
+  const equipments = localEquipments;
+  const storeExpenses = localExpenses;
+  const teamDispatches = localDispatches;
+  const equipmentMovements = localMovements;
+  const toolAllocations = localToolAllocations;
   // Tabs: 'dispatch' | 'fleet' | 'tools' | 'expenses' | 'history'
   const [activeTab, setActiveTab] = useState('dispatch');
 
@@ -323,8 +342,9 @@ export default function EquipmentExpenseHubModal({
     });
   }, [storeExpenses, expenseSearch, expenseCityFilter, expenseCategoryFilter]);
 
-  // Real Store P&L Matrix Calculation
+  // Real Store P&L Matrix Calculation (Optimized: only calculated when viewing Expenses tab)
   const storePnLMatrix = useMemo(() => {
+    if (activeTab !== 'expenses') return [];
     const matrix = [];
     const storesMap = new Map();
 
@@ -386,7 +406,7 @@ export default function EquipmentExpenseHubModal({
     });
 
     return matrix.sort((a, b) => b.totalBilled - a.totalBilled);
-  }, [stores, cleanings, storeExpenses]);
+  }, [stores, cleanings, storeExpenses, activeTab]);
 
   const expenseStats = useMemo(() => {
     const totalExp = storeExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
@@ -567,67 +587,154 @@ export default function EquipmentExpenseHubModal({
       toast.error('Dark store select karein.');
       return;
     }
-    setIsSubmitting(true);
+    const storeObj = stores.find(s => (s.storeCode || s.code) === dispatchForm.storeCode);
+    const storeName = storeObj ? storeObj.storeName : dispatchForm.storeCode;
+    const isEdit = Boolean(editingDispatch?.id);
+    const dispatchId = editingDispatch?.id || `disp_${Date.now()}`;
+
+    // Extract carried equipments objects with postShiftStatus
+    const carriedEquipments = localEquipments
+      .filter(eq => dispatchForm.selectedEquipmentIds.includes(eq.id))
+      .map(eq => {
+        const post = dispatchForm.equipmentPostShift[eq.id] || { postShiftStatus: 'base', storeLocationNotes: '' };
+        return {
+          id: eq.id,
+          name: eq.name,
+          assetTag: eq.assetTag,
+          category: eq.category,
+          pickupFrom: dispatchForm.pickupLocation || 'Central Base Hub (Navi Mumbai)',
+          postShiftStatus: post.postShiftStatus || 'base',
+          storeLocationNotes: post.storeLocationNotes || '',
+          finalLocation: post.postShiftStatus === 'store'
+            ? `${storeName}${post.storeLocationNotes ? ` (${post.storeLocationNotes})` : ' (Store Room)'}`
+            : 'Central Base Hub (Navi Mumbai)'
+        };
+      });
+
+    const payload = {
+      id: dispatchId,
+      date: dispatchForm.date,
+      teamName: dispatchForm.teamName,
+      supervisorName: dispatchForm.supervisorName,
+      cleaners: typeof dispatchForm.cleaners === 'string'
+        ? dispatchForm.cleaners.split(',').map(s => s.trim()).filter(Boolean)
+        : dispatchForm.cleaners,
+      storeCode: dispatchForm.storeCode,
+      storeName: storeName,
+      city: storeObj ? storeObj.city : dispatchForm.city,
+      pickupLocation: dispatchForm.pickupLocation || 'Central Base Hub (Navi Mumbai)',
+      carriedEquipments,
+      carriedTools: dispatchForm.carriedTools,
+      leftBehindItems: dispatchForm.leftBehindItems,
+      notes: dispatchForm.notes,
+      status: 'Active',
+      createdAt: new Date().toISOString()
+    };
+
+    // Optimistically update equipment locations
+    const updatedEquipments = localEquipments.map(eq => {
+      const carried = carriedEquipments.find(c => c.id === eq.id);
+      if (carried) {
+        return { ...eq, currentLocationName: carried.finalLocation };
+      }
+      return eq;
+    });
+
+    // Optimistically create expense voucher if any consumable damaged & replaced
+    let updatedExpenses = [...localExpenses];
+    (dispatchForm.carriedTools || []).forEach(t => {
+      if ((t.condition === 'Damaged / Kharab' || t.condition === 'Damaged') &&
+          (t.actionTaken === 'Naya Liya' || t.actionTaken === 'Naya Liya (Replaced)') &&
+          Number(t.replacementCost) > 0) {
+        const expenseId = `exp_tool_${dispatchId}_${t.id || t.name.replace(/\s+/g, '_')}`;
+        const existingIdx = updatedExpenses.findIndex(e => e.id === expenseId);
+        const expEntry = {
+          id: expenseId,
+          storeCode: dispatchForm.storeCode,
+          storeName: storeName,
+          city: storeObj ? storeObj.city : 'Pune',
+          category: 'Emergency Purchase & Consumables',
+          amount: Number(t.replacementCost),
+          paidTo: 'Local Market / Hardware Store',
+          paidBy: dispatchForm.supervisorName || 'Supervisor',
+          paymentMode: 'Cash',
+          date: dispatchForm.date,
+          remarks: `Naya Liya: ${t.name} (Kharab hone par replacement) - ${t.remarks || 'Store site replacement'}`
+        };
+        if (existingIdx !== -1) {
+          updatedExpenses[existingIdx] = expEntry;
+        } else {
+          updatedExpenses.unshift(expEntry);
+        }
+      }
+    });
+
+    const nextDispatches = isEdit
+      ? localDispatches.map(d => d.id === dispatchId ? payload : d)
+      : [payload, ...localDispatches];
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms - zero wait time!)
+    setLocalDispatches(nextDispatches);
+    setLocalEquipments(updatedEquipments);
+    setLocalExpenses(updatedExpenses);
+    setShowDispatchModal(false);
+    toast.success(isEdit ? 'Team dispatch updated!' : 'Team daily route & gear custody safely recorded!');
+    if (onDataUpdated) {
+      onDataUpdated({
+        teamDispatches: nextDispatches,
+        equipments: updatedEquipments,
+        storeExpenses: updatedExpenses
+      });
+    }
+
+    // 2. BACKGROUND ASYNC SYNC
     try {
-      const storeObj = stores.find(s => (s.storeCode || s.code) === dispatchForm.storeCode);
-      const storeName = storeObj ? storeObj.storeName : dispatchForm.storeCode;
-
-      // Extract carried equipments objects with postShiftStatus
-      const carriedEquipments = equipments
-        .filter(eq => dispatchForm.selectedEquipmentIds.includes(eq.id))
-        .map(eq => {
-          const post = dispatchForm.equipmentPostShift[eq.id] || { postShiftStatus: 'base', storeLocationNotes: '' };
-          return {
-            id: eq.id,
-            name: eq.name,
-            assetTag: eq.assetTag,
-            category: eq.category,
-            pickupFrom: dispatchForm.pickupLocation || 'Central Base Hub (Navi Mumbai)',
-            postShiftStatus: post.postShiftStatus || 'base',
-            storeLocationNotes: post.storeLocationNotes || '',
-            finalLocation: post.postShiftStatus === 'store'
-              ? `${storeName}${post.storeLocationNotes ? ` (${post.storeLocationNotes})` : ' (Store Room)'}`
-              : 'Central Base Hub (Navi Mumbai)'
-          };
-        });
-
-      const payload = {
-        id: editingDispatch ? editingDispatch.id : undefined,
-        date: dispatchForm.date,
-        teamName: dispatchForm.teamName,
-        supervisorName: dispatchForm.supervisorName,
-        cleaners: typeof dispatchForm.cleaners === 'string'
-          ? dispatchForm.cleaners.split(',').map(s => s.trim()).filter(Boolean)
-          : dispatchForm.cleaners,
-        storeCode: dispatchForm.storeCode,
-        storeName: storeName,
-        city: storeObj ? storeObj.city : dispatchForm.city,
-        pickupLocation: dispatchForm.pickupLocation || 'Central Base Hub (Navi Mumbai)',
-        carriedEquipments,
-        carriedTools: dispatchForm.carriedTools,
-        leftBehindItems: dispatchForm.leftBehindItems,
-        notes: dispatchForm.notes,
-        status: 'Active'
-      };
-
-      await saveTeamDispatch(payload);
-      toast.success(editingDispatch ? 'Team dispatch updated!' : 'Team daily route & gear custody safely recorded!');
-      setShowDispatchModal(false);
-      if (onDataUpdated) onDataUpdated();
+      const res = await saveTeamDispatch(payload);
+      if (res) {
+        const patch = {};
+        if (res.teamDispatches) { setLocalDispatches(res.teamDispatches); patch.teamDispatches = res.teamDispatches; }
+        if (res.equipments) { setLocalEquipments(res.equipments); patch.equipments = res.equipments; }
+        if (res.equipmentMovements) { setLocalMovements(res.equipmentMovements); patch.equipmentMovements = res.equipmentMovements; }
+        if (res.storeExpenses) { setLocalExpenses(res.storeExpenses); patch.storeExpenses = res.storeExpenses; }
+        if (onDataUpdated) onDataUpdated(patch);
+      }
     } catch (err) {
+      console.error('Save dispatch background error:', err);
+      setLocalDispatches(propTeamDispatches);
+      setLocalEquipments(propEquipments);
+      setLocalExpenses(propStoreExpenses);
+      if (onDataUpdated) {
+        onDataUpdated({
+          teamDispatches: propTeamDispatches,
+          equipments: propEquipments,
+          storeExpenses: propStoreExpenses
+        });
+      }
       toast.error('Save dispatch failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleDeleteDispatch = async (id) => {
     if (!window.confirm('Kya aap is team dispatch movement record ko delete karna chahte hain?')) return;
+
+    // 1. INSTANT OPTIMISTIC DELETE (0ms)
+    const backup = [...localDispatches];
+    const nextList = localDispatches.filter(d => d.id !== id);
+    setLocalDispatches(nextList);
+    toast.success('Dispatch record deleted');
+    if (onDataUpdated) onDataUpdated({ teamDispatches: nextList });
+
+    // 2. BACKGROUND ASYNC DELETE
     try {
-      await deleteTeamDispatch(id);
-      toast.success('Dispatch record deleted');
-      if (onDataUpdated) onDataUpdated();
+      const res = await deleteTeamDispatch(id);
+      if (res && res.teamDispatches) {
+        setLocalDispatches(res.teamDispatches);
+        if (onDataUpdated) onDataUpdated({ teamDispatches: res.teamDispatches });
+      }
     } catch (err) {
+      console.error('Delete dispatch background error:', err);
+      setLocalDispatches(backup);
+      if (onDataUpdated) onDataUpdated({ teamDispatches: backup });
       toast.error('Delete failed: ' + err.message);
     }
   };
@@ -760,30 +867,60 @@ export default function EquipmentExpenseHubModal({
       toast.error('Machine name zaroori hai.');
       return;
     }
-    setIsSubmitting(true);
+    const isEdit = Boolean(editingMachine?.id);
+    const targetId = editingMachine?.id || `eq_${Date.now()}`;
+    const optimisticRecord = {
+      ...machineForm,
+      id: targetId,
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms)
+    const nextList = isEdit
+      ? localEquipments.map(item => item.id === targetId ? optimisticRecord : item)
+      : [optimisticRecord, ...localEquipments];
+
+    setLocalEquipments(nextList);
+    setShowAddMachineModal(false);
+    toast.success(isEdit ? 'Machine details updated!' : 'Nayi machine fleet me add ho gayi!');
+    if (onDataUpdated) onDataUpdated({ equipments: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      const payload = {
-        ...machineForm,
-        id: editingMachine ? editingMachine.id : undefined
-      };
-      await saveEquipment(payload);
-      toast.success(editingMachine ? 'Machine details updated!' : 'Nayi machine fleet me add ho gayi!');
-      setShowAddMachineModal(false);
-      if (onDataUpdated) onDataUpdated();
+      const res = await saveEquipment(optimisticRecord);
+      if (res && res.equipments) {
+        setLocalEquipments(res.equipments);
+        if (onDataUpdated) onDataUpdated({ equipments: res.equipments });
+      }
     } catch (err) {
+      console.error('Save equipment background error:', err);
+      setLocalEquipments(propEquipments);
+      if (onDataUpdated) onDataUpdated({ equipments: propEquipments });
       toast.error('Save failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleDeleteMachine = async (id, name) => {
     if (!window.confirm(`Kya aap sure hain ki "${name}" ko fleet se delete karna chahte hain?`)) return;
+
+    // 1. INSTANT OPTIMISTIC DELETE (0ms)
+    const backup = [...localEquipments];
+    const nextList = localEquipments.filter(item => item.id !== id);
+    setLocalEquipments(nextList);
+    toast.success('Machine deleted successfully');
+    if (onDataUpdated) onDataUpdated({ equipments: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await deleteEquipment(id);
-      toast.success('Machine deleted successfully');
-      if (onDataUpdated) onDataUpdated();
+      const res = await deleteEquipment(id);
+      if (res && res.equipments) {
+        setLocalEquipments(res.equipments);
+        if (onDataUpdated) onDataUpdated({ equipments: res.equipments });
+      }
     } catch (err) {
+      console.error('Delete equipment background error:', err);
+      setLocalEquipments(backup);
+      if (onDataUpdated) onDataUpdated({ equipments: backup });
       toast.error('Delete failed: ' + err.message);
     }
   };
@@ -805,9 +942,34 @@ export default function EquipmentExpenseHubModal({
       toast.error('Target store ya base select karein.');
       return;
     }
-    setIsSubmitting(true);
+    const eqId = movingMachine.id;
+    const optimisticEquipments = localEquipments.map(item =>
+      item.id === eqId ? { ...item, currentLocationName: moveForm.targetLocationName } : item
+    );
+    const optimisticMovement = {
+      id: `mov_${Date.now()}`,
+      equipmentId: eqId,
+      equipmentName: movingMachine.name,
+      assetTag: movingMachine.assetTag,
+      fromLocation: movingMachine.currentLocationName || 'Base',
+      toLocation: moveForm.targetLocationName,
+      movedBy: moveForm.assignedSupervisor,
+      date: moveForm.date,
+      notes: moveForm.notes || `Transferred from ${movingMachine.currentLocationName} to ${moveForm.targetLocationName}`,
+      timestamp: new Date().toISOString()
+    };
+    const optimisticMovements = [optimisticMovement, ...localMovements];
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms)
+    setLocalEquipments(optimisticEquipments);
+    setLocalMovements(optimisticMovements);
+    setShowMoveMachineModal(false);
+    toast.success(`Machine ${moveForm.targetLocationName} me safely transfer ho gayi!`);
+    if (onDataUpdated) onDataUpdated({ equipments: optimisticEquipments, equipmentMovements: optimisticMovements });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await recordEquipmentMovement({
+      const res = await recordEquipmentMovement({
         equipmentId: movingMachine.id,
         toLocationName: moveForm.targetLocationName,
         assignedSupervisor: moveForm.assignedSupervisor,
@@ -815,13 +977,17 @@ export default function EquipmentExpenseHubModal({
         date: moveForm.date,
         notes: moveForm.notes || `Transferred from ${movingMachine.currentLocationName} to ${moveForm.targetLocationName}`
       });
-      toast.success(`Machine ${moveForm.targetLocationName} me safely transfer ho gayi!`);
-      setShowMoveMachineModal(false);
-      if (onDataUpdated) onDataUpdated();
+      if (res && res.equipments) {
+        setLocalEquipments(res.equipments);
+        setLocalMovements(res.equipmentMovements || optimisticMovements);
+        if (onDataUpdated) onDataUpdated({ equipments: res.equipments, equipmentMovements: res.equipmentMovements });
+      }
     } catch (err) {
+      console.error('Movement background error:', err);
+      setLocalEquipments(propEquipments);
+      setLocalMovements(propEquipmentMovements);
+      if (onDataUpdated) onDataUpdated({ equipments: propEquipments, equipmentMovements: propEquipmentMovements });
       toast.error('Transfer failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -841,25 +1007,36 @@ export default function EquipmentExpenseHubModal({
 
   const handleExecuteService = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    const updatedCost = Number(servicingMachine.serviceCostTotal || 0) + Number(serviceForm.serviceCost || 0);
+    const optimisticUpdated = {
+      ...servicingMachine,
+      lastServiceDate: serviceForm.serviceDate,
+      nextServiceDue: serviceForm.nextServiceDue,
+      status: serviceForm.status,
+      condition: serviceForm.condition,
+      serviceCostTotal: updatedCost,
+      notes: servicingMachine.notes ? `${servicingMachine.notes}\n[Service ${serviceForm.serviceDate}]: ${serviceForm.notes}` : serviceForm.notes
+    };
+    const nextList = localEquipments.map(item => item.id === servicingMachine.id ? optimisticUpdated : item);
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms)
+    setLocalEquipments(nextList);
+    setShowServiceModal(false);
+    toast.success('Service log recorded & machine status updated to Working!');
+    if (onDataUpdated) onDataUpdated({ equipments: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      const updatedCost = Number(servicingMachine.serviceCostTotal || 0) + Number(serviceForm.serviceCost || 0);
-      await saveEquipment({
-        ...servicingMachine,
-        lastServiceDate: serviceForm.serviceDate,
-        nextServiceDue: serviceForm.nextServiceDue,
-        status: serviceForm.status,
-        condition: serviceForm.condition,
-        serviceCostTotal: updatedCost,
-        notes: servicingMachine.notes ? `${servicingMachine.notes}\n[Service ${serviceForm.serviceDate}]: ${serviceForm.notes}` : serviceForm.notes
-      });
-      toast.success('Service log recorded & machine status updated to Working!');
-      setShowServiceModal(false);
-      if (onDataUpdated) onDataUpdated();
+      const res = await saveEquipment(optimisticUpdated);
+      if (res && res.equipments) {
+        setLocalEquipments(res.equipments);
+        if (onDataUpdated) onDataUpdated({ equipments: res.equipments });
+      }
     } catch (err) {
+      console.error('Service save error:', err);
+      setLocalEquipments(propEquipments);
+      if (onDataUpdated) onDataUpdated({ equipments: propEquipments });
       toast.error('Service log failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -885,21 +1062,40 @@ export default function EquipmentExpenseHubModal({
       return;
     }
     const storeObj = stores.find(s => (s.storeCode || s.code) === allocateForm.storeCode);
-    setIsSubmitting(true);
+    const storeName = storeObj ? storeObj.storeName : allocateForm.storeCode;
+    const isEdit = Boolean(editingAllocation?.id);
+    const targetId = editingAllocation?.id || `alloc_${Date.now()}`;
+    const optimisticRecord = {
+      ...allocateForm,
+      id: targetId,
+      storeName,
+      status: 'Issued',
+      issuedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms)
+    const nextList = isEdit
+      ? localToolAllocations.map(t => t.id === targetId ? optimisticRecord : t)
+      : [optimisticRecord, ...localToolAllocations];
+
+    setLocalToolAllocations(nextList);
+    setShowAllocateToolModal(false);
+    toast.success(isEdit ? 'Allocation updated!' : 'Tool kit successfully team ko issue ho gaya!');
+    if (onDataUpdated) onDataUpdated({ toolAllocations: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await saveToolAllocation({
-        ...allocateForm,
-        storeName: storeObj ? storeObj.storeName : allocateForm.storeCode,
-        status: 'Issued',
-        issuedAt: new Date().toISOString()
-      });
-      toast.success('Tool kit successfully team ko issue ho gaya!');
-      setShowAllocateToolModal(false);
-      if (onDataUpdated) onDataUpdated();
+      const res = await saveToolAllocation(optimisticRecord);
+      if (res && res.toolAllocations) {
+        setLocalToolAllocations(res.toolAllocations);
+        if (onDataUpdated) onDataUpdated({ toolAllocations: res.toolAllocations });
+      }
     } catch (err) {
+      console.error('Allocation background error:', err);
+      setLocalToolAllocations(propToolAllocations);
+      if (onDataUpdated) onDataUpdated({ toolAllocations: propToolAllocations });
       toast.error('Allocation failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -919,31 +1115,96 @@ export default function EquipmentExpenseHubModal({
 
   const handleExecuteReturn = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    const alloc = returningAllocation;
+    if (!alloc) return;
+
+    let totalLostValue = 0;
+    let totalDamagedValue = 0;
+    let hasDiscrepancy = false;
+
+    const updatedItems = (returnItemsState || []).map(item => {
+      const qtyGiven = Number(item.qtyGiven || item.standardQty || 0);
+      const qtyReturned = Number(item.qtyReturned !== undefined ? item.qtyReturned : qtyGiven);
+      const qtyLost = Number(item.qtyLost !== undefined ? item.qtyLost : Math.max(0, qtyGiven - qtyReturned));
+      const qtyDamaged = Number(item.qtyDamaged || 0);
+      const unitPrice = Number(item.unitPrice || 0);
+
+      const lostCost = qtyLost * unitPrice;
+      const damagedCost = Math.round(qtyDamaged * (unitPrice * 0.5));
+      if (qtyLost > 0 || qtyDamaged > 0) hasDiscrepancy = true;
+      totalLostValue += lostCost;
+      totalDamagedValue += damagedCost;
+
+      return {
+        ...item,
+        qtyGiven,
+        qtyReturned,
+        qtyLost,
+        qtyDamaged,
+        lostCost,
+        damagedCost,
+        totalLossCost: lostCost + damagedCost
+      };
+    });
+
+    const optimisticRecord = {
+      ...alloc,
+      items: updatedItems,
+      status: hasDiscrepancy ? 'Discrepancy / Loss' : 'Returned OK',
+      totalFinancialLoss: totalLostValue + totalDamagedValue,
+      returnNotes: returnNotes || '',
+      inspectorName: returnInspector || 'Supervisor',
+      returnedAt: new Date().toISOString()
+    };
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms)
+    const nextList = localToolAllocations.map(t => t.id === alloc.id ? optimisticRecord : t);
+    setLocalToolAllocations(nextList);
+    setShowReturnModal(false);
+    toast.success('Tool kit return inspection complete!');
+    if (onDataUpdated) onDataUpdated({ toolAllocations: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await recordToolReturn({
-        allocationId: returningAllocation.id,
+      const res = await recordToolReturn({
+        allocationId: alloc.id,
         returnedItems: returnItemsState,
         inspectorName: returnInspector,
         returnNotes: returnNotes
       });
-      toast.success('Tool kit return inspection complete!');
-      setShowReturnModal(false);
-      if (onDataUpdated) onDataUpdated();
+      if (res && res.toolAllocations) {
+        setLocalToolAllocations(res.toolAllocations);
+        if (onDataUpdated) onDataUpdated({ toolAllocations: res.toolAllocations });
+      }
     } catch (err) {
+      console.error('Return background error:', err);
+      setLocalToolAllocations(propToolAllocations);
+      if (onDataUpdated) onDataUpdated({ toolAllocations: propToolAllocations });
       toast.error('Return failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleDeleteToolAllocation = async (id) => {
     if (!window.confirm('Kya aap is tool allocation record ko delete karna chahte hain?')) return;
+
+    // 1. INSTANT OPTIMISTIC DELETE (0ms)
+    const backup = [...localToolAllocations];
+    const nextList = localToolAllocations.filter(t => t.id !== id);
+    setLocalToolAllocations(nextList);
+    toast.success('Allocation record deleted');
+    if (onDataUpdated) onDataUpdated({ toolAllocations: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await deleteToolAllocation(id);
-      toast.success('Allocation record deleted');
-      if (onDataUpdated) onDataUpdated();
+      const res = await deleteToolAllocation(id);
+      if (res && res.toolAllocations) {
+        setLocalToolAllocations(res.toolAllocations);
+        if (onDataUpdated) onDataUpdated({ toolAllocations: res.toolAllocations });
+      }
     } catch (err) {
+      console.error('Delete tool allocation error:', err);
+      setLocalToolAllocations(backup);
+      if (onDataUpdated) onDataUpdated({ toolAllocations: backup });
       toast.error('Delete failed: ' + err.message);
     }
   };
@@ -989,31 +1250,64 @@ export default function EquipmentExpenseHubModal({
       return;
     }
     const storeObj = stores.find(s => (s.storeCode || s.code) === expenseForm.storeCode);
-    setIsSubmitting(true);
+    const storeName = storeObj ? storeObj.storeName : expenseForm.storeCode;
+    const isEdit = Boolean(expenseForm.id);
+    const expenseId = expenseForm.id || `exp_${Date.now()}`;
+    const optimisticRecord = {
+      ...expenseForm,
+      id: expenseId,
+      storeName,
+      city: storeObj ? storeObj.city : expenseForm.city,
+      amount: Number(expenseForm.amount),
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. INSTANT OPTIMISTIC UPDATE (0ms)
+    const nextList = isEdit
+      ? localExpenses.map(item => item.id === expenseId ? optimisticRecord : item)
+      : [optimisticRecord, ...localExpenses];
+
+    setLocalExpenses(nextList);
+    setShowExpenseModal(false);
+    toast.success(isEdit ? 'Store expense updated!' : 'Store expense safely recorded in cloud P&L!');
+    if (onDataUpdated) onDataUpdated({ storeExpenses: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await saveStoreExpense({
-        ...expenseForm,
-        storeName: storeObj ? storeObj.storeName : expenseForm.storeCode,
-        city: storeObj ? storeObj.city : expenseForm.city,
-        amount: Number(expenseForm.amount)
-      });
-      toast.success('Store expense safely recorded in cloud P&L!');
-      setShowExpenseModal(false);
-      if (onDataUpdated) onDataUpdated();
+      const res = await saveStoreExpense(optimisticRecord);
+      if (res && res.storeExpenses) {
+        setLocalExpenses(res.storeExpenses);
+        if (onDataUpdated) onDataUpdated({ storeExpenses: res.storeExpenses });
+      }
     } catch (err) {
+      console.error('Save expense background error:', err);
+      setLocalExpenses(propStoreExpenses);
+      if (onDataUpdated) onDataUpdated({ storeExpenses: propStoreExpenses });
       toast.error('Save expense failed: ' + err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleDeleteExpense = async (id) => {
     if (!window.confirm('Kya aap is expense entry ko delete karna chahte hain?')) return;
+
+    // 1. INSTANT OPTIMISTIC DELETE (0ms)
+    const backup = [...localExpenses];
+    const nextList = localExpenses.filter(item => item.id !== id);
+    setLocalExpenses(nextList);
+    toast.success('Expense entry deleted');
+    if (onDataUpdated) onDataUpdated({ storeExpenses: nextList });
+
+    // 2. BACKGROUND ASYNC CALL
     try {
-      await deleteStoreExpense(id);
-      toast.success('Expense entry deleted');
-      if (onDataUpdated) onDataUpdated();
+      const res = await deleteStoreExpense(id);
+      if (res && res.storeExpenses) {
+        setLocalExpenses(res.storeExpenses);
+        if (onDataUpdated) onDataUpdated({ storeExpenses: res.storeExpenses });
+      }
     } catch (err) {
+      console.error('Delete expense background error:', err);
+      setLocalExpenses(backup);
+      if (onDataUpdated) onDataUpdated({ storeExpenses: backup });
       toast.error('Delete failed: ' + err.message);
     }
   };
