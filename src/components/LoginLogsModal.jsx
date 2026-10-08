@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   X, 
@@ -35,7 +35,7 @@ export default function LoginLogsModal({
   const [timeFilter, setTimeFilter] = useState('all'); // 'all' | 'today' | 'week'
 
   // Close on Escape key press
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
