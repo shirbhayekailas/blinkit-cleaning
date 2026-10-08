@@ -2098,7 +2098,7 @@ app.post('/api/dispatches', (req, res) => {
       currentDB.teamDispatches.unshift(saved);
     }
 
-    // Also update current location of carried equipments in currentDB.equipments
+    // Intelligent equipment location tracking & transfer audit log
     if (Array.isArray(dispData.carriedEquipments) && Array.isArray(currentDB.equipments)) {
       dispData.carriedEquipments.forEach(carried => {
         const eqId = carried.id ? String(carried.id) : null;
@@ -2106,11 +2106,66 @@ app.post('/api/dispatches', (req, res) => {
         const eqIndex = currentDB.equipments.findIndex(e =>
           (eqId && String(e.id) === eqId) || (eqTag && e.assetTag && e.assetTag.toUpperCase() === eqTag)
         );
-        if (eqIndex !== -1 && dispData.storeName) {
-          currentDB.equipments[eqIndex].currentLocationName = dispData.storeName;
+        if (eqIndex !== -1) {
+          const isLeftAtStore = carried.postShiftStatus === 'store' || carried.postShiftStatus === 'Left at Store';
+          const newLoc = isLeftAtStore
+            ? `${dispData.storeName || dispData.storeCode}${carried.storeLocationNotes ? ` (${carried.storeLocationNotes})` : ' (Store Room)'}`
+            : 'Central Base Hub (Navi Mumbai)';
+
+          const prevLoc = currentDB.equipments[eqIndex].currentLocationName || 'Central Base Hub (Navi Mumbai)';
+          currentDB.equipments[eqIndex].currentLocationName = newLoc;
+          currentDB.equipments[eqIndex].currentStoreCode = isLeftAtStore ? (dispData.storeCode || '') : '';
           currentDB.equipments[eqIndex].assignedSupervisor = dispData.supervisorName || currentDB.equipments[eqIndex].assignedSupervisor;
           currentDB.equipments[eqIndex].lastMovedDate = dispData.date || nowIso.split('T')[0];
           currentDB.equipments[eqIndex].updatedAt = nowIso;
+
+          // Record transfer movement in equipmentMovements audit trail
+          if (prevLoc !== newLoc) {
+            if (!currentDB.equipmentMovements) currentDB.equipmentMovements = [];
+            currentDB.equipmentMovements.unshift({
+              id: 'mov_' + Date.now() + Math.random().toString(36).substr(2, 4),
+              equipmentId: currentDB.equipments[eqIndex].id,
+              equipmentName: currentDB.equipments[eqIndex].name,
+              assetTag: currentDB.equipments[eqIndex].assetTag,
+              fromLocation: carried.pickupFrom || prevLoc,
+              toLocation: newLoc,
+              date: dispData.date || nowIso.split('T')[0],
+              movedBy: dispData.supervisorName || 'Supervisor',
+              notes: isLeftAtStore ? 'Store par rakha (Utility/Racks Area)' : 'Wapas Base Hub le aaye'
+            });
+          }
+        }
+      });
+    }
+
+    // Auto-record Store Expense if any consumable had condition kharab & naya liya
+    if (Array.isArray(dispData.carriedTools)) {
+      if (!currentDB.storeExpenses) currentDB.storeExpenses = [];
+      dispData.carriedTools.forEach(t => {
+        const isDamagedAndReplaced = (t.condition === 'Damaged / Kharab' || t.condition === 'Damaged') && 
+                                     (t.actionTaken === 'Naya Liya' || t.actionTaken === 'Naya Liya (Replaced)') &&
+                                     Number(t.replacementCost) > 0;
+        if (isDamagedAndReplaced) {
+          const expenseId = 'exp_tool_' + (saved.id || Date.now()) + '_' + (t.id || t.name.replace(/\s+/g, '_'));
+          const existingExpIndex = currentDB.storeExpenses.findIndex(e => e.id === expenseId);
+          const expEntry = {
+            id: expenseId,
+            storeCode: dispData.storeCode,
+            storeName: dispData.storeName,
+            city: dispData.city || 'Pune',
+            category: 'Emergency Purchase & Consumables',
+            amount: Number(t.replacementCost),
+            paidTo: 'Local Market / Hardware Store',
+            paidBy: dispData.supervisorName || 'Supervisor',
+            paymentMode: 'Cash',
+            date: dispData.date,
+            remarks: `Naya Liya: ${t.name} (Kharab hone par replacement) - ${t.remarks || 'Store site replacement'}`
+          };
+          if (existingExpIndex !== -1) {
+            currentDB.storeExpenses[existingExpIndex] = expEntry;
+          } else {
+            currentDB.storeExpenses.unshift(expEntry);
+          }
         }
       });
     }
@@ -2121,6 +2176,8 @@ app.post('/api/dispatches', (req, res) => {
       dispatch: saved,
       teamDispatches: currentDB.teamDispatches,
       equipments: currentDB.equipments,
+      equipmentMovements: currentDB.equipmentMovements || [],
+      storeExpenses: currentDB.storeExpenses || [],
       data: currentDB
     });
   } catch (err) {

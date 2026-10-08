@@ -123,11 +123,20 @@ export default function EquipmentExpenseHubModal({
     cleaners: '',
     storeCode: '',
     city: 'Pune',
+    pickupLocation: 'Central Base Hub (Navi Mumbai)',
     selectedEquipmentIds: [],
-    carriedTools: STANDARD_TOOL_CATALOG.map(t => ({ name: t.name, qty: t.standardQty })),
+    equipmentPostShift: {},
+    carriedTools: STANDARD_TOOL_CATALOG.map(t => ({
+      id: t.id,
+      name: t.name,
+      qty: t.standardQty,
+      unitPrice: t.unitPrice || 0,
+      condition: 'Good',
+      actionTaken: 'Normal',
+      replacementCost: 0,
+      remarks: ''
+    })),
     leftBehindItems: [],
-    nextDestination: '',
-    nextDate: '',
     notes: ''
   });
 
@@ -393,26 +402,56 @@ export default function EquipmentExpenseHubModal({
   const handleOpenAddDispatch = (disp = null) => {
     if (disp) {
       setEditingDispatch(disp);
+      const postShiftMap = {};
+      (disp.carriedEquipments || []).forEach(eq => {
+        postShiftMap[eq.id] = {
+          postShiftStatus: eq.postShiftStatus || (eq.leftAtStore ? 'store' : 'base'),
+          storeLocationNotes: eq.storeLocationNotes || eq.locationNotes || ''
+        };
+      });
+
       setDispatchForm({
         date: disp.date || new Date().toISOString().split('T')[0],
         teamName: disp.teamName || 'Team Alpha (Pune)',
-        supervisorName: disp.supervisorName || '',
+        supervisorName: disp.supervisorName || (supervisors[0]?.name || 'Rahul Shinde'),
         cleaners: Array.isArray(disp.cleaners) ? disp.cleaners.join(', ') : (disp.cleaners || ''),
         storeCode: disp.storeCode || '',
         city: disp.city || 'Pune',
+        pickupLocation: disp.pickupLocation || 'Central Base Hub (Navi Mumbai)',
         selectedEquipmentIds: (disp.carriedEquipments || []).map(e => e.id),
-        carriedTools: disp.carriedTools || STANDARD_TOOL_CATALOG.map(t => ({ name: t.name, qty: t.standardQty })),
+        equipmentPostShift: postShiftMap,
+        carriedTools: (disp.carriedTools && disp.carriedTools.length > 0)
+          ? disp.carriedTools.map(t => ({
+              id: t.id || t.name,
+              name: t.name,
+              qty: t.qty !== undefined ? t.qty : (t.standardQty || 1),
+              unitPrice: t.unitPrice || 0,
+              condition: t.condition || 'Good',
+              actionTaken: t.actionTaken || 'Normal',
+              replacementCost: t.replacementCost || 0,
+              remarks: t.remarks || ''
+            }))
+          : STANDARD_TOOL_CATALOG.map(t => ({
+              id: t.id,
+              name: t.name,
+              qty: t.standardQty,
+              unitPrice: t.unitPrice || 0,
+              condition: 'Good',
+              actionTaken: 'Normal',
+              replacementCost: 0,
+              remarks: ''
+            })),
         leftBehindItems: disp.leftBehindItems || [],
-        nextDestination: disp.nextDestination || '',
-        nextDate: disp.nextDate || '',
         notes: disp.notes || ''
       });
     } else {
       setEditingDispatch(null);
-      // Pre-select first 2 standard machines as carried
       const initialEquipIds = equipments.slice(0, 2).map(e => e.id);
+      const postShiftMap = {};
+      initialEquipIds.forEach(id => {
+        postShiftMap[id] = { postShiftStatus: 'base', storeLocationNotes: '' };
+      });
       
-      // Auto-compute remaining unselected machines & where they are currently placed
       const initialLeftBehind = equipments.slice(2).map(eq => ({
         id: eq.id,
         name: eq.name,
@@ -426,13 +465,22 @@ export default function EquipmentExpenseHubModal({
         teamName: 'Team Alpha (Pune)',
         supervisorName: supervisors[0]?.name || 'Rahul Shinde',
         cleaners: cleaners.slice(0, 2).map(c => c.name).join(', ') || 'Ramesh Cleaner, Suresh Valmiki',
-        storeCode: stores[0]?.storeCode || stores[0]?.code || 'ES2',
+        storeCode: stores[0]?.storeCode || stores[0]?.code || '',
         city: stores[0]?.city || 'Pune',
+        pickupLocation: 'Central Base Hub (Navi Mumbai)',
         selectedEquipmentIds: initialEquipIds,
-        carriedTools: STANDARD_TOOL_CATALOG.map(t => ({ name: t.name, qty: t.standardQty })),
+        equipmentPostShift: postShiftMap,
+        carriedTools: STANDARD_TOOL_CATALOG.map(t => ({
+          id: t.id,
+          name: t.name,
+          qty: t.standardQty,
+          unitPrice: t.unitPrice || 0,
+          condition: 'Good',
+          actionTaken: 'Normal',
+          replacementCost: 0,
+          remarks: ''
+        })),
         leftBehindItems: initialLeftBehind,
-        nextDestination: '',
-        nextDate: '',
         notes: ''
       });
     }
@@ -442,10 +490,16 @@ export default function EquipmentExpenseHubModal({
   const handleToggleEquipmentSelection = (eq) => {
     const isSelected = dispatchForm.selectedEquipmentIds.includes(eq.id);
     let newSelectedIds = [];
+    const newPostShift = { ...dispatchForm.equipmentPostShift };
+
     if (isSelected) {
       newSelectedIds = dispatchForm.selectedEquipmentIds.filter(id => id !== eq.id);
+      delete newPostShift[eq.id];
     } else {
       newSelectedIds = [...dispatchForm.selectedEquipmentIds, eq.id];
+      if (!newPostShift[eq.id]) {
+        newPostShift[eq.id] = { postShiftStatus: 'base', storeLocationNotes: '' };
+      }
     }
 
     // Auto-recalculate left behind items
@@ -465,7 +519,35 @@ export default function EquipmentExpenseHubModal({
     setDispatchForm({
       ...dispatchForm,
       selectedEquipmentIds: newSelectedIds,
+      equipmentPostShift: newPostShift,
       leftBehindItems: newLeftBehind
+    });
+  };
+
+  const handleSetEquipmentPostShift = (eqId, status, notes = '') => {
+    setDispatchForm(prev => ({
+      ...prev,
+      equipmentPostShift: {
+        ...prev.equipmentPostShift,
+        [eqId]: {
+          postShiftStatus: status, // 'store' | 'base'
+          storeLocationNotes: notes !== undefined ? notes : (prev.equipmentPostShift[eqId]?.storeLocationNotes || '')
+        }
+      }
+    }));
+  };
+
+  const handleUpdateToolField = (index, field, value) => {
+    setDispatchForm(prev => {
+      const updatedTools = [...prev.carriedTools];
+      updatedTools[index] = { ...updatedTools[index], [field]: value };
+      if (field === 'condition' && value === 'Good') {
+        updatedTools[index].actionTaken = 'Normal';
+        updatedTools[index].replacementCost = 0;
+      } else if (field === 'condition' && value === 'Damaged / Kharab' && updatedTools[index].actionTaken === 'Normal') {
+        updatedTools[index].actionTaken = 'Naya Liya';
+      }
+      return { ...prev, carriedTools: updatedTools };
     });
   };
 
@@ -490,15 +572,24 @@ export default function EquipmentExpenseHubModal({
       const storeObj = stores.find(s => (s.storeCode || s.code) === dispatchForm.storeCode);
       const storeName = storeObj ? storeObj.storeName : dispatchForm.storeCode;
 
-      // Extract carried equipments objects
+      // Extract carried equipments objects with postShiftStatus
       const carriedEquipments = equipments
         .filter(eq => dispatchForm.selectedEquipmentIds.includes(eq.id))
-        .map(eq => ({
-          id: eq.id,
-          name: eq.name,
-          assetTag: eq.assetTag,
-          category: eq.category
-        }));
+        .map(eq => {
+          const post = dispatchForm.equipmentPostShift[eq.id] || { postShiftStatus: 'base', storeLocationNotes: '' };
+          return {
+            id: eq.id,
+            name: eq.name,
+            assetTag: eq.assetTag,
+            category: eq.category,
+            pickupFrom: dispatchForm.pickupLocation || 'Central Base Hub (Navi Mumbai)',
+            postShiftStatus: post.postShiftStatus || 'base',
+            storeLocationNotes: post.storeLocationNotes || '',
+            finalLocation: post.postShiftStatus === 'store'
+              ? `${storeName}${post.storeLocationNotes ? ` (${post.storeLocationNotes})` : ' (Store Room)'}`
+              : 'Central Base Hub (Navi Mumbai)'
+          };
+        });
 
       const payload = {
         id: editingDispatch ? editingDispatch.id : undefined,
@@ -511,17 +602,16 @@ export default function EquipmentExpenseHubModal({
         storeCode: dispatchForm.storeCode,
         storeName: storeName,
         city: storeObj ? storeObj.city : dispatchForm.city,
+        pickupLocation: dispatchForm.pickupLocation || 'Central Base Hub (Navi Mumbai)',
         carriedEquipments,
         carriedTools: dispatchForm.carriedTools,
         leftBehindItems: dispatchForm.leftBehindItems,
-        nextDestination: dispatchForm.nextDestination,
-        nextDate: dispatchForm.nextDate,
         notes: dispatchForm.notes,
         status: 'Active'
       };
 
       await saveTeamDispatch(payload);
-      toast.success(editingDispatch ? 'Team dispatch updated!' : 'Team route & gear custody safely recorded!');
+      toast.success(editingDispatch ? 'Team dispatch updated!' : 'Team daily route & gear custody safely recorded!');
       setShowDispatchModal(false);
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
@@ -550,7 +640,8 @@ export default function EquipmentExpenseHubModal({
     if (disp.cleaners && disp.cleaners.length > 0) {
       text += `🧹 Cleaners: ${Array.isArray(disp.cleaners) ? disp.cleaners.join(', ') : disp.cleaners}\n`;
     }
-    text += `🏢 Store: *${disp.storeCode} - ${disp.storeName} (${disp.city || 'Pune'})*\n`;
+    text += `🏢 Cleaning Store: *${disp.storeCode} - ${disp.storeName} (${disp.city || 'Pune'})*\n`;
+    text += `📍 Movement Route: *${disp.pickupLocation || 'Central Base Hub'}* ➔ *${disp.storeCode}*\n`;
     text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
     text += `📦 *SAATH MEIN KYA LEKE GAYE (CARRIED GEAR):*\n`;
@@ -568,8 +659,39 @@ export default function EquipmentExpenseHubModal({
       text += `${toolsStr}\n`;
     }
 
+    // Post-shift custody at store vs base:
+    if (disp.carriedEquipments && disp.carriedEquipments.length > 0) {
+      text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `🏢 *KAAM KE BAAD STORE PAR KYA RAKHA / WAPAS KYA LAYE:*\n`;
+      const leftAtStore = disp.carriedEquipments.filter(e => e.postShiftStatus === 'store' || e.postShiftStatus === 'Left at Store');
+      const returned = disp.carriedEquipments.filter(e => e.postShiftStatus !== 'store' && e.postShiftStatus !== 'Left at Store');
+
+      if (leftAtStore.length > 0) {
+        text += `📍 *Store Par Chhod Diya:*\n`;
+        leftAtStore.forEach(eq => {
+          text += `  • ${eq.name} (${eq.assetTag || 'EQ'}) - ${eq.storeLocationNotes || 'Store Utility/Racks Area'}\n`;
+        });
+      }
+      if (returned.length > 0) {
+        text += `🚚 *Team Wapas Base Le Aayi:*\n`;
+        returned.forEach(eq => {
+          text += `  • ${eq.name} (${eq.assetTag || 'EQ'}) - Base Hub\n`;
+        });
+      }
+    }
+
+    // Damaged & replaced consumables:
+    const damagedTools = (disp.carriedTools || []).filter(t => t.condition === 'Damaged / Kharab' || t.actionTaken === 'Naya Liya');
+    if (damagedTools.length > 0) {
+      text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `⚠️ *CONSUMABLE KHARAB & NAYA LIYA RECORD:*\n`;
+      damagedTools.forEach(t => {
+        text += `• ⚠️ *${t.name}*: Condition Kharab ➔ ${t.actionTaken || 'Naya Liya'}${Number(t.replacementCost) > 0 ? ` (₹${t.replacementCost})` : ''} ${t.remarks ? `"${t.remarks}"` : ''}\n`;
+      });
+    }
+
     text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `🏠 *JO NAHI LEKE GAYE WO KAHAN HAI (REMAINING ITEMS):*\n`;
+    text += `🏠 *JO NAHI LEKE GAYE WO KAHAN HAI (REMAINING ASSETS):*\n`;
     if (disp.leftBehindItems && disp.leftBehindItems.length > 0) {
       disp.leftBehindItems.forEach(item => {
         text += `• 📍 *${item.name}* (${item.assetTag || 'EQ'})\n`;
@@ -578,13 +700,6 @@ export default function EquipmentExpenseHubModal({
       });
     } else {
       text += `• All standard equipment active with team\n`;
-    }
-
-    if (disp.nextDestination) {
-      text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-      text += `➡️ *AGLE DIN KAHAN GAYE (NEXT ROUTE):*\n`;
-      text += `📅 Next Date: ${disp.nextDate || 'Next Day'}\n`;
-      text += `🏢 Next Destination: *${disp.nextDestination}*\n`;
     }
 
     if (disp.notes) {
@@ -1131,7 +1246,26 @@ export default function EquipmentExpenseHubModal({
                         </div>
                       </div>
 
-                      {/* 2 Grid Columns: What They Carried vs Where Remaining Items Are Kept */}
+                      {/* Movement Route Bar */}
+                      <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 flex items-center justify-between text-xs flex-wrap gap-2">
+                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-bold flex-wrap">
+                          <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span className="text-slate-400 font-normal">Kahan Se Uthayi:</span>
+                          <span className="font-bold text-slate-900 dark:text-white px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            {disp.pickupLocation || 'Central Base Hub (Navi Mumbai)'}
+                          </span>
+                          <ArrowRight className="w-3.5 h-3.5 text-emerald-500 shrink-0 mx-1" />
+                          <span className="text-slate-400 font-normal">Aaj Kis Store Gaye:</span>
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800">
+                            {disp.storeCode} - {disp.storeName}
+                          </span>
+                        </div>
+                        {disp.notes && (
+                          <span className="text-[11px] text-slate-400 italic">"{disp.notes}"</span>
+                        )}
+                      </div>
+
+                      {/* 2 Grid Columns: What They Carried vs Store Custody & Remaining */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                         {/* SECTION A: SAATH MEIN KYA LEKE GAYE */}
@@ -1161,10 +1295,14 @@ export default function EquipmentExpenseHubModal({
 
                           {/* Tools List */}
                           <div className="space-y-1 pt-1.5 border-t border-emerald-200/60 dark:border-emerald-800/60">
-                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase block">Tools &amp; Consumables:</span>
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase block">Tools &amp; Consumables Carried:</span>
                             <div className="flex flex-wrap gap-1.5">
                               {(disp.carriedTools || []).map((t, i) => (
-                                <span key={i} className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">
+                                <span key={i} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                                  t.condition === 'Damaged / Kharab'
+                                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-300'
+                                    : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-200'
+                                }`}>
                                   {t.qty}x {t.name}
                                 </span>
                               ))}
@@ -1172,35 +1310,66 @@ export default function EquipmentExpenseHubModal({
                           </div>
                         </div>
 
-                        {/* SECTION B: JO NAHI LEKE GAYE WO KAHAN RAKHA HAI */}
+                        {/* SECTION B: KAAM KE BAAD STORE PAR KYA RAKHA VS WAPAS KYA LAYE */}
                         <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/80 rounded-2xl p-3.5 space-y-2.5">
                           <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-black text-xs uppercase tracking-wider">
                             <Warehouse className="w-4 h-4 text-amber-600" />
-                            <span>Jo Nahi Leke Gaye Wo Kahan Rakha Hai (Remaining Assets)</span>
+                            <span>Kaam Ke Baad Store Par Kya Rakha / Wapas Kya Laye</span>
                           </div>
 
                           <div className="space-y-2">
-                            {disp.leftBehindItems && disp.leftBehindItems.length > 0 ? (
-                              disp.leftBehindItems.map((item, i) => (
-                                <div key={i} className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800/60 text-xs">
-                                  <div className="flex items-center justify-between gap-1 font-bold text-slate-900 dark:text-white">
-                                    <span>{item.name}</span>
-                                    <span className="text-[10px] font-mono text-amber-700">{item.assetTag}</span>
-                                  </div>
-                                  <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1 mt-0.5">
-                                    <MapPin className="w-3 h-3 text-amber-600 shrink-0" />
-                                    <span>Location: {item.location || 'Central Base Hub'}</span>
-                                  </div>
-                                  {item.reason && (
-                                    <div className="text-[10px] text-slate-400 italic mt-0.5">
-                                      Reason: "{item.reason}"
+                            {/* Check if any machine was left at store */}
+                            {disp.carriedEquipments && disp.carriedEquipments.some(e => e.postShiftStatus === 'store' || e.postShiftStatus === 'Left at Store') && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-amber-600" /> Store Par Chhod Diya (Kept at Store):
+                                </span>
+                                {disp.carriedEquipments
+                                  .filter(e => e.postShiftStatus === 'store' || e.postShiftStatus === 'Left at Store')
+                                  .map((eq, i) => (
+                                    <div key={i} className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs">
+                                      <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white">
+                                        <span>{eq.name}</span>
+                                        <span className="text-[10px] font-mono text-amber-700">{eq.assetTag}</span>
+                                      </div>
+                                      <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium mt-0.5">
+                                        Place: {eq.storeLocationNotes || 'Store Utility Room / Racks Area'}
+                                      </div>
                                     </div>
-                                  )}
+                                  ))}
+                              </div>
+                            )}
+
+                            {/* Check if any machine returned to base */}
+                            {disp.carriedEquipments && disp.carriedEquipments.some(e => e.postShiftStatus !== 'store' && e.postShiftStatus !== 'Left at Store') && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                                  <Truck className="w-3 h-3 text-emerald-600" /> Team Wapas Base Laye (Returned to Base):
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {disp.carriedEquipments
+                                    .filter(e => e.postShiftStatus !== 'store' && e.postShiftStatus !== 'Left at Store')
+                                    .map((eq, i) => (
+                                      <span key={i} className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
+                                        ✓ {eq.name} ({eq.assetTag})
+                                      </span>
+                                    ))}
                                 </div>
-                              ))
-                            ) : (
-                              <div className="p-2 text-center text-xs text-slate-400 italic">
-                                All fleet machines are deployed on duty.
+                              </div>
+                            )}
+
+                            {/* Remaining Machines not in this shift */}
+                            {disp.leftBehindItems && disp.leftBehindItems.length > 0 && (
+                              <div className="pt-2 border-t border-amber-200/60 dark:border-amber-800/60 space-y-1">
+                                <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                                  Remaining Assets Kept Elsewhere:
+                                </span>
+                                {disp.leftBehindItems.map((item, i) => (
+                                  <div key={i} className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                                    <span>• {item.name}</span>
+                                    <span className="text-[10px] text-amber-700">{item.location || 'Base Hub'}</span>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -1208,23 +1377,32 @@ export default function EquipmentExpenseHubModal({
 
                       </div>
 
-                      {/* SECTION C: DUSRE DIN KAHAN GAYE (NEXT ROUTE CHAIN) */}
-                      {disp.nextDestination && (
-                        <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/80 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
-                            <ArrowRight className="w-4 h-4 text-indigo-600" />
-                            <span className="font-bold text-slate-700 dark:text-slate-300">
-                              Agle Din Kahan Gaye (Next Destination):
-                            </span>
-                            <span className="font-black text-indigo-900 dark:text-indigo-200">
-                              {disp.nextDestination} {disp.nextDate ? `(📅 ${disp.nextDate})` : ''}
-                            </span>
+                      {/* Consumables Kharab & Naya Liya Log Strip */}
+                      {disp.carriedTools && disp.carriedTools.some(t => t.condition === 'Damaged / Kharab' || t.actionTaken === 'Naya Liya') && (
+                        <div className="p-3 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 space-y-1.5">
+                          <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-black text-xs uppercase tracking-wider">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>Consumable Condition Kharab &amp; Naya Liya (Replacement Record)</span>
                           </div>
-                          {disp.notes && (
-                            <span className="text-[11px] text-slate-500 italic hidden sm:inline">
-                              "{disp.notes}"
-                            </span>
-                          )}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {disp.carriedTools
+                              .filter(t => t.condition === 'Damaged / Kharab' || t.actionTaken === 'Naya Liya')
+                              .map((t, idx) => (
+                                <div key={idx} className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-800 text-xs flex items-center justify-between gap-2">
+                                  <div>
+                                    <span className="font-bold text-slate-900 dark:text-white block">{t.name}</span>
+                                    <span className="text-[10px] text-slate-400">
+                                      Status: <strong className="text-rose-600">Condition Kharab</strong> ➔ {t.actionTaken || 'Naya Liya'} {t.remarks ? `("${t.remarks}")` : ''}
+                                    </span>
+                                  </div>
+                                  {Number(t.replacementCost) > 0 && (
+                                    <span className="px-2 py-1 rounded-md bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300 font-black text-xs shrink-0">
+                                      ₹{t.replacementCost}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2049,10 +2227,34 @@ export default function EquipmentExpenseHubModal({
                 </div>
               </div>
 
+              {/* Route Origin & Destination */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Target Dark Store *
+                <div className="bg-blue-50/50 dark:bg-blue-950/20 p-2.5 rounded-2xl border border-blue-200/60 dark:border-blue-800/60">
+                  <label className="block font-bold text-blue-900 dark:text-blue-300 mb-1 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Machines Kahan Se Uthayi? (Pickup Origin) *</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    list="originStoreOptions"
+                    placeholder="e.g. Central Base Hub (Navi Mumbai) ya Store Name"
+                    value={dispatchForm.pickupLocation}
+                    onChange={(e) => setDispatchForm({ ...dispatchForm, pickupLocation: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-slate-900 dark:text-white"
+                  />
+                  <datalist id="originStoreOptions">
+                    <option value="Central Base Hub (Navi Mumbai)" />
+                    {stores.map(s => (
+                      <option key={s.id || s.code} value={`${s.storeName} (${s.storeCode || s.code})`} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 rounded-2xl border border-emerald-200/60 dark:border-emerald-800/60">
+                  <label className="block font-bold text-emerald-900 dark:text-emerald-300 mb-1 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Aaj Kis Dark Store Par Gaye? (Cleaning Store) *</span>
                   </label>
                   <select
                     required
@@ -2067,53 +2269,265 @@ export default function EquipmentExpenseHubModal({
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Cleaners on Team (Comma separated)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Ramesh Cleaner, Suresh Valmiki"
-                    value={dispatchForm.cleaners}
-                    onChange={(e) => setDispatchForm({ ...dispatchForm, cleaners: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                  />
-                </div>
               </div>
 
-              {/* Heavy Machines Selection Checkboxes */}
-              <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
-                <label className="block font-black text-emerald-900 dark:text-emerald-300 mb-2 uppercase tracking-wider text-[11px]">
-                  1. Saath Mein Konsi Machines Leke Ja Rahe Hain? (Select Carried Machines):
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Cleaners on Team (Comma separated)
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {equipments.map(eq => {
-                    const isChecked = dispatchForm.selectedEquipmentIds.includes(eq.id);
+                <input
+                  type="text"
+                  placeholder="e.g. Ramesh Cleaner, Suresh Valmiki"
+                  value={dispatchForm.cleaners}
+                  onChange={(e) => setDispatchForm({ ...dispatchForm, cleaners: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                />
+              </div>
+
+              {/* Heavy Machines Selection Checkboxes & Post-Shift Custody */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-black text-slate-900 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Wrench className="w-4 h-4 text-emerald-600" />
+                    <span>1. Saath Mein Konsi Heavy Machines Leke Gaye? (Select Carried Machines):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    {dispatchForm.selectedEquipmentIds.length} machines selected
+                  </span>
+                </div>
+
+                {equipments.length === 0 ? (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-xl text-amber-800 dark:text-amber-300 text-xs">
+                    Koi machine inventory me darj nahi hai. Upar "Equipment Inventory" tab me machine add karein.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {equipments.map(eq => {
+                      const isChecked = dispatchForm.selectedEquipmentIds.includes(eq.id);
+                      return (
+                        <div
+                          key={eq.id}
+                          onClick={() => handleToggleEquipmentSelection(eq)}
+                          className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition ${
+                            isChecked
+                              ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isChecked ? (
+                              <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                            )}
+                            <div className="truncate">
+                              <div className="font-bold text-xs text-slate-900 dark:text-white truncate">{eq.name}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">{eq.assetTag} • {eq.currentLocationName || 'Base'}</div>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0 ${isChecked ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {isChecked ? 'Carried' : 'Remaining'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* For selected machines: Post-Shift Custody (Store par chhoda ya Wapas base laye) */}
+                {dispatchForm.selectedEquipmentIds.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                    <label className="block font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Shift Ke Baad Machines Kahan Rakhi? (Store Par vs Wapas Base):</span>
+                    </label>
+
+                    <div className="space-y-2">
+                      {equipments
+                        .filter(eq => dispatchForm.selectedEquipmentIds.includes(eq.id))
+                        .map(eq => {
+                          const postInfo = dispatchForm.equipmentPostShift[eq.id] || { postShiftStatus: 'base', storeLocationNotes: '' };
+                          const isStore = postInfo.postShiftStatus === 'store';
+                          return (
+                            <div key={eq.id} className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-bold text-xs text-slate-900 dark:text-white truncate">{eq.name}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">{eq.assetTag}</div>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetEquipmentPostShift(eq.id, 'store')}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
+                                      isStore
+                                        ? 'bg-amber-500 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    <Building2 className="w-3 h-3" />
+                                    <span>Store Par Chhoda</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetEquipmentPostShift(eq.id, 'base')}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
+                                      !isStore
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    <Truck className="w-3 h-3" />
+                                    <span>Wapas Base Laye</span>
+                                  </button>
+                                </div>
+
+                                {isStore && (
+                                  <input
+                                    type="text"
+                                    placeholder="Store Room / Corner note (e.g. Utility room)"
+                                    value={postInfo.storeLocationNotes || ''}
+                                    onChange={(e) => handleSetEquipmentPostShift(eq.id, 'store', e.target.value)}
+                                    className="px-2 py-1 text-xs rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 placeholder:text-amber-400 w-44"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Consumables & Tools: Condition & Replacement Tracker */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 space-y-3">
+                <div>
+                  <label className="block font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span>2. Consumables &amp; Tools Kit (Condition Check &amp; Naya Liya Tracker):</span>
+                  </label>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Pads, mops, wipers ka condition check karein. Agar koi toot/fat gaya aur on-site naya kharida, toh "Condition Kharab" ➔ "Naya Liya" chunein (Store Expense me auto-voucher banega).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {dispatchForm.carriedTools.map((tool, idx) => {
+                    const isDamaged = tool.condition === 'Damaged / Kharab';
                     return (
                       <div
-                        key={eq.id}
-                        onClick={() => handleToggleEquipmentSelection(eq)}
-                        className={`p-2 rounded-xl border cursor-pointer flex items-center justify-between transition ${
-                          isChecked
-                            ? 'bg-white dark:bg-slate-800 border-emerald-500 shadow-xs ring-1 ring-emerald-500'
-                            : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-700 opacity-60'
+                        key={tool.id || idx}
+                        className={`p-3 rounded-xl border transition ${
+                          isDamaged
+                            ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {isChecked ? (
-                            <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                          ) : (
-                            <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                          )}
-                          <div className="truncate">
-                            <div className="font-bold text-xs text-slate-900 dark:text-white truncate">{eq.name}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">{eq.assetTag}</div>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-slate-900 dark:text-white">
+                              {tool.name}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-400">Qty:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={tool.qty}
+                                onChange={(e) => handleUpdateToolField(idx, 'qty', parseInt(e.target.value) || 0)}
+                                className="w-14 px-1.5 py-0.5 text-xs rounded border border-slate-200 dark:border-slate-700 text-center font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Condition Toggle */}
+                          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateToolField(idx, 'condition', 'Good')}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                                !isDamaged
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Sahi Salaamat</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateToolField(idx, 'condition', 'Damaged / Kharab')}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                                isDamaged
+                                  ? 'bg-rose-600 text-white shadow-xs'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              <AlertCircle className="w-3 h-3" />
+                              <span>Condition Kharab</span>
+                            </button>
                           </div>
                         </div>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold ${isChecked ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
-                          {isChecked ? 'Carried' : 'Remaining'}
-                        </span>
+
+                        {/* If Damaged: Action taken & Replacement cost */}
+                        {isDamaged && (
+                          <div className="mt-2.5 pt-2.5 border-t border-rose-200 dark:border-rose-800/60 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <span className="text-[10px] font-bold text-rose-800 dark:text-rose-300 block mb-1">
+                                Action Taken:
+                              </span>
+                              <select
+                                value={tool.actionTaken || 'Naya Liya'}
+                                onChange={(e) => handleUpdateToolField(idx, 'actionTaken', e.target.value)}
+                                className="w-full px-2 py-1 text-xs rounded-lg border border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-800 font-bold text-rose-900 dark:text-rose-200"
+                              >
+                                <option value="Naya Liya">🛒 Naya Liya (Purchased On-Site)</option>
+                                <option value="Damaged (Not Replaced)">⚠️ Kharab Chhoda (Baad me lenge)</option>
+                              </select>
+                            </div>
+
+                            {tool.actionTaken === 'Naya Liya' && (
+                              <div>
+                                <span className="text-[10px] font-bold text-rose-800 dark:text-rose-300 block mb-1">
+                                  Naya Lene Ka Kharcha (₹):
+                                </span>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1 font-bold text-rose-600">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Amount"
+                                    value={tool.replacementCost || ''}
+                                    onChange={(e) => handleUpdateToolField(idx, 'replacementCost', parseFloat(e.target.value) || 0)}
+                                    className="w-full pl-6 pr-2 py-1 text-xs rounded-lg border border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-800 font-black text-rose-700 dark:text-rose-300"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className={tool.actionTaken === 'Naya Liya' ? '' : 'sm:col-span-2'}>
+                              <span className="text-[10px] font-bold text-rose-800 dark:text-rose-300 block mb-1">
+                                Kharab Hone Ka Kaaran / Note:
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="e.g. Scrubber me phas ke phat gaya / Wiper tooth broken"
+                                value={tool.remarks || ''}
+                                onChange={(e) => handleUpdateToolField(idx, 'remarks', e.target.value)}
+                                className="w-full px-2 py-1 text-xs rounded-lg border border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-800"
+                              />
+                            </div>
+
+                            {tool.actionTaken === 'Naya Liya' && tool.replacementCost > 0 && (
+                              <div className="sm:col-span-3 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 p-1.5 rounded-lg flex items-center gap-1.5">
+                                <Receipt className="w-3.5 h-3.5" />
+                                <span>⚡ Yeh ₹{tool.replacementCost} ka voucher is dark store ke Expenses me auto-save ho jayega!</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2123,8 +2537,9 @@ export default function EquipmentExpenseHubModal({
               {/* Remaining Gear Storage Tracker */}
               {dispatchForm.leftBehindItems.length > 0 && (
                 <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 space-y-2">
-                  <label className="block font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[11px]">
-                    2. Jo Items Team Saath Nahi Leke Gayi, Wo Kahan Rakhe Hain? (Storage Location):
+                  <label className="block font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Warehouse className="w-4 h-4 text-amber-600" />
+                    <span>3. Jo Machines Team Saath Nahi Leke Gayi, Wo Kahan Rakhe Hain? (Storage Location):</span>
                   </label>
                   <div className="space-y-2">
                     {dispatchForm.leftBehindItems.map(lb => (
@@ -2155,32 +2570,6 @@ export default function EquipmentExpenseHubModal({
                   </div>
                 </div>
               )}
-
-              {/* Next Store Destination (DUSRE DIN KAHAN GAYE) */}
-              <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 space-y-2">
-                <label className="block font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-wider text-[11px]">
-                  3. Phir Dusre Din Kahan Gaye? (Next Destination Store &amp; Date):
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="e.g. Blinkit Dark Store - Baner (Pune)"
-                      value={dispatchForm.nextDestination}
-                      onChange={(e) => setDispatchForm({ ...dispatchForm, nextDestination: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="date"
-                      value={dispatchForm.nextDate}
-                      onChange={(e) => setDispatchForm({ ...dispatchForm, nextDate: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-              </div>
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
