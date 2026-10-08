@@ -31,7 +31,8 @@ import {
   MapPin,
   Globe,
   Sliders,
-  Receipt
+  Receipt,
+  Truck
 } from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 import { useLanguage } from '../context/LanguageContext';
@@ -67,6 +68,7 @@ export default function Navbar({
   onOpenChemicals,
   onOpenKhata,
   onOpenSchedule,
+  onOpenEquipmentHub,
   onOpenCloudSync,
   onOpenMorningSummary,
   onOpenNightRoute,
@@ -336,6 +338,15 @@ export default function Navbar({
                   >
                     <Wallet className="w-3.5 h-3.5 text-emerald-600" />
                     <span>{t('tab_khata', 'Staff Khata')}</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenEquipmentHub}
+                    title="Heavy Machinery Fleet, Team Tool Kits Loss & Store Operational P&L Matrix"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 transition shadow-2xs"
+                  >
+                    <Truck className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Assets &amp; Expenses</span>
                   </button>
 
                   <button
@@ -747,6 +758,18 @@ export default function Navbar({
                     </div>
                     <div className="text-xs font-bold text-emerald-950 dark:text-emerald-200">{t('tab_khata', 'Staff Khata')}</div>
                     <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Haziri &amp; advances</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenEquipmentHub)}
+                    className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Truck className="w-5 h-5 text-amber-600" />
+                      <ChevronRight className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="text-xs font-bold text-amber-950 dark:text-amber-200">Assets &amp; Expenses</div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400">Machines &amp; Store P&amp;L</div>
                   </button>
 
                   <button

@@ -48,6 +48,230 @@ const STANDARD_CHEMICALS = [
   { id: 'chem_08', itemName: 'Metal Rust Remover & Anti-Corrosion Treatment', category: 'Maintenance', unit: 'Liters', totalStock: 10, alertThreshold: 4 }
 ];
 
+const STANDARD_EQUIPMENTS = [
+  {
+    id: 'eq_01',
+    assetTag: 'EQ-SCRUB-01',
+    name: 'Taski Ergodisc 175 Single Disc Scrubber Machine',
+    category: 'Single Disc Scrubber',
+    serialNumber: 'ERG-2024-8812',
+    currentLocationType: 'store',
+    currentStoreCode: 'ES2',
+    currentLocationName: 'ES2 - Kothrud Pune',
+    assignedSupervisor: 'Rahul Shinde',
+    status: 'Working',
+    condition: 'Excellent',
+    purchaseDate: '2024-03-15',
+    lastServiceDate: '2026-09-15',
+    nextServiceDue: '2026-11-15',
+    serviceCostTotal: 1800,
+    notes: 'Equipped with 17" pad holder & 12L solution tank'
+  },
+  {
+    id: 'eq_02',
+    assetTag: 'EQ-SCRUB-02',
+    name: 'Roots MultiClean 17" Heavy Duty Floor Scrubber',
+    category: 'Single Disc Scrubber',
+    serialNumber: 'RMC-17-4590',
+    currentLocationType: 'warehouse',
+    currentStoreCode: '',
+    currentLocationName: 'Central Base Hub (Navi Mumbai)',
+    assignedSupervisor: 'Akash Jadhav',
+    status: 'Working',
+    condition: 'Good',
+    purchaseDate: '2024-06-20',
+    lastServiceDate: '2026-08-10',
+    nextServiceDue: '2026-10-25',
+    serviceCostTotal: 1200,
+    notes: 'Standby machine for Mumbai & Thane clusters'
+  },
+  {
+    id: 'eq_03',
+    assetTag: 'EQ-VAC-01',
+    name: 'Taski Vacumat 22T Wet & Dry Vacuum Extractor',
+    category: 'Wet & Dry Vacuum',
+    serialNumber: 'VAC-22T-3391',
+    currentLocationType: 'store',
+    currentStoreCode: 'ES2',
+    currentLocationName: 'ES2 - Kothrud Pune',
+    assignedSupervisor: 'Rahul Shinde',
+    status: 'Working',
+    condition: 'Excellent',
+    purchaseDate: '2024-04-10',
+    lastServiceDate: '2026-09-20',
+    nextServiceDue: '2026-12-20',
+    serviceCostTotal: 850,
+    notes: 'Heavy suction squeegee attachment intact'
+  },
+  {
+    id: 'eq_04',
+    assetTag: 'EQ-VAC-02',
+    name: 'Roots WDO 60 Industrial Wet & Dry Vacuum Cleaner',
+    category: 'Wet & Dry Vacuum',
+    serialNumber: 'WDO-60-1928',
+    currentLocationType: 'warehouse',
+    currentStoreCode: '',
+    currentLocationName: 'Central Base Hub (Navi Mumbai)',
+    assignedSupervisor: 'Akash Jadhav',
+    status: 'Service Due',
+    condition: 'Needs Filter Cleaning',
+    purchaseDate: '2024-01-18',
+    lastServiceDate: '2026-07-05',
+    nextServiceDue: '2026-10-05',
+    serviceCostTotal: 1500,
+    notes: 'Filter replacement scheduled this weekend'
+  },
+  {
+    id: 'eq_05',
+    assetTag: 'EQ-JET-01',
+    name: 'Karcher HD 5/11 P High-Pressure Jet Cleaner (110 Bar)',
+    category: 'High-Pressure Jet Washer',
+    serialNumber: 'KRC-HD-9920',
+    currentLocationType: 'store',
+    currentStoreCode: 'MH-TAL-01',
+    currentLocationName: 'MH-TAL-01 - Taloja Phase 1',
+    assignedSupervisor: 'Rahul Shinde',
+    status: 'Working',
+    condition: 'Excellent',
+    purchaseDate: '2024-05-12',
+    lastServiceDate: '2026-09-01',
+    nextServiceDue: '2026-11-01',
+    serviceCostTotal: 600,
+    notes: 'High pressure spray lance for chiller & drains'
+  },
+  {
+    id: 'eq_06',
+    assetTag: 'EQ-LADD-01',
+    name: '8-Step Heavy Duty Aluminum Step Ladder & Extension Rod',
+    category: 'Safety Ladder & Access',
+    serialNumber: 'LAD-AL-8831',
+    currentLocationType: 'warehouse',
+    currentStoreCode: '',
+    currentLocationName: 'Central Base Hub (Navi Mumbai)',
+    assignedSupervisor: 'Akash Jadhav',
+    status: 'Working',
+    condition: 'Good',
+    purchaseDate: '2024-02-14',
+    lastServiceDate: '2026-08-15',
+    nextServiceDue: '2026-11-15',
+    serviceCostTotal: 0,
+    notes: 'Non-slip rubber feet tested and certified'
+  }
+];
+
+const STANDARD_TOOL_ITEMS = [
+  { id: 't_mop', name: 'Kentucky Mop & Bucket Wringer Set', category: 'Floor Cleaning', standardQty: 2, unitPrice: 850 },
+  { id: 't_wiper', name: 'Heavy Metal 24" Floor Wiper Squeegee', category: 'Floor Cleaning', standardQty: 2, unitPrice: 350 },
+  { id: 't_micro', name: 'Microfiber Cleaning Duster Cloths (Pack of 6)', category: 'Dusting & Racks', standardQty: 6, unitPrice: 60 },
+  { id: 't_pads', name: '17" Single Disc Scrubbing Floor Pads (Black/Red)', category: 'Machine Consumable', standardQty: 3, unitPrice: 220 },
+  { id: 't_sign', name: 'Caution "Wet Floor / Slippery Surface" Signboard', category: 'Safety & Signage', standardQty: 2, unitPrice: 400 },
+  { id: 't_spray', name: 'Chemical Trigger Spray Bottles 1 Liter', category: 'Chemical Dispenser', standardQty: 3, unitPrice: 90 },
+  { id: 't_scraper', name: 'Heavy Duty Floor & Corner Razor Scrapers', category: 'Tools', standardQty: 2, unitPrice: 150 },
+  { id: 't_wire', name: '50-Meter 16A Heavy Duty Power Extension Cable', category: 'Electrical', standardQty: 1, unitPrice: 1800 },
+  { id: 't_ppe', name: 'Safety PPE Kit (Nitrile Gloves, Masks, Boots)', category: 'Safety PPE', standardQty: 4, unitPrice: 250 }
+];
+
+const STANDARD_STORE_EXPENSES = [
+  {
+    id: 'exp_01',
+    storeCode: 'ES2',
+    storeName: 'Blinkit Dark Store - Kothrud',
+    city: 'Pune',
+    category: 'Conveyance & Transport',
+    amount: 800,
+    paidTo: 'Tempo Logistics (MH-12)',
+    paidBy: 'Rahul Shinde (Supervisor)',
+    paymentMode: 'UPI',
+    date: '2026-10-06',
+    remarks: 'Tempo transport for Scrubber & Vacuum from base to Kothrud store'
+  },
+  {
+    id: 'exp_02',
+    storeCode: 'ES2',
+    storeName: 'Blinkit Dark Store - Kothrud',
+    city: 'Pune',
+    category: 'Team Food & Midnight Snacks',
+    amount: 220,
+    paidTo: 'Night Tea & Snack Stall',
+    paidBy: 'Rahul Shinde',
+    paymentMode: 'Cash',
+    date: '2026-10-06',
+    remarks: 'Tea and biscuits for 4 cleaners during 3 AM break'
+  },
+  {
+    id: 'exp_03',
+    storeCode: 'MH-TAL-01',
+    storeName: 'Blinkit Dark Store - Taloja Phase 1',
+    city: 'Navi Mumbai',
+    category: 'Conveyance & Transport',
+    amount: 450,
+    paidTo: 'Local Auto Tempo',
+    paidBy: 'Admin (SK Enterprises)',
+    paymentMode: 'UPI',
+    date: '2026-10-05',
+    remarks: 'Machine delivery & pickup'
+  }
+];
+
+const STANDARD_TEAM_DISPATCHES = [
+  {
+    id: 'disp_01',
+    date: '2026-10-06',
+    teamName: 'Team Alpha (Pune Cluster)',
+    supervisorName: 'Rahul Shinde',
+    cleaners: ['Ramesh Cleaner', 'Suresh Valmiki'],
+    storeCode: 'ES2',
+    storeName: 'Blinkit Dark Store - Kothrud',
+    city: 'Pune',
+    status: 'Completed',
+    carriedEquipments: [
+      { id: 'eq_scrub_01', name: 'Taski Ergodisc 165 Single Disc Scrubber', assetTag: 'EQ-SCRUB-01' },
+      { id: 'eq_vac_01', name: 'Taski Vacumat 22T Wet & Dry Vacuum Cleaner', assetTag: 'EQ-VAC-01' }
+    ],
+    carriedTools: [
+      { name: 'Kentucky Mop & Bucket', qty: 2 },
+      { name: '24" Floor Wiper', qty: 2 },
+      { name: '17" Black Floor Pads', qty: 3 },
+      { name: '50m Extension Cable', qty: 1 }
+    ],
+    leftBehindItems: [
+      { name: 'Karcher HD High Pressure Jet Washer', assetTag: 'EQ-JET-01', location: 'Central Base Hub (Navi Mumbai) - Bay 2', reason: 'Not needed for indoor vinyl floor deep cleaning' },
+      { name: 'Roots MultiClean Scrubber', assetTag: 'EQ-SCRUB-02', location: 'Central Base Hub (Navi Mumbai) - Bay 1', reason: 'Reserved for Mumbai Cluster' },
+      { name: 'Aluminum Step Ladder (12ft)', assetTag: 'EQ-LAD-01', location: 'Stored at ES2 Kothrud Store Room (Racks area)', reason: 'Left safely for follow-up high dusting' }
+    ],
+    nextDestination: 'Blinkit Dark Store - Baner (Pune)',
+    nextDate: '2026-10-07',
+    notes: 'Team moved to Baner next morning via Tempo MH-12'
+  },
+  {
+    id: 'disp_02',
+    date: '2026-10-07',
+    teamName: 'Team Alpha (Pune Cluster)',
+    supervisorName: 'Rahul Shinde',
+    cleaners: ['Ramesh Cleaner', 'Suresh Valmiki'],
+    storeCode: 'MH-BAN-01',
+    storeName: 'Blinkit Dark Store - Baner',
+    city: 'Pune',
+    status: 'Completed',
+    carriedEquipments: [
+      { id: 'eq_scrub_01', name: 'Taski Ergodisc 165 Single Disc Scrubber', assetTag: 'EQ-SCRUB-01' },
+      { id: 'eq_vac_01', name: 'Taski Vacumat 22T Wet & Dry Vacuum Cleaner', assetTag: 'EQ-VAC-01' }
+    ],
+    carriedTools: [
+      { name: 'Kentucky Mop & Bucket', qty: 2 },
+      { name: '24" Floor Wiper', qty: 2 },
+      { name: '50m Extension Cable', qty: 1 }
+    ],
+    leftBehindItems: [
+      { name: 'Aluminum Step Ladder (12ft)', assetTag: 'EQ-LAD-01', location: 'Stored at ES2 Kothrud Utility Area', reason: 'Left at previous store Kothrud' },
+      { name: 'Roots WDO 60 Vacuum', assetTag: 'EQ-VAC-02', location: 'Central Base Hub (Navi Mumbai)', reason: 'Kept at Base' }
+    ],
+    nextDestination: 'Blinkit Dark Store - Kothrud (Return Check)',
+    nextDate: '2026-10-08',
+    notes: 'Cleaned chiller and front racking'
+  }
+];
+
 const DEFAULT_DB = {
   cleanings: [],
   stores: [],
@@ -59,12 +283,21 @@ const DEFAULT_DB = {
   cleanerAdvances: [],
   storeIssues: [],
   loginLogs: [],
+  equipments: [...STANDARD_EQUIPMENTS],
+  equipmentMovements: [],
+  toolAllocations: [],
+  storeExpenses: [...STANDARD_STORE_EXPENSES],
+  teamDispatches: [...STANDARD_TEAM_DISPATCHES],
   deletedStores: [],
   deletedCleanings: [],
   deletedSupervisors: [],
   deletedCleaners: [],
   deletedSchedules: [],
   deletedAdvances: [],
+  deletedEquipments: [],
+  deletedToolAllocations: [],
+  deletedStoreExpenses: [],
+  deletedTeamDispatches: [],
   logsClearedAt: null,
   appSettings: {
     vendor_admin_id: process.env.ADMIN_ID || 'admin',
@@ -105,6 +338,22 @@ function readDB() {
             merged.chemicalStock.push({ ...std });
           }
         }
+      }
+      // Ensure equipments array exists and has standard machines if empty
+      if (!Array.isArray(merged.equipments) || merged.equipments.length === 0) {
+        merged.equipments = [...STANDARD_EQUIPMENTS];
+      }
+      if (!Array.isArray(merged.equipmentMovements)) {
+        merged.equipmentMovements = [];
+      }
+      if (!Array.isArray(merged.toolAllocations)) {
+        merged.toolAllocations = [];
+      }
+      if (!Array.isArray(merged.storeExpenses) || merged.storeExpenses.length === 0) {
+        merged.storeExpenses = [...STANDARD_STORE_EXPENSES];
+      }
+      if (!Array.isArray(merged.teamDispatches) || merged.teamDispatches.length === 0) {
+        merged.teamDispatches = [...STANDARD_TEAM_DISPATCHES];
       }
 
       // Environment variables always take precedence if explicitly configured in Render/hosting
@@ -1601,7 +1850,478 @@ app.post('/api/issues/delete', (req, res) => {
   }
 });
 
-// 10. Login Logs & Audit Trail
+// -------------------------------------------------------------
+// 10. HEAVY EQUIPMENT & MACHINERY FLEET TRACKING
+// -------------------------------------------------------------
+app.post('/api/equipments', (req, res) => {
+  try {
+    const eqData = req.body || {};
+    if (!eqData.name) {
+      return res.status(400).json({ success: false, message: 'Equipment name zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.equipments) currentDB.equipments = [];
+    const nowIso = new Date().toISOString();
+
+    const targetId = eqData.id ? String(eqData.id) : null;
+    let index = -1;
+    if (targetId) {
+      index = currentDB.equipments.findIndex(e => e && String(e.id) === targetId);
+    }
+    if (index === -1 && eqData.assetTag) {
+      index = currentDB.equipments.findIndex(e => e && e.assetTag && e.assetTag.toUpperCase() === String(eqData.assetTag).toUpperCase());
+    }
+
+    let saved = null;
+    if (index !== -1) {
+      // Check if location changed; if so, create an automatic movement log
+      const oldLoc = currentDB.equipments[index].currentLocationName || currentDB.equipments[index].currentLocationId;
+      const newLoc = eqData.currentLocationName || eqData.currentLocationId;
+      if (oldLoc && newLoc && oldLoc !== newLoc) {
+        if (!currentDB.equipmentMovements) currentDB.equipmentMovements = [];
+        currentDB.equipmentMovements.unshift({
+          id: 'mov_' + Date.now(),
+          equipmentId: currentDB.equipments[index].id,
+          equipmentName: eqData.name || currentDB.equipments[index].name,
+          assetTag: eqData.assetTag || currentDB.equipments[index].assetTag,
+          fromLocation: oldLoc,
+          toLocation: newLoc,
+          movedBy: eqData.assignedSupervisor || 'Admin',
+          date: eqData.lastMovedDate || nowIso.split('T')[0],
+          notes: eqData.movementReason || 'Location update via equipment profile',
+          timestamp: nowIso
+        });
+      }
+
+      saved = {
+        ...currentDB.equipments[index],
+        ...eqData,
+        id: currentDB.equipments[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.equipments[index] = saved;
+    } else {
+      saved = {
+        ...eqData,
+        id: eqData.id || ('eq_' + Date.now()),
+        assetTag: eqData.assetTag || ('EQ-' + Math.floor(1000 + Math.random() * 9000)),
+        status: eqData.status || 'Working',
+        condition: eqData.condition || 'Good',
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.equipments.unshift(saved);
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      equipment: saved,
+      equipments: currentDB.equipments,
+      equipmentMovements: currentDB.equipmentMovements || [],
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save equipment error: ' + err.message });
+  }
+});
+
+app.post('/api/equipments/movement', (req, res) => {
+  try {
+    const { equipmentId, toLocationId, toLocationName, assignedSupervisor, movedBy, notes, date } = req.body || {};
+    if (!equipmentId || !toLocationName) {
+      return res.status(400).json({ success: false, message: 'Equipment ID aur Target Location zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.equipments) currentDB.equipments = [];
+    if (!currentDB.equipmentMovements) currentDB.equipmentMovements = [];
+
+    const eqIndex = currentDB.equipments.findIndex(e => e && String(e.id) === String(equipmentId));
+    if (eqIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Equipment nahi mila.' });
+    }
+
+    const eq = currentDB.equipments[eqIndex];
+    const fromLoc = eq.currentLocationName || 'Central Base';
+    const nowIso = new Date().toISOString();
+
+    const movementLog = {
+      id: 'mov_' + Date.now(),
+      equipmentId: eq.id,
+      equipmentName: eq.name,
+      assetTag: eq.assetTag,
+      fromLocation: fromLoc,
+      toLocation: toLocationName,
+      toLocationId: toLocationId || null,
+      movedBy: movedBy || assignedSupervisor || 'Supervisor',
+      date: date || nowIso.split('T')[0],
+      notes: notes || `Transferred from ${fromLoc} to ${toLocationName}`,
+      timestamp: nowIso
+    };
+
+    currentDB.equipmentMovements.unshift(movementLog);
+
+    // Update equipment current location
+    eq.currentLocationId = toLocationId || toLocationName;
+    eq.currentLocationName = toLocationName;
+    if (assignedSupervisor) eq.assignedSupervisor = assignedSupervisor;
+    eq.lastMovedDate = date || nowIso.split('T')[0];
+    eq.updatedAt = nowIso;
+    currentDB.equipments[eqIndex] = eq;
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      movement: movementLog,
+      equipments: currentDB.equipments,
+      equipmentMovements: currentDB.equipmentMovements,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server equipment movement error: ' + err.message });
+  }
+});
+
+app.post('/api/equipments/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.equipments) currentDB.equipments = [];
+    if (!currentDB.deletedEquipments) currentDB.deletedEquipments = [];
+
+    currentDB.equipments = currentDB.equipments.filter(e => {
+      if (e && String(e.id) === String(id)) {
+        currentDB.deletedEquipments.push(String(id));
+        return false;
+      }
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, equipments: currentDB.equipments, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete equipment error: ' + err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 11. TEAM TOOLS & CONSUMABLES ALLOCATION (LOSS & DAMAGE TRACKER)
+// -------------------------------------------------------------
+app.post('/api/tools/allocate', (req, res) => {
+  try {
+    const allocData = req.body || {};
+    if (!allocData.teamLeader && !allocData.supervisorName) {
+      return res.status(400).json({ success: false, message: 'Team Leader ya Supervisor zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.toolAllocations) currentDB.toolAllocations = [];
+    const nowIso = new Date().toISOString();
+
+    const targetId = allocData.id ? String(allocData.id) : null;
+    let index = -1;
+    if (targetId) {
+      index = currentDB.toolAllocations.findIndex(t => t && String(t.id) === targetId);
+    }
+
+    let saved = null;
+    if (index !== -1) {
+      saved = {
+        ...currentDB.toolAllocations[index],
+        ...allocData,
+        id: currentDB.toolAllocations[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.toolAllocations[index] = saved;
+    } else {
+      saved = {
+        ...allocData,
+        id: allocData.id || ('alloc_' + Date.now()),
+        status: allocData.status || 'Issued',
+        issuedAt: allocData.issuedAt || nowIso,
+        items: allocData.items || [],
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.toolAllocations.unshift(saved);
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      toolAllocation: saved,
+      toolAllocations: currentDB.toolAllocations,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server allocate tools error: ' + err.message });
+  }
+});
+
+app.post('/api/tools/return', (req, res) => {
+  try {
+    const { allocationId, returnedItems, returnNotes, inspectorName } = req.body || {};
+    if (!allocationId) {
+      return res.status(400).json({ success: false, message: 'Allocation ID zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.toolAllocations) currentDB.toolAllocations = [];
+
+    const index = currentDB.toolAllocations.findIndex(t => t && String(t.id) === String(allocationId));
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: 'Tool allocation record nahi mila.' });
+    }
+
+    const alloc = currentDB.toolAllocations[index];
+    const nowIso = new Date().toISOString();
+
+    let totalLostValue = 0;
+    let totalDamagedValue = 0;
+    let hasDiscrepancy = false;
+
+    const updatedItems = (returnedItems || alloc.items || []).map(item => {
+      const qtyGiven = Number(item.qtyGiven || item.standardQty || 0);
+      const qtyReturned = Number(item.qtyReturned !== undefined ? item.qtyReturned : qtyGiven);
+      const qtyLost = Number(item.qtyLost !== undefined ? item.qtyLost : Math.max(0, qtyGiven - qtyReturned));
+      const qtyDamaged = Number(item.qtyDamaged || 0);
+      const unitPrice = Number(item.unitPrice || 0);
+
+      const lostCost = qtyLost * unitPrice;
+      const damagedCost = Math.round(qtyDamaged * (unitPrice * 0.5));
+      if (qtyLost > 0 || qtyDamaged > 0) {
+        hasDiscrepancy = true;
+      }
+      totalLostValue += lostCost;
+      totalDamagedValue += damagedCost;
+
+      return {
+        ...item,
+        qtyGiven,
+        qtyReturned,
+        qtyLost,
+        qtyDamaged,
+        lostCost,
+        damagedCost,
+        totalLossCost: lostCost + damagedCost
+      };
+    });
+
+    alloc.items = updatedItems;
+    alloc.status = hasDiscrepancy ? 'Discrepancy / Loss' : 'Returned OK';
+    alloc.totalFinancialLoss = totalLostValue + totalDamagedValue;
+    alloc.returnNotes = returnNotes || '';
+    alloc.inspectorName = inspectorName || 'Operations Supervisor';
+    alloc.returnedAt = nowIso;
+    alloc.updatedAt = nowIso;
+
+    currentDB.toolAllocations[index] = alloc;
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      toolAllocation: alloc,
+      toolAllocations: currentDB.toolAllocations,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server return tools error: ' + err.message });
+  }
+});
+
+app.post('/api/tools/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.toolAllocations) currentDB.toolAllocations = [];
+    if (!currentDB.deletedToolAllocations) currentDB.deletedToolAllocations = [];
+
+    currentDB.toolAllocations = currentDB.toolAllocations.filter(t => {
+      if (t && String(t.id) === String(id)) {
+        currentDB.deletedToolAllocations.push(String(id));
+        return false;
+      }
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, toolAllocations: currentDB.toolAllocations, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete tool allocation error: ' + err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 12. STORE-WISE EXPENSES & REAL OPERATIONAL P&L
+// -------------------------------------------------------------
+app.post('/api/expenses', (req, res) => {
+  try {
+    const expData = req.body || {};
+    if (!expData.amount || Number(expData.amount) <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid expense amount zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.storeExpenses) currentDB.storeExpenses = [];
+    const nowIso = new Date().toISOString();
+
+    const targetId = expData.id ? String(expData.id) : null;
+    let index = -1;
+    if (targetId) {
+      index = currentDB.storeExpenses.findIndex(e => e && String(e.id) === targetId);
+    }
+
+    let saved = null;
+    if (index !== -1) {
+      saved = {
+        ...currentDB.storeExpenses[index],
+        ...expData,
+        amount: Number(expData.amount),
+        id: currentDB.storeExpenses[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.storeExpenses[index] = saved;
+    } else {
+      saved = {
+        ...expData,
+        id: expData.id || ('exp_' + Date.now()),
+        amount: Number(expData.amount),
+        date: expData.date || nowIso.split('T')[0],
+        category: expData.category || 'Conveyance & Transport',
+        paymentMode: expData.paymentMode || 'UPI',
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.storeExpenses.unshift(saved);
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      storeExpense: saved,
+      storeExpenses: currentDB.storeExpenses,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save expense error: ' + err.message });
+  }
+});
+
+app.post('/api/expenses/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.storeExpenses) currentDB.storeExpenses = [];
+    if (!currentDB.deletedStoreExpenses) currentDB.deletedStoreExpenses = [];
+
+    currentDB.storeExpenses = currentDB.storeExpenses.filter(e => {
+      if (e && String(e.id) === String(id)) {
+        currentDB.deletedStoreExpenses.push(String(id));
+        return false;
+      }
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, storeExpenses: currentDB.storeExpenses, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete expense error: ' + err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 13. TEAM DAILY STORE MOVEMENT & GEAR CUSTODY DISPATCHES
+// -------------------------------------------------------------
+app.post('/api/dispatches', (req, res) => {
+  try {
+    const dispData = req.body || {};
+    if (!dispData.teamName && !dispData.supervisorName) {
+      return res.status(400).json({ success: false, message: 'Team Name ya Supervisor zaroori hai.' });
+    }
+    const currentDB = readDB();
+    if (!currentDB.teamDispatches) currentDB.teamDispatches = [];
+    const nowIso = new Date().toISOString();
+
+    const targetId = dispData.id ? String(dispData.id) : null;
+    let index = -1;
+    if (targetId) {
+      index = currentDB.teamDispatches.findIndex(d => d && String(d.id) === targetId);
+    }
+
+    let saved = null;
+    if (index !== -1) {
+      saved = {
+        ...currentDB.teamDispatches[index],
+        ...dispData,
+        id: currentDB.teamDispatches[index].id,
+        updatedAt: nowIso
+      };
+      currentDB.teamDispatches[index] = saved;
+    } else {
+      saved = {
+        ...dispData,
+        id: dispData.id || ('disp_' + Date.now()),
+        date: dispData.date || nowIso.split('T')[0],
+        status: dispData.status || 'Active',
+        carriedEquipments: dispData.carriedEquipments || [],
+        carriedTools: dispData.carriedTools || [],
+        leftBehindItems: dispData.leftBehindItems || [],
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      currentDB.teamDispatches.unshift(saved);
+    }
+
+    // Also update current location of carried equipments in currentDB.equipments
+    if (Array.isArray(dispData.carriedEquipments) && Array.isArray(currentDB.equipments)) {
+      dispData.carriedEquipments.forEach(carried => {
+        const eqId = carried.id ? String(carried.id) : null;
+        const eqTag = carried.assetTag ? String(carried.assetTag).toUpperCase() : null;
+        const eqIndex = currentDB.equipments.findIndex(e =>
+          (eqId && String(e.id) === eqId) || (eqTag && e.assetTag && e.assetTag.toUpperCase() === eqTag)
+        );
+        if (eqIndex !== -1 && dispData.storeName) {
+          currentDB.equipments[eqIndex].currentLocationName = dispData.storeName;
+          currentDB.equipments[eqIndex].assignedSupervisor = dispData.supervisorName || currentDB.equipments[eqIndex].assignedSupervisor;
+          currentDB.equipments[eqIndex].lastMovedDate = dispData.date || nowIso.split('T')[0];
+          currentDB.equipments[eqIndex].updatedAt = nowIso;
+        }
+      });
+    }
+
+    writeDB(currentDB);
+    res.json({
+      success: true,
+      dispatch: saved,
+      teamDispatches: currentDB.teamDispatches,
+      equipments: currentDB.equipments,
+      data: currentDB
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server save dispatch error: ' + err.message });
+  }
+});
+
+app.post('/api/dispatches/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const currentDB = readDB();
+    if (!currentDB.teamDispatches) currentDB.teamDispatches = [];
+    if (!currentDB.deletedTeamDispatches) currentDB.deletedTeamDispatches = [];
+
+    currentDB.teamDispatches = currentDB.teamDispatches.filter(d => {
+      if (d && String(d.id) === String(id)) {
+        currentDB.deletedTeamDispatches.push(String(id));
+        return false;
+      }
+      return true;
+    });
+
+    writeDB(currentDB);
+    res.json({ success: true, teamDispatches: currentDB.teamDispatches, data: currentDB });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server delete dispatch error: ' + err.message });
+  }
+});
+
+// 14. Login Logs & Audit Trail
 app.post('/api/logs/add', (req, res) => {
   try {
     const logEntry = req.body || {};
@@ -1675,6 +2395,11 @@ app.get('/api/health', (req, res) => {
       cleaners: db.cleaners?.length || 0,
       schedules: db.cleaningSchedules?.length || 0,
       chemicalStock: db.chemicalStock?.length || 0,
+      equipments: db.equipments?.length || 0,
+      equipmentMovements: db.equipmentMovements?.length || 0,
+      toolAllocations: db.toolAllocations?.length || 0,
+      storeExpenses: db.storeExpenses?.length || 0,
+      teamDispatches: db.teamDispatches?.length || 0,
       loginLogs: db.loginLogs?.length || 0
     }
   });

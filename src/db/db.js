@@ -49,6 +49,24 @@ db.version(4).stores({
   loginLogs: '++id, role, userName, loginId, timestamp, status, device'
 });
 
+db.version(5).stores({
+  stores: '++id, storeCode, storeName, city, managerName, managerPhone, createdAt',
+  cleanings: '++id, storeId, storeCode, storeName, cleaningDate, paymentStatus, status, teamVendor, supervisorId, createdAt',
+  supervisors: '++id, name, phone, pin, active, createdAt',
+  cleaners: '++id, name, phone, dailyWage, active, createdAt',
+  storeIssues: '++id, storeCode, cleaningId, issueType, status, reportedAt',
+  chemicalStock: '++id, itemName, unit, totalStock, alertThreshold, updatedAt',
+  chemicalLogs: '++id, chemicalId, itemName, type, quantity, storeCode, supervisorId, date, notes',
+  cleanerAdvances: '++id, cleanerId, cleanerName, amount, date, paymentMode, remarks, createdAt',
+  cleaningSchedules: '++id, storeCode, storeName, scheduledDate, shift, supervisorId, status, createdAt',
+  loginLogs: '++id, role, userName, loginId, timestamp, status, device',
+  equipments: '++id, name, assetTag, category, currentLocationName, status, condition, lastServiceDate',
+  equipmentMovements: '++id, equipmentId, fromLocation, toLocation, movedBy, date',
+  toolAllocations: '++id, teamLeader, supervisorName, shiftDate, storeCode, status, issuedAt',
+  storeExpenses: '++id, storeCode, city, category, amount, date, paidTo, paymentMode',
+  teamDispatches: '++id, date, teamName, supervisorName, storeCode, status'
+});
+
 // No automatic demo seeding - database remains 100% clean for real vendor entries
 export async function seedInitialData() {
   // Kept empty so real vendor operations start with a clean slate
@@ -68,8 +86,13 @@ export async function clearAllData() {
   await db.cleaningSchedules.clear();
   try {
     if (db.loginLogs) await db.loginLogs.clear();
+    if (db.equipments) await db.equipments.clear();
+    if (db.equipmentMovements) await db.equipmentMovements.clear();
+    if (db.toolAllocations) await db.toolAllocations.clear();
+    if (db.storeExpenses) await db.storeExpenses.clear();
+    if (db.teamDispatches) await db.teamDispatches.clear();
   } catch (e) {
-    console.warn('Could not clear login logs:', e);
+    console.warn('Could not clear some tables:', e);
   }
 }
 

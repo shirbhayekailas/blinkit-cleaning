@@ -31,6 +31,7 @@ import ChangePasswordModal from './components/ChangePasswordModal';
 import UserAccessModal from './components/UserAccessModal';
 import LoginLogsModal from './components/LoginLogsModal';
 import ReportsCenterModal from './components/ReportsCenterModal';
+import EquipmentExpenseHubModal from './components/EquipmentExpenseHubModal';
 import { exportCleaningsToExcel } from './utils/excelExport';
 import { generateCleaningPDF } from './utils/pdfGenerator';
 import { naturalSortByStoreCode } from './utils/reportExcelGenerator';
@@ -153,6 +154,7 @@ export default function App() {
   const [isChemicalModalOpen, setIsChemicalModalOpen] = useState(false);
   const [isCleanerKhataOpen, setIsCleanerKhataOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isEquipmentExpenseModalOpen, setIsEquipmentExpenseModalOpen] = useState(false);
   const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
   const [isMorningSummaryOpen, setIsMorningSummaryOpen] = useState(false);
   const [isNightRouteOpen, setIsNightRouteOpen] = useState(false);
@@ -239,6 +241,11 @@ export default function App() {
             cleanerAdvances: Array.isArray(parsed.cleanerAdvances) ? parsed.cleanerAdvances : [],
             storeIssues: Array.isArray(parsed.storeIssues) ? parsed.storeIssues : [],
             loginLogs: Array.isArray(parsed.loginLogs) ? parsed.loginLogs : [],
+            equipments: Array.isArray(parsed.equipments) ? parsed.equipments : [],
+            equipmentMovements: Array.isArray(parsed.equipmentMovements) ? parsed.equipmentMovements : [],
+            toolAllocations: Array.isArray(parsed.toolAllocations) ? parsed.toolAllocations : [],
+            storeExpenses: Array.isArray(parsed.storeExpenses) ? parsed.storeExpenses : [],
+            teamDispatches: Array.isArray(parsed.teamDispatches) ? parsed.teamDispatches : [],
             appSettings: parsed.appSettings || null,
             lastUpdated: parsed.lastUpdated || null
           };
@@ -258,6 +265,11 @@ export default function App() {
       cleanerAdvances: [],
       storeIssues: [],
       loginLogs: [],
+      equipments: [],
+      equipmentMovements: [],
+      toolAllocations: [],
+      storeExpenses: [],
+      teamDispatches: [],
       appSettings: null,
       lastUpdated: null
     };
@@ -440,6 +452,11 @@ export default function App() {
   const chemicalLogs = serverData.chemicalLogs || [];
   const cleanerAdvances = serverData.cleanerAdvances || [];
   const loginLogs = serverData.loginLogs || [];
+  const equipments = serverData.equipments || [];
+  const equipmentMovements = serverData.equipmentMovements || [];
+  const toolAllocations = serverData.toolAllocations || [];
+  const storeExpenses = serverData.storeExpenses || [];
+  const teamDispatches = serverData.teamDispatches || [];
 
   // Unique registered store codes for quick dropdown filter
   const uniqueStoreCodes = useMemo(() => {
@@ -1043,6 +1060,7 @@ export default function App() {
         onOpenChemicals={() => setIsChemicalModalOpen(true)}
         onOpenKhata={() => setIsCleanerKhataOpen(true)}
         onOpenSchedule={() => setIsScheduleModalOpen(true)}
+        onOpenEquipmentHub={() => setIsEquipmentExpenseModalOpen(true)}
         onOpenCloudSync={() => setIsCloudSyncOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
@@ -1528,6 +1546,21 @@ export default function App() {
         onScheduleUpdated={loadServerData}
       />
 
+      <EquipmentExpenseHubModal
+        isOpen={isEquipmentExpenseModalOpen}
+        onClose={() => setIsEquipmentExpenseModalOpen(false)}
+        stores={stores}
+        supervisors={supervisors}
+        cleaners={cleaners}
+        cleanings={cleanings}
+        equipments={equipments}
+        equipmentMovements={equipmentMovements}
+        toolAllocations={toolAllocations}
+        storeExpenses={storeExpenses}
+        teamDispatches={teamDispatches}
+        onDataUpdated={loadServerData}
+      />
+
       <CloudSyncModal
         isOpen={isCloudSyncOpen}
         onClose={() => setIsCloudSyncOpen(false)}
@@ -1619,6 +1652,7 @@ export default function App() {
         onOpenSchedule={() => setIsScheduleModalOpen(true)}
         onOpenChemicals={() => setIsChemicalModalOpen(true)}
         onOpenKhata={() => setIsCleanerKhataOpen(true)}
+        onOpenEquipmentHub={() => setIsEquipmentExpenseModalOpen(true)}
         onOpenIssues={() => setIsIssueModalOpen(true)}
         onOpenConsolidatedInvoice={() => setIsConsolidatedInvoiceOpen(true)}
         onOpenBillSettings={() => setIsBillSettingsOpen(true)}

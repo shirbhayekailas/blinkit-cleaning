@@ -17,9 +17,9 @@ import {
   Moon, 
   ArrowRight, 
   CornerDownLeft, 
-  X,
   FileText,
-  Sliders
+  Sliders,
+  Truck
 } from 'lucide-react';
 
 export default function CommandPalette({
@@ -34,6 +34,7 @@ export default function CommandPalette({
   onOpenSchedule,
   onOpenChemicals,
   onOpenKhata,
+  onOpenEquipmentHub,
   onOpenIssues,
   onOpenConsolidatedInvoice,
   onOpenBillSettings,
@@ -110,6 +111,15 @@ export default function CommandPalette({
       subtitle: 'Daily shifts, cash advances, and monthly payout balance',
       shortcut: 'H',
       run: onOpenKhata
+    },
+    {
+      id: 'action-equipment',
+      category: 'Fleet & Assets',
+      icon: <Truck className="w-4 h-4 text-amber-500" />,
+      title: 'Scrubber Machine Location & Store Expenses Hub',
+      subtitle: 'Single disc scrubbers, vacuums location, tool kits loss & store P&L',
+      shortcut: 'E',
+      run: onOpenEquipmentHub
     },
     {
       id: 'action-issues',

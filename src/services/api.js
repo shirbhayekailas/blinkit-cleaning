@@ -498,4 +498,161 @@ export async function autoHealMissingRecords({ cleanings = [], stores = [], sche
   }
 }
 
+// -------------------------------------------------------------
+// HEAVY EQUIPMENT & MACHINERY FLEET TRACKING
+// -------------------------------------------------------------
+
+export async function saveEquipment(equipmentData) {
+  try {
+    const res = await fetch(getApiUrl('/api/equipments'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(equipmentData)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('saveEquipment error:', err);
+    throw err;
+  }
+}
+
+export async function recordEquipmentMovement(movementData) {
+  try {
+    const res = await fetch(getApiUrl('/api/equipments/movement'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(movementData)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('recordEquipmentMovement error:', err);
+    throw err;
+  }
+}
+
+export async function deleteEquipment(id) {
+  try {
+    const res = await fetch(getApiUrl('/api/equipments/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteEquipment error:', err);
+    throw err;
+  }
+}
+
+// -------------------------------------------------------------
+// TEAM TOOLS & CONSUMABLES ALLOCATION
+// -------------------------------------------------------------
+
+export async function saveToolAllocation(allocationData) {
+  try {
+    const res = await fetch(getApiUrl('/api/tools/allocate'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(allocationData)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('saveToolAllocation error:', err);
+    throw err;
+  }
+}
+
+export async function recordToolReturn(returnData) {
+  try {
+    const res = await fetch(getApiUrl('/api/tools/return'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(returnData)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('recordToolReturn error:', err);
+    throw err;
+  }
+}
+
+export async function deleteToolAllocation(id) {
+  try {
+    const res = await fetch(getApiUrl('/api/tools/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteToolAllocation error:', err);
+    throw err;
+  }
+}
+
+// -------------------------------------------------------------
+// STORE-WISE EXPENSES & REAL OPERATIONAL P&L
+// -------------------------------------------------------------
+
+export async function saveStoreExpense(expenseData) {
+  try {
+    const res = await fetch(getApiUrl('/api/expenses'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expenseData)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('saveStoreExpense error:', err);
+    throw err;
+  }
+}
+
+export async function deleteStoreExpense(id) {
+  try {
+    const res = await fetch(getApiUrl('/api/expenses/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteStoreExpense error:', err);
+    throw err;
+  }
+}
+
+// -------------------------------------------------------------
+// TEAM DAILY STORE MOVEMENT & GEAR CUSTODY DISPATCHES
+// -------------------------------------------------------------
+
+export async function saveTeamDispatch(dispatchData) {
+  try {
+    const res = await fetch(getApiUrl('/api/dispatches'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dispatchData)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('saveTeamDispatch error:', err);
+    throw err;
+  }
+}
+
+export async function deleteTeamDispatch(id) {
+  try {
+    const res = await fetch(getApiUrl('/api/dispatches/delete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteTeamDispatch error:', err);
+    throw err;
+  }
+}
+
+
 
