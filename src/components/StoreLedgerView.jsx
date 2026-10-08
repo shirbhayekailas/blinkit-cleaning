@@ -27,6 +27,7 @@ import {
 import { shareStoreLocationWhatsApp, shareStoreDirectoryWhatsApp } from '../utils/whatsappFormatter';
 import { naturalSortByStoreCode, exportStoreListExcel } from '../utils/reportExcelGenerator';
 import { generateStoreListPDF } from '../utils/reportPdfGenerator';
+import { doesCleaningMatchStore, getStoreKey } from '../utils/storeUtils';
 
 export default function StoreLedgerView({
   stores = [],
@@ -54,12 +55,12 @@ export default function StoreLedgerView({
   const storeMetricsMap = useMemo(() => {
     const map = new Map();
     stores.forEach(s => {
-      const code = (s.storeCode || s.code || '').trim().toUpperCase();
-      const sCleanings = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === code);
+      const key = s.id ? `id_${s.id}` : getStoreKey(s);
+      const sCleanings = cleanings.filter(c => doesCleaningMatchStore(c, s));
       const totalPending = sCleanings.reduce((sum, c) => sum + (Number(c.amountPending) || 0), 0);
       const dates = sCleanings.map(c => c.cleaningDate).filter(Boolean).sort().reverse();
       const lastDate = dates[0] || '';
-      map.set(code, { visitCount: sCleanings.length, totalPending, lastDate });
+      map.set(key, { visitCount: sCleanings.length, totalPending, lastDate });
     });
     return map;
   }, [stores, cleanings]);
@@ -79,7 +80,8 @@ export default function StoreLedgerView({
       if (statusFilter === 'active') {
         matchesStatus = s.status !== 'Inactive';
       } else if (statusFilter === 'pendingDues') {
-        const metrics = storeMetricsMap.get((s.storeCode || s.code || '').trim().toUpperCase());
+        const key = s.id ? `id_${s.id}` : getStoreKey(s);
+        const metrics = storeMetricsMap.get(key);
         matchesStatus = metrics && metrics.totalPending > 0;
       }
 
@@ -97,14 +99,18 @@ export default function StoreLedgerView({
       return [...list].sort((a, b) => (a.city || '').localeCompare(b.city || ''));
     } else if (storeSortBy === 'recentCleaned') {
       return [...list].sort((a, b) => {
-        const mA = storeMetricsMap.get((a.storeCode || a.code || '').trim().toUpperCase())?.lastDate || '';
-        const mB = storeMetricsMap.get((b.storeCode || b.code || '').trim().toUpperCase())?.lastDate || '';
+        const kA = a.id ? `id_${a.id}` : getStoreKey(a);
+        const kB = b.id ? `id_${b.id}` : getStoreKey(b);
+        const mA = storeMetricsMap.get(kA)?.lastDate || '';
+        const mB = storeMetricsMap.get(kB)?.lastDate || '';
         return mB.localeCompare(mA);
       });
     } else if (storeSortBy === 'pendingDesc') {
       return [...list].sort((a, b) => {
-        const pA = storeMetricsMap.get((a.storeCode || a.code || '').trim().toUpperCase())?.totalPending || 0;
-        const pB = storeMetricsMap.get((b.storeCode || b.code || '').trim().toUpperCase())?.totalPending || 0;
+        const kA = a.id ? `id_${a.id}` : getStoreKey(a);
+        const kB = b.id ? `id_${b.id}` : getStoreKey(b);
+        const pA = storeMetricsMap.get(kA)?.totalPending || 0;
+        const pB = storeMetricsMap.get(kB)?.totalPending || 0;
         return pB - pA;
       });
     }
@@ -248,9 +254,9 @@ export default function StoreLedgerView({
       {filteredStores.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredStores.map((store) => {
-            // Calculate store-wise metrics
+            // Calculate store-wise metrics (strictly isolated per store and city)
             const storeCleanings = cleanings
-              .filter(c => c.storeCode === store.storeCode || c.storeName === store.storeName)
+              .filter(c => doesCleaningMatchStore(c, store))
               .sort((a, b) => new Date(b.cleaningDate) - new Date(a.cleaningDate));
 
             const visitCount = storeCleanings.length;
@@ -261,7 +267,7 @@ export default function StoreLedgerView({
 
             return (
               <div
-                key={store.id || store.storeCode}
+                key={store.id ? `st_${store.id}` : getStoreKey(store)}
                 className="bg-white dark:bg-slate-800/95 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition flex flex-col justify-between overflow-hidden"
               >
                 

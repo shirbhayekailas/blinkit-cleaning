@@ -43,6 +43,7 @@ import {
   generateStoreSummaryPDF,
   generateStoreListPDF
 } from '../utils/reportPdfGenerator';
+import { doesCleaningMatchStore, getStoreKey, getCleaningStoreKey } from '../utils/storeUtils';
 
 export default function ReportsCenterModal({
   isOpen,
@@ -113,28 +114,27 @@ export default function ReportsCenterModal({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [stores, cleanings]);
 
-  // Unique stores for dropdown (context-aware of selected city)
+  // Unique stores for dropdown (context-aware of selected city & disambiguated by city)
   const storeOptions = useMemo(() => {
     const seen = new Set();
     const list = [];
-    stores.forEach(s => {
-      const code = s.storeCode || s.code;
-      if (code && !seen.has(code)) {
-        if (cityFilter === 'all' || (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase()) {
-          seen.add(code);
-          list.push({ code, name: s.storeName || s.name || code, city: s.city || '' });
-        }
+
+    const addOption = (code, name, city) => {
+      if (!code) return;
+      const cCode = String(code).trim().toUpperCase();
+      const cCity = String(city || '').trim();
+      const key = cCity ? `${cCode}__${cCity.toUpperCase()}` : cCode;
+      if (seen.has(key)) return;
+
+      if (cityFilter === 'all' || !cCity || cCity.toLowerCase() === cityFilter.trim().toLowerCase()) {
+        seen.add(key);
+        list.push({ key, code: cCode, name: name || cCode, city: cCity });
       }
-    });
-    cleanings.forEach(c => {
-      const code = c.storeCode;
-      if (code && !seen.has(code)) {
-        if (cityFilter === 'all' || (c.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase()) {
-          seen.add(code);
-          list.push({ code, name: c.storeName || code, city: c.city || '' });
-        }
-      }
-    });
+    };
+
+    stores.forEach(s => addOption(s.storeCode || s.code, s.storeName || s.name, s.city));
+    cleanings.forEach(c => addOption(c.storeCode, c.storeName, c.city));
+
     return naturalSortByStoreCode(list, item => item.code);
   }, [stores, cleanings, cityFilter]);
 
@@ -219,10 +219,22 @@ export default function ReportsCenterModal({
         }
       }
 
-      // 3. Store filter
+      // 3. Store filter (supports code__city disambiguation)
       if (selectedStore !== 'all') {
-        if ((c.storeCode || '') !== selectedStore && (c.storeName || '') !== selectedStore) {
-          return false;
+        const isKeyMatch = selectedStore.includes('__');
+        if (isKeyMatch) {
+          const [matchCode, matchCity] = selectedStore.split('__');
+          const cCode = (c.storeCode || '').trim().toUpperCase();
+          const cCity = (c.city || '').trim().toUpperCase();
+          if (cCode !== matchCode) return false;
+          if (matchCity && cCity && cCity !== matchCity) return false;
+        } else {
+          const selUp = selectedStore.trim().toUpperCase();
+          const cCode = (c.storeCode || '').trim().toUpperCase();
+          const cName = (c.storeName || '').trim().toUpperCase();
+          if (cCode !== selUp && cName !== selUp) {
+            return false;
+          }
         }
       }
 
@@ -282,25 +294,17 @@ export default function ReportsCenterModal({
     return sortCleaningsList(list, sortBy);
   }, [filteredCleanings, sortBy]);
 
-  // Store performance summary (strictly obeys active filters)
+  // Store performance summary (strictly obeys active filters and keeps stores separated by city)
   const storeSummaryList = useMemo(() => {
-    const metaByCode = new Map();
-    const metaByName = new Map();
-    stores.forEach(s => {
-      const code = (s.storeCode || s.code || '').trim().toUpperCase();
-      const name = (s.storeName || s.name || '').trim().toLowerCase();
-      if (code) metaByCode.set(code, s);
-      if (name) metaByName.set(name, s);
-    });
-
     const map = new Map();
 
     filteredCleanings.forEach(c => {
       const cCode = (c.storeCode || '').trim().toUpperCase();
+      const cCity = (c.city || '').trim().toUpperCase();
       const cName = (c.storeName || '').trim().toLowerCase();
-      const meta = (cCode ? metaByCode.get(cCode) : null) || metaByName.get(cName);
+      const meta = stores.find(s => doesCleaningMatchStore(c, s));
 
-      const storeKey = cCode || (meta?.storeCode || meta?.code || '').trim().toUpperCase() || cName;
+      const storeKey = cCity ? `${cCode}__${cCity}` : (cCode || cName);
       if (!storeKey) return;
 
       let item = map.get(storeKey);
@@ -339,8 +343,8 @@ export default function ReportsCenterModal({
     if (!hasActiveFilters) {
       stores.forEach(s => {
         const code = (s.storeCode || s.code || '').trim().toUpperCase();
-        const name = (s.storeName || s.name || '').trim().toLowerCase();
-        const storeKey = code || name;
+        const city = (s.city || '').trim().toUpperCase();
+        const storeKey = city ? `${code}__${city}` : (code || (s.storeName || s.name || '').trim().toLowerCase());
         if (storeKey && !map.has(storeKey)) {
           map.set(storeKey, {
             code: s.storeCode || s.code || '',
@@ -360,13 +364,21 @@ export default function ReportsCenterModal({
     } else if (selectedStore !== 'all' && map.size === 0) {
       // If user selected a specific store but it has 0 cleanings in the current filter,
       // show that single selected store with 0 count so user gets clear feedback
-      const selStore = stores.find(s => 
-        (s.storeCode || s.code || '').trim().toUpperCase() === selectedStore.trim().toUpperCase() ||
-        (s.storeName || s.name || '').trim().toLowerCase() === selectedStore.trim().toLowerCase()
-      );
+      const isKeyMatch = selectedStore.includes('__');
+      const selStore = stores.find(s => {
+        if (isKeyMatch) {
+          const [matchCode, matchCity] = selectedStore.split('__');
+          return (s.storeCode || s.code || '').trim().toUpperCase() === matchCode &&
+            (!matchCity || (s.city || '').trim().toUpperCase() === matchCity);
+        }
+        return (s.storeCode || s.code || '').trim().toUpperCase() === selectedStore.trim().toUpperCase() ||
+          (s.storeName || s.name || '').trim().toLowerCase() === selectedStore.trim().toLowerCase();
+      });
       if (selStore) {
         const code = (selStore.storeCode || selStore.code || '').trim().toUpperCase();
-        map.set(code || selStore.storeName, {
+        const city = (selStore.city || '').trim().toUpperCase();
+        const storeKey = city ? `${code}__${city}` : (code || selStore.storeName);
+        map.set(storeKey, {
           code: selStore.storeCode || selStore.code || '',
           name: selStore.storeName || selStore.name || '',
           city: selStore.city || '',
@@ -388,6 +400,16 @@ export default function ReportsCenterModal({
   // Dynamically filtered stores for export packages (Master Excel, PDFs, Store Performance)
   const filteredStores = useMemo(() => {
     if (selectedStore !== 'all') {
+      const isKeyMatch = selectedStore.includes('__');
+      if (isKeyMatch) {
+        const [matchCode, matchCity] = selectedStore.split('__');
+        const matched = stores.filter(s => {
+          const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+          const sCity = (s.city || '').trim().toUpperCase();
+          return sCode === matchCode && (!matchCity || !sCity || sCity === matchCity);
+        });
+        return matched.length > 0 ? matched : [{ storeCode: matchCode, storeName: matchCode, city: matchCity }];
+      }
       const matched = stores.filter(s => 
         (s.storeCode || s.code || '').trim().toUpperCase() === selectedStore.trim().toUpperCase() ||
         (s.storeName || s.name || '').trim().toLowerCase() === selectedStore.trim().toLowerCase()
@@ -410,13 +432,7 @@ export default function ReportsCenterModal({
     }
 
     if (hasActiveFilters) {
-      const activeCodes = new Set(filteredCleanings.map(c => (c.storeCode || '').trim().toUpperCase()).filter(Boolean));
-      const activeNames = new Set(filteredCleanings.map(c => (c.storeName || '').trim().toLowerCase()).filter(Boolean));
-      return list.filter(s => {
-        const code = (s.storeCode || s.code || '').trim().toUpperCase();
-        const name = (s.storeName || s.name || '').trim().toLowerCase();
-        return (code && activeCodes.has(code)) || (name && activeNames.has(name));
-      });
+      return list.filter(s => filteredCleanings.some(c => doesCleaningMatchStore(c, s)));
     }
 
     return list;
@@ -429,7 +445,21 @@ export default function ReportsCenterModal({
       list = list.filter(s => (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase());
     }
     if (selectedStore !== 'all') {
-      list = list.filter(s => (s.storeCode || s.code) === selectedStore || (s.storeName || s.name) === selectedStore);
+      const isKeyMatch = selectedStore.includes('__');
+      if (isKeyMatch) {
+        const [matchCode, matchCity] = selectedStore.split('__');
+        list = list.filter(s => {
+          const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+          const sCity = (s.city || '').trim().toUpperCase();
+          return sCode === matchCode && (!matchCity || !sCity || sCity === matchCity);
+        });
+      } else {
+        const selUp = selectedStore.trim().toUpperCase();
+        list = list.filter(s => 
+          (s.storeCode || s.code || '').trim().toUpperCase() === selUp || 
+          (s.storeName || s.name || '').trim().toUpperCase() === selUp
+        );
+      }
     }
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -593,8 +623,8 @@ export default function ReportsCenterModal({
                   >
                     <option value="all">All Dark Stores ({storeOptions.length})</option>
                     {storeOptions.map(s => (
-                      <option key={s.code} value={s.code}>
-                        {s.code} - {s.name}
+                      <option key={s.key || s.code} value={s.key || s.code}>
+                        {s.code} - {s.name}{s.city ? ` (${s.city})` : ''}
                       </option>
                     ))}
                   </select>

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { generateCleaningPDF } from '../utils/pdfGenerator';
 import { formatPaymentReminderWhatsApp, shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
+import { doesCleaningMatchStore } from '../utils/storeUtils';
 
 export default function StoreHistoryModal({
   isOpen,
@@ -40,9 +41,9 @@ export default function StoreHistoryModal({
   if (!isOpen || !store) return null;
 
 
-  // Filter cleanings specifically for this store
+  // Filter cleanings specifically for this store (isolated by storeCode and city)
   const storeCleanings = cleanings
-    .filter(c => c.storeCode === store.storeCode || c.storeName === store.storeName)
+    .filter(c => doesCleaningMatchStore(c, store))
     .sort((a, b) => new Date(b.cleaningDate) - new Date(a.cleaningDate));
 
   const totalVisits = storeCleanings.length;

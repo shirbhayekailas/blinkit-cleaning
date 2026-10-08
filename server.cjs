@@ -74,6 +74,34 @@ const STANDARD_TOOL_ITEMS = [
 const STANDARD_STORE_EXPENSES = [];
 const STANDARD_TEAM_DISPATCHES = [];
 
+function doesCleaningMatchStoreServer(cleaning, store) {
+  if (!cleaning || !store) return false;
+  if (cleaning.storeId && store.id && String(cleaning.storeId) === String(store.id)) return true;
+
+  const cCode = (cleaning.storeCode || '').trim().toUpperCase();
+  const sCode = (store.storeCode || store.code || '').trim().toUpperCase();
+  if (!cCode || !sCode || cCode !== sCode) return false;
+
+  const cCity = (cleaning.city || '').trim().toLowerCase();
+  const sCity = (store.city || '').trim().toLowerCase();
+  if (cCity && sCity && cCity !== sCity) {
+    return false;
+  }
+
+  const cName = (cleaning.storeName || '').trim().toLowerCase();
+  const sName = (store.storeName || store.name || '').trim().toLowerCase();
+  if (cName && sName) {
+    if ((cName.includes('pune') && sName.includes('mumbai')) || (cName.includes('mumbai') && sName.includes('pune'))) {
+      return false;
+    }
+    if ((cName.includes('pune') && sName.includes('kurla')) || (cName.includes('kurla') && sName.includes('pune'))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 const DEFAULT_DB = {
   cleanings: [],
   stores: [],
@@ -174,6 +202,28 @@ function readDB() {
         const prevCount = merged.teamDispatches.length;
         merged.teamDispatches = merged.teamDispatches.filter(d => d && !DEMO_DISPATCH_IDS.includes(String(d.id)));
         if (merged.teamDispatches.length !== prevCount) dbNeedsCleanWrite = true;
+      }
+
+      // Self-healing: Ensure any store present in cleanings is registered in merged.stores (disambiguated by city)
+      if (Array.isArray(merged.cleanings) && Array.isArray(merged.stores)) {
+        for (const c of merged.cleanings) {
+          if (!c || (!c.storeCode && !c.storeName)) continue;
+          const storeExists = merged.stores.some(s => doesCleaningMatchStoreServer(c, s));
+          if (!storeExists) {
+            merged.stores.push({
+              id: Date.now() + Math.floor(Math.random() * 10000),
+              storeCode: c.storeCode || '',
+              storeName: c.storeName || c.storeCode,
+              address: c.address || '',
+              city: c.city || '',
+              googleMapsUrl: c.googleMapsUrl || '',
+              managerName: c.managerName || '',
+              managerPhone: c.managerPhone || '',
+              createdAt: c.createdAt || new Date().toISOString()
+            });
+            dbNeedsCleanWrite = true;
+          }
+        }
       }
 
       // If demo data was purged from disk, persist cleaned database immediately so it never resurfaces
@@ -288,11 +338,23 @@ function isCleaningDeleted(c, deletedCleanings = []) {
 function isStoreDeleted(s, deletedStores = []) {
   if (!s || !deletedStores || deletedStores.length === 0) return false;
   const code = (s.storeCode || '').trim().toUpperCase();
-  if (!code) return false;
+  const city = (s.city || '').trim().toLowerCase();
+  const id = s.id ? String(s.id) : null;
+  if (!code && !id) return false;
   return deletedStores.some(d => {
     if (!d) return false;
-    const delCode = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
-    return delCode === code;
+    if (typeof d === 'string') {
+      const dCode = d.trim().toUpperCase();
+      return dCode === code || (id && d === id);
+    }
+    if (id && d.id && String(d.id) === id) return true;
+    const delCode = (d.storeCode || '').trim().toUpperCase();
+    const delCity = (d.city || '').trim().toLowerCase();
+    if (delCode && delCode === code) {
+      if (delCity && city) return delCity === city;
+      return true;
+    }
+    return false;
   });
 }
 
@@ -301,7 +363,10 @@ function mergeCleanings(existing = [], incoming = [], deletedCleanings = []) {
   const getKey = (c) => {
     if (!c) return null;
     if (c.syncId) return String(c.syncId);
-    if (c.storeCode && c.cleaningDate) return `${String(c.storeCode).trim().toUpperCase()}_${String(c.cleaningDate).trim()}`;
+    if (c.storeCode && c.cleaningDate) {
+      const city = (c.city || '').trim().toUpperCase();
+      return `${String(c.storeCode).trim().toUpperCase()}_${city}_${String(c.cleaningDate).trim()}`;
+    }
     return c.id ? `id_${c.id}` : null;
   };
 
@@ -330,19 +395,28 @@ function mergeCleanings(existing = [], incoming = [], deletedCleanings = []) {
 
 function mergeStores(existing = [], incoming = [], deletedStores = []) {
   const map = new Map();
+  const getStoreMapKey = (s) => {
+    if (!s) return null;
+    const code = (s.storeCode || '').trim().toUpperCase();
+    const city = (s.city || '').trim().toUpperCase();
+    if (!code) return s.id ? `id_${s.id}` : null;
+    return city ? `${code}__${city}` : code;
+  };
+
   for (const s of existing) {
     if (isStoreDeleted(s, deletedStores)) continue;
-    if (s && s.storeCode) map.set(s.storeCode.trim().toUpperCase(), s);
+    const key = getStoreMapKey(s);
+    if (key) map.set(key, s);
   }
   for (const s of incoming) {
     if (isStoreDeleted(s, deletedStores)) continue;
-    if (!s || !s.storeCode) continue;
-    const code = s.storeCode.trim().toUpperCase();
-    const old = map.get(code);
+    const key = getStoreMapKey(s);
+    if (!key) continue;
+    const old = map.get(key);
     if (!old) {
-      map.set(code, s);
+      map.set(key, s);
     } else {
-      map.set(code, { ...old, ...s });
+      map.set(key, { ...old, ...s });
     }
   }
   return Array.from(map.values());
@@ -759,6 +833,7 @@ app.post('/api/sync/auto-heal', (req, res) => {
 
         const targetId = c.id ? String(c.id) : null;
         const targetCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
+        const targetCity = c.city ? String(c.city).trim().toLowerCase() : null;
         const targetDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
 
         const targetSyncId = c.syncId ? String(c.syncId) : null;
@@ -768,7 +843,13 @@ app.post('/api/sync/auto-heal', (req, res) => {
           if (targetId && String(item.id) === targetId) return true;
           if (targetSyncId && item.syncId && String(item.syncId) === targetSyncId) return true;
           if (targetCode && targetDate && item.storeCode && item.cleaningDate) {
-            return String(item.storeCode).trim().toUpperCase() === targetCode && String(item.cleaningDate).trim() === targetDate;
+            if (String(item.storeCode).trim().toUpperCase() !== targetCode) return false;
+            if (String(item.cleaningDate).trim() !== targetDate) return false;
+            if (targetCity) {
+              const itemCity = (item.city || '').trim().toLowerCase();
+              if (itemCity && itemCity !== targetCity) return false;
+            }
+            return true;
           }
           return false;
         });
@@ -805,20 +886,24 @@ app.post('/api/sync/auto-heal', (req, res) => {
       });
     }
 
-    // 2. Reconcile stores
+    // 2. Reconcile stores (isolated per city)
     if (Array.isArray(stores)) {
       stores.forEach(s => {
         if (!s || (!s.storeCode && !s.code)) return;
         const code = (s.storeCode || s.code || '').trim().toUpperCase();
-        const isDel = deletedStores.some(d => {
-          const dCode = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
-          return dCode === code;
-        });
-        if (isDel) return;
+        const city = (s.city || '').trim().toLowerCase();
+        if (isStoreDeleted(s, deletedStores)) return;
 
         const exists = currentDB.stores.some(item => {
+          if (!item) return false;
+          if (s.id && item.id && String(s.id) === String(item.id)) return true;
           const itemCode = (item.storeCode || item.code || '').trim().toUpperCase();
-          return itemCode === code;
+          if (itemCode !== code) return false;
+          if (city) {
+            const itemCity = (item.city || '').trim().toLowerCase();
+            if (itemCity && itemCity !== city) return false;
+          }
+          return true;
         });
 
         if (!exists) {
@@ -1044,6 +1129,7 @@ app.post('/api/cleanings', (req, res) => {
     const targetId = cleaningData.id ? String(cleaningData.id) : null;
     const targetSyncId = cleaningData.syncId ? String(cleaningData.syncId) : null;
     const targetCode = cleaningData.storeCode ? String(cleaningData.storeCode).trim().toUpperCase() : null;
+    const targetCity = cleaningData.city ? String(cleaningData.city).trim().toLowerCase() : null;
     const targetDate = cleaningData.cleaningDate ? String(cleaningData.cleaningDate).trim() : null;
 
     let index = -1;
@@ -1054,11 +1140,16 @@ app.post('/api/cleanings', (req, res) => {
       index = currentDB.cleanings.findIndex(c => c && c.syncId && String(c.syncId) === targetSyncId);
     }
     if (index === -1 && targetCode && targetDate) {
-      index = currentDB.cleanings.findIndex(c => 
-        c && c.storeCode && c.cleaningDate &&
-        String(c.storeCode).trim().toUpperCase() === targetCode &&
-        String(c.cleaningDate).trim() === targetDate
-      );
+      index = currentDB.cleanings.findIndex(c => {
+        if (!c || !c.storeCode || !c.cleaningDate) return false;
+        if (String(c.storeCode).trim().toUpperCase() !== targetCode) return false;
+        if (String(c.cleaningDate).trim() !== targetDate) return false;
+        if (targetCity) {
+          const cCity = (c.city || '').trim().toLowerCase();
+          if (cCity && cCity !== targetCity) return false;
+        }
+        return true;
+      });
     }
 
     if (index !== -1) {
@@ -1080,9 +1171,9 @@ app.post('/api/cleanings', (req, res) => {
       currentDB.cleanings.unshift(updatedRecord);
     }
 
-    // Auto-register store in stores ledger if not exists
+    // Auto-register store in stores ledger if not exists (using city & store matching)
     if (targetCode && cleaningData.storeName) {
-      const storeExists = currentDB.stores.some(s => s && String(s.storeCode).trim().toUpperCase() === targetCode);
+      const storeExists = currentDB.stores.some(s => doesCleaningMatchStoreServer(cleaningData, s));
       if (!storeExists) {
         currentDB.stores.push({
           id: Date.now() + 1,
@@ -1177,6 +1268,7 @@ app.post('/api/cleanings/payment', (req, res) => {
     const targetId = id ? String(id) : null;
     const targetSyncId = syncId ? String(syncId) : null;
     const targetCode = storeCode ? String(storeCode).trim().toUpperCase() : null;
+    const targetCity = paymentData.city ? String(paymentData.city).trim().toLowerCase() : null;
     const targetDate = cleaningDate ? String(cleaningDate).trim() : null;
 
     let index = -1;
@@ -1187,15 +1279,27 @@ app.post('/api/cleanings/payment', (req, res) => {
       index = currentDB.cleanings.findIndex(c => c && c.syncId && String(c.syncId) === targetSyncId);
     }
     if (index === -1 && targetCode && targetDate) {
-      index = currentDB.cleanings.findIndex(c => 
-        c && c.storeCode && c.cleaningDate &&
-        String(c.storeCode).trim().toUpperCase() === targetCode &&
-        String(c.cleaningDate).trim() === targetDate
-      );
+      index = currentDB.cleanings.findIndex(c => {
+        if (!c || !c.storeCode || !c.cleaningDate) return false;
+        if (String(c.storeCode).trim().toUpperCase() !== targetCode) return false;
+        if (String(c.cleaningDate).trim() !== targetDate) return false;
+        if (targetCity) {
+          const cCity = (c.city || '').trim().toLowerCase();
+          if (cCity && cCity !== targetCity) return false;
+        }
+        return true;
+      });
     }
-    // Fallback: If still not matched, find by storeCode with matching or most recent cleaning
+    // Fallback: If still not matched, find by storeCode with matching city
     if (index === -1 && targetCode) {
-      index = currentDB.cleanings.findIndex(c => c && c.storeCode && String(c.storeCode).trim().toUpperCase() === targetCode);
+      index = currentDB.cleanings.findIndex(c => {
+        if (!c || !c.storeCode || String(c.storeCode).trim().toUpperCase() !== targetCode) return false;
+        if (targetCity) {
+          const cCity = (c.city || '').trim().toLowerCase();
+          if (cCity && cCity !== targetCity) return false;
+        }
+        return true;
+      });
     }
 
     if (index === -1) {
@@ -1334,11 +1438,23 @@ app.post('/api/stores', (req, res) => {
 
     const nowIso = new Date().toISOString();
     const cleanCode = String(storeData.storeCode).trim().toUpperCase();
+    const cleanCity = (storeData.city || '').trim().toLowerCase();
     const targetId = storeData.id ? String(storeData.id) : null;
 
-    let index = currentDB.stores.findIndex(s => s && String(s.storeCode).trim().toUpperCase() === cleanCode);
-    if (index === -1 && targetId) {
+    let index = -1;
+    if (targetId) {
       index = currentDB.stores.findIndex(s => s && String(s.id) === targetId);
+    }
+    if (index === -1 && cleanCode) {
+      index = currentDB.stores.findIndex(s => {
+        if (!s) return false;
+        if (String(s.storeCode).trim().toUpperCase() !== cleanCode) return false;
+        if (cleanCity) {
+          const sCity = (s.city || '').trim().toLowerCase();
+          if (sCity && sCity !== cleanCity) return false;
+        }
+        return true;
+      });
     }
 
     let savedStore = null;
@@ -1377,21 +1493,45 @@ app.post('/api/stores', (req, res) => {
 
 app.post('/api/stores/delete', (req, res) => {
   try {
-    const { storeCode, deleteCleanings, force } = req.body || {};
-    if (!storeCode) {
-      return res.status(400).json({ success: false, message: 'Store code zaroori hai.' });
+    const { storeCode, id, city, deleteCleanings, force } = req.body || {};
+    if (!storeCode && !id) {
+      return res.status(400).json({ success: false, message: 'Store code ya ID zaroori hai.' });
     }
 
     const currentDB = readDB();
     if (!currentDB.stores) currentDB.stores = [];
     if (!currentDB.cleanings) currentDB.cleanings = [];
 
-    const cleanCode = String(storeCode).trim().toUpperCase();
+    const cleanCode = storeCode ? String(storeCode).trim().toUpperCase() : null;
+    const cleanCity = city ? String(city).trim().toLowerCase() : null;
+    const targetId = id ? String(id) : null;
 
-    // Check if store has any cleaning records
-    const relatedCleanings = currentDB.cleanings.filter(
-      c => c && String(c.storeCode).trim().toUpperCase() === cleanCode
-    );
+    const targetStore = currentDB.stores.find(s => {
+      if (!s) return false;
+      if (targetId && String(s.id) === targetId) return true;
+      if (cleanCode && String(s.storeCode).trim().toUpperCase() === cleanCode) {
+        if (cleanCity) {
+          const sCity = (s.city || '').trim().toLowerCase();
+          if (sCity && sCity !== cleanCity) return false;
+        }
+        return true;
+      }
+      return false;
+    });
+
+    // Check if store has any cleaning records (using doesCleaningMatchStoreServer if store found)
+    const relatedCleanings = currentDB.cleanings.filter(c => {
+      if (!c) return false;
+      if (targetStore) return doesCleaningMatchStoreServer(c, targetStore);
+      if (cleanCode && String(c.storeCode).trim().toUpperCase() === cleanCode) {
+        if (cleanCity) {
+          const cCity = (c.city || '').trim().toLowerCase();
+          if (cCity && cCity !== cleanCity) return false;
+        }
+        return true;
+      }
+      return false;
+    });
 
     if (relatedCleanings.length > 0 && !deleteCleanings && !force) {
       return res.status(400).json({
@@ -1431,14 +1571,25 @@ app.post('/api/stores/delete', (req, res) => {
         return true;
       }).slice(-1000);
 
-      currentDB.cleanings = currentDB.cleanings.filter(
-        c => !c || String(c.storeCode).trim().toUpperCase() !== cleanCode
-      );
+      currentDB.cleanings = currentDB.cleanings.filter(c => {
+        if (!c) return true;
+        if (targetStore) return !doesCleaningMatchStoreServer(c, targetStore);
+        if (cleanCode && String(c.storeCode).trim().toUpperCase() === cleanCode) {
+          if (cleanCity) {
+            const cCity = (c.city || '').trim().toLowerCase();
+            return cCity !== cleanCity;
+          }
+          return false;
+        }
+        return true;
+      });
     }
 
     // Record store tombstone
     currentDB.deletedStores.push({
-      storeCode: cleanCode,
+      id: targetId || (targetStore ? targetStore.id : null),
+      storeCode: cleanCode || (targetStore ? targetStore.storeCode : ''),
+      city: cleanCity || (targetStore ? targetStore.city : ''),
       deletedAt: nowIso
     });
 
@@ -1446,29 +1597,45 @@ app.post('/api/stores/delete', (req, res) => {
     const seenStores = new Set();
     currentDB.deletedStores = currentDB.deletedStores.filter(d => {
       if (!d) return false;
-      const code = typeof d === 'string' ? d.trim().toUpperCase() : (d.storeCode || '').trim().toUpperCase();
+      const code = typeof d === 'string' ? d.trim().toUpperCase() : `${(d.storeCode || '').trim().toUpperCase()}_${(d.city || '').trim().toLowerCase()}`;
       if (!code || seenStores.has(code)) return false;
       seenStores.add(code);
       return true;
     }).slice(-1000);
 
     // Delete store
-    currentDB.stores = currentDB.stores.filter(
-      s => !s || String(s.storeCode).trim().toUpperCase() !== cleanCode
-    );
+    currentDB.stores = currentDB.stores.filter(s => {
+      if (!s) return true;
+      if (targetStore && targetStore.id && s.id && String(s.id) === String(targetStore.id)) return false;
+      if (cleanCode && String(s.storeCode).trim().toUpperCase() === cleanCode) {
+        if (cleanCity) {
+          const sCity = (s.city || '').trim().toLowerCase();
+          return sCity !== cleanCity;
+        }
+        return false;
+      }
+      return true;
+    });
 
     // Delete related schedules
     if (currentDB.cleaningSchedules) {
-      currentDB.cleaningSchedules = currentDB.cleaningSchedules.filter(
-        sch => !sch || String(sch.storeCode).trim().toUpperCase() !== cleanCode
-      );
+      currentDB.cleaningSchedules = currentDB.cleaningSchedules.filter(sch => {
+        if (!sch) return true;
+        if (cleanCode && String(sch.storeCode).trim().toUpperCase() === cleanCode) {
+          if (cleanCity && sch.city) {
+            return String(sch.city).trim().toLowerCase() !== cleanCity;
+          }
+          return false;
+        }
+        return true;
+      });
     }
 
     currentDB.lastUpdated = nowIso;
     writeDB(currentDB);
     res.json({
       success: true,
-      message: `Store ${cleanCode} permanently deleted from server database.`,
+      message: `Store ${cleanCode || (targetStore && targetStore.storeName) || ''} permanently deleted from server database.`,
       stores: currentDB.stores,
       cleanings: currentDB.cleanings,
       deletedStores: currentDB.deletedStores,

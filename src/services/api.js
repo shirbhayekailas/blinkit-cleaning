@@ -217,12 +217,15 @@ export async function saveStore(storeData) {
   }
 }
 
-export async function deleteStore(storeCode, deleteCleanings = false, force = true) {
+export async function deleteStore(storeCode, deleteCleanings = false, force = true, id = null, city = null) {
   try {
+    const payload = typeof storeCode === 'object' && storeCode !== null
+      ? storeCode
+      : { storeCode, deleteCleanings, force, id, city };
     const res = await fetch(getApiUrl('/api/stores/delete'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storeCode, deleteCleanings, force })
+      body: JSON.stringify(payload)
     });
     return await res.json();
   } catch (err) {

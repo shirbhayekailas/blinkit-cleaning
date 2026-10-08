@@ -41,6 +41,7 @@ import CommandPalette from './components/CommandPalette';
 import OperationsPulseBar from './components/OperationsPulseBar';
 import { syncSmartCredentials } from './utils/cloudSync';
 import { lockRecordInVault, purgeFromVault, reconcileVaultWithServer } from './utils/vaultManager';
+import { doesCleaningMatchStore } from './utils/storeUtils';
 import * as api from './services/api';
 import { useLanguage } from './context/LanguageContext';
 import { 
@@ -764,11 +765,22 @@ export default function App() {
   const handleSaveStore = async (storeData) => {
     // Instant Optimistic Update
     const code = (storeData.storeCode || '').trim().toUpperCase();
+    const city = (storeData.city || '').trim().toLowerCase();
     lockRecordInVault('store', storeData);
 
     setServerData(prev => {
       const existing = prev.stores || [];
-      const idx = existing.findIndex(s => (s.storeCode || '').trim().toUpperCase() === code);
+      const idx = existing.findIndex(s => {
+        if (!s) return false;
+        if (storeData.id && s.id && String(s.id) === String(storeData.id)) return true;
+        const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+        if (sCode !== code) return false;
+        if (city) {
+          const sCity = (s.city || '').trim().toLowerCase();
+          if (sCity && sCity !== city) return false;
+        }
+        return true;
+      });
       let updated;
       if (idx >= 0) {
         updated = [...existing];
@@ -810,9 +822,7 @@ export default function App() {
       return;
     }
 
-    const relatedCleanings = cleanings.filter(
-      c => c && String(c.storeCode).trim().toUpperCase() === String(store.storeCode).trim().toUpperCase()
-    );
+    const relatedCleanings = cleanings.filter(c => doesCleaningMatchStore(c, store));
 
     const hasCleanings = relatedCleanings.length > 0;
 
@@ -825,7 +835,7 @@ export default function App() {
       isDanger: true,
       onConfirm: async () => {
         // Instant Optimistic Delete
-        purgeFromVault('store', store.storeCode || store.code);
+        purgeFromVault('store', store);
         if (hasCleanings) {
           relatedCleanings.forEach(c => {
             purgeFromVault('cleaning', c.id || c.syncId || `${c.storeCode}_${c.cleaningDate}`);
@@ -833,10 +843,22 @@ export default function App() {
         }
 
         setServerData(prev => {
-          const updatedStores = (prev.stores || []).filter(s => (s.storeCode || '').trim().toUpperCase() !== (store.storeCode || '').trim().toUpperCase());
+          const updatedStores = (prev.stores || []).filter(s => {
+            if (!s) return false;
+            if (store.id && s.id && String(s.id) === String(store.id)) return false;
+            const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+            const targetCode = (store.storeCode || store.code || '').trim().toUpperCase();
+            if (sCode === targetCode) {
+              const sCity = (s.city || '').trim().toLowerCase();
+              const targetCity = (store.city || '').trim().toLowerCase();
+              if (sCity && targetCity && sCity !== targetCity) return true;
+              return false;
+            }
+            return true;
+          });
           let updatedCleanings = prev.cleanings || [];
           if (hasCleanings) {
-            updatedCleanings = updatedCleanings.filter(c => (c.storeCode || '').trim().toUpperCase() !== (store.storeCode || '').trim().toUpperCase());
+            updatedCleanings = updatedCleanings.filter(c => !doesCleaningMatchStore(c, store));
           }
           const next = { ...prev, stores: updatedStores, cleanings: updatedCleanings };
           saveStateToCache(next);
@@ -846,7 +868,7 @@ export default function App() {
         toast.success(`Store "${store.storeName}" Master Ledger se permanently delete ho gaya.`, 'Store Deleted');
 
         try {
-          const result = await api.deleteStore(store.storeCode, hasCleanings, true);
+          const result = await api.deleteStore(store.storeCode, hasCleanings, true, store.id, store.city);
           if (result && result.data) {
             setServerData(prev => {
               const next = { ...prev, ...result.data };

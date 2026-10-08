@@ -64,13 +64,20 @@ export function lockRecordInVault(type, record) {
   if (type === 'cleaning') {
     const targetId = record.id ? String(record.id) : null;
     const targetCode = record.storeCode ? String(record.storeCode).trim().toUpperCase() : null;
+    const targetCity = record.city ? String(record.city).trim().toLowerCase() : null;
     const targetDate = record.cleaningDate ? String(record.cleaningDate).trim() : null;
 
     const idx = vault.cleanings.findIndex(c => {
       if (!c) return false;
       if (targetId && String(c.id) === targetId) return true;
       if (targetCode && targetDate && c.storeCode && c.cleaningDate) {
-        return String(c.storeCode).trim().toUpperCase() === targetCode && String(c.cleaningDate).trim() === targetDate;
+        if (String(c.storeCode).trim().toUpperCase() !== targetCode) return false;
+        if (String(c.cleaningDate).trim() !== targetDate) return false;
+        if (targetCity) {
+          const cCity = (c.city || '').trim().toLowerCase();
+          if (cCity && cCity !== targetCity) return false;
+        }
+        return true;
       }
       return false;
     });
@@ -82,9 +89,18 @@ export function lockRecordInVault(type, record) {
     }
   } else if (type === 'store') {
     const targetCode = (record.storeCode || record.code || '').trim().toUpperCase();
+    const targetCity = (record.city || '').trim().toLowerCase();
+    const targetId = record.id ? String(record.id) : null;
     const idx = vault.stores.findIndex(s => {
+      if (!s) return false;
+      if (targetId && s.id && String(s.id) === targetId) return true;
       const c = (s.storeCode || s.code || '').trim().toUpperCase();
-      return c === targetCode;
+      if (c !== targetCode) return false;
+      if (targetCity) {
+        const sCity = (s.city || '').trim().toLowerCase();
+        if (sCity && sCity !== targetCity) return false;
+      }
+      return true;
     });
 
     if (idx >= 0) {
@@ -261,13 +277,20 @@ export async function reconcileVaultWithServer(serverData = {}) {
 
     const vcId = vc.id ? String(vc.id) : null;
     const vcCode = vc.storeCode ? String(vc.storeCode).trim().toUpperCase() : null;
+    const vcCity = (vc.city || '').trim().toLowerCase();
     const vcDate = vc.cleaningDate ? String(vc.cleaningDate).trim() : null;
 
     const existsOnServer = serverCleanings.some(sc => {
       if (!sc) return false;
       if (vcId && String(sc.id) === vcId) return true;
       if (vcCode && vcDate && sc.storeCode && sc.cleaningDate) {
-        return String(sc.storeCode).trim().toUpperCase() === vcCode && String(sc.cleaningDate).trim() === vcDate;
+        if (String(sc.storeCode).trim().toUpperCase() !== vcCode) return false;
+        if (String(sc.cleaningDate).trim() !== vcDate) return false;
+        if (vcCity) {
+          const scCity = (sc.city || '').trim().toLowerCase();
+          if (scCity && scCity !== vcCity) return false;
+        }
+        return true;
       }
       return false;
     });
@@ -282,6 +305,7 @@ export async function reconcileVaultWithServer(serverData = {}) {
   vault.stores.forEach(vs => {
     if (!vs) return;
     const code = (vs.storeCode || vs.code || '').trim().toUpperCase();
+    const vsCity = (vs.city || '').trim().toLowerCase();
     if (!code) return;
 
     const isStoreDel = deletedStores.some(d => {
@@ -291,8 +315,15 @@ export async function reconcileVaultWithServer(serverData = {}) {
     if (isStoreDel) return;
 
     const existsOnServer = serverStores.some(ss => {
+      if (!ss) return false;
+      if (vs.id && ss.id && String(vs.id) === String(ss.id)) return true;
       const sCode = (ss.storeCode || ss.code || '').trim().toUpperCase();
-      return sCode === code;
+      if (sCode !== code) return false;
+      if (vsCity) {
+        const ssCity = (ss.city || '').trim().toLowerCase();
+        if (ssCity && ssCity !== vsCity) return false;
+      }
+      return true;
     });
 
     if (!existsOnServer) {

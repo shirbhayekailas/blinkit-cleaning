@@ -1116,10 +1116,16 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
   // 2. Aggregate directly from cleanings matching the filter
   cleanings.forEach(c => {
     const cCode = (c.storeCode || '').trim().toUpperCase();
+    const cCity = (c.city || '').trim().toUpperCase();
     const cName = (c.storeName || '').trim().toLowerCase();
-    const meta = (cCode ? storeMetaByCode.get(cCode) : null) || storeMetaByName.get(cName);
+    const meta = (stores || []).find(s => {
+      const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
+      if (sCode !== cCode) return false;
+      if (cCity && s.city && s.city.trim().toUpperCase() !== cCity) return false;
+      return true;
+    });
 
-    const storeKey = cCode || (meta?.storeCode || meta?.code || '').trim().toUpperCase() || cName;
+    const storeKey = cCity ? `${cCode}__${cCity}` : (cCode || cName);
     if (!storeKey) return;
 
     let item = storeMap.get(storeKey);
@@ -1167,8 +1173,8 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
   if (!hasFilter && stores && stores.length > 0) {
     stores.forEach(s => {
       const code = (s.storeCode || s.code || '').trim().toUpperCase();
-      const name = (s.storeName || s.name || '').trim().toLowerCase();
-      const storeKey = code || name;
+      const city = (s.city || '').trim().toUpperCase();
+      const storeKey = city ? `${code}__${city}` : (code || (s.storeName || s.name || '').trim().toLowerCase());
       if (storeKey && !storeMap.has(storeKey)) {
         storeMap.set(storeKey, {
           code: s.storeCode || s.code || '',
@@ -1188,8 +1194,8 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
     // If no cleanings matched the active filter, but specific target stores were provided (e.g. single store selected)
     stores.forEach(s => {
       const code = (s.storeCode || s.code || '').trim().toUpperCase();
-      const name = (s.storeName || s.name || '').trim().toLowerCase();
-      const storeKey = code || name;
+      const city = (s.city || '').trim().toUpperCase();
+      const storeKey = city ? `${code}__${city}` : (code || (s.storeName || s.name || '').trim().toLowerCase());
       if (storeKey && !storeMap.has(storeKey)) {
         storeMap.set(storeKey, {
           code: s.storeCode || s.code || '',
