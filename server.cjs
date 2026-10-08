@@ -761,17 +761,36 @@ app.post('/api/sync/auto-heal', (req, res) => {
         const targetCode = c.storeCode ? String(c.storeCode).trim().toUpperCase() : null;
         const targetDate = c.cleaningDate ? String(c.cleaningDate).trim() : null;
 
-        const exists = currentDB.cleanings.some(item => {
+        const targetSyncId = c.syncId ? String(c.syncId) : null;
+
+        const existingIdx = currentDB.cleanings.findIndex(item => {
           if (!item) return false;
           if (targetId && String(item.id) === targetId) return true;
+          if (targetSyncId && item.syncId && String(item.syncId) === targetSyncId) return true;
           if (targetCode && targetDate && item.storeCode && item.cleaningDate) {
             return String(item.storeCode).trim().toUpperCase() === targetCode && String(item.cleaningDate).trim() === targetDate;
           }
           return false;
         });
 
-        if (!exists) {
-          const nowIso = new Date().toISOString();
+        const nowIso = new Date().toISOString();
+        if (existingIdx !== -1) {
+          const item = currentDB.cleanings[existingIdx];
+          const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
+          const incomingTime = new Date(c.updatedAt || c.createdAt || 0).getTime();
+
+          // Check if payment was updated on client
+          const paymentChanged = c.paymentStatus && c.paymentStatus !== item.paymentStatus;
+
+          if (incomingTime > itemTime || paymentChanged) {
+            currentDB.cleanings[existingIdx] = {
+              ...item,
+              ...c,
+              updatedAt: c.updatedAt || nowIso
+            };
+            healedCleanings++;
+          }
+        } else {
           const restoredItem = {
             ...c,
             id: c.id || (Date.now() + Math.floor(Math.random() * 1000)),
