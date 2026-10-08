@@ -364,8 +364,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Initial sync from server
-    loadServerData();
+    // Initial sync from server (Always force-fresh server truth, no stale client cache)
+    loadServerData(true);
 
     // Adaptive background polling:
     // Only poll when the user is actively viewing the tab (15s interval)
@@ -375,7 +375,7 @@ export default function App() {
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(() => {
         if (document.visibilityState === 'visible') {
-          loadServerData();
+          loadServerData(true);
         }
       }, 15000);
     };
@@ -394,7 +394,7 @@ export default function App() {
       const now = Date.now();
       if (now - lastFetchTime > 3000) {
         lastFetchTime = now;
-        loadServerData();
+        loadServerData(true);
       }
     };
 
@@ -587,38 +587,68 @@ export default function App() {
   };
 
   const handleUpdatePayment = async (updatedCleaning) => {
-    // Instant Optimistic Update
-    lockRecordInVault('cleaning', updatedCleaning);
+    const storeLabel = updatedCleaning.storeName || updatedCleaning.storeCode || 'Store';
 
-    setServerData(prev => {
-      const existing = prev.cleanings || [];
-      const updated = existing.map(c => 
-        (c.id === updatedCleaning.id || (c.syncId && c.syncId === updatedCleaning.syncId))
-          ? { ...c, ...updatedCleaning, updatedAt: new Date().toISOString() }
-          : c
-      );
-      const next = { ...prev, cleanings: updated };
-      saveStateToCache(next);
-      return next;
-    });
-
-    toast.success(
-      `Payment for ${updatedCleaning.storeName || updatedCleaning.storeCode} updated to ${updatedCleaning.paymentStatus}!`,
-      'Payment Updated'
-    );
+    // Prepare lightweight payment payload with clean types (zero photo blobs)
+    const paymentPayload = {
+      id: updatedCleaning.id,
+      syncId: updatedCleaning.syncId,
+      storeCode: updatedCleaning.storeCode,
+      cleaningDate: updatedCleaning.cleaningDate,
+      amount: Number(updatedCleaning.amount) || 0,
+      amountReceived: Number(updatedCleaning.amountReceived) || 0,
+      amountPending: Number(updatedCleaning.amountPending) || 0,
+      paymentStatus: updatedCleaning.paymentStatus || 'Pending',
+      paymentDate: updatedCleaning.paymentDate || new Date().toISOString().split('T')[0],
+      paymentMode: updatedCleaning.paymentMode || 'UPI',
+      utrNumber: updatedCleaning.utrNumber || '',
+      paymentNotes: updatedCleaning.paymentNotes || ''
+    };
 
     try {
-      const result = await api.saveCleaning(updatedCleaning);
-      if (result && result.data) {
-        setServerData(prev => {
-          const next = { ...prev, ...result.data };
-          saveStateToCache(next);
-          return next;
-        });
+      // 1. Direct Server Save: sends tiny payload (<1KB) straight to server endpoint
+      const result = await api.updateCleaningPayment(paymentPayload);
+
+      const confirmedCleaning = result.cleaning || { ...updatedCleaning, ...paymentPayload };
+
+      // 2. Lock confirmed server record into vault & cache
+      lockRecordInVault('cleaning', confirmedCleaning);
+
+      setServerData(prev => {
+        let next;
+        if (result.data) {
+          next = { ...prev, ...result.data };
+        } else {
+          const existing = prev.cleanings || [];
+          const updated = existing.map(c => 
+            (c.id === confirmedCleaning.id || (c.syncId && c.syncId === confirmedCleaning.syncId) ||
+             (c.storeCode && c.cleaningDate && c.storeCode === confirmedCleaning.storeCode && c.cleaningDate === confirmedCleaning.cleaningDate))
+              ? { ...c, ...confirmedCleaning, updatedAt: new Date().toISOString() }
+              : c
+          );
+          next = { ...prev, cleanings: updated, lastUpdated: new Date().toISOString() };
+        }
+        saveStateToCache(next);
+        return next;
+      });
+
+      if (result.data?.lastUpdated) {
+        lastUpdatedRef.current = result.data.lastUpdated;
       }
+
+      toast.success(
+        `Payment for ${storeLabel} saved directly to server (${confirmedCleaning.paymentStatus} - ₹${confirmedCleaning.amountReceived || 0})!`,
+        'Server Saved'
+      );
+
+      return result;
     } catch (err) {
-      console.warn('Payment sync failed:', err);
-      loadServerData(true);
+      console.error('Payment server sync failed:', err);
+      toast.error(
+        `Server save error: ${err.message || 'Connection failed'}. Payment could not be saved to server.`,
+        'Payment Save Failed'
+      );
+      throw err;
     }
   };
 

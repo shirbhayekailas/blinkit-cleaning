@@ -9,7 +9,8 @@ import {
   Calendar, 
   Hash, 
   FileText,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -20,6 +21,8 @@ export default function PaymentUpdateModal({
   onSave
 }) {
   const { t } = useLanguage();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [paymentData, setPaymentData] = useState({
     amount: 0,
     amountReceived: 0,
@@ -33,6 +36,7 @@ export default function PaymentUpdateModal({
 
   useEffect(() => {
     if (cleaning) {
+      setSaveError('');
       setPaymentData({
         amount: cleaning.amount || 0,
         amountReceived: cleaning.amountReceived || 0,
@@ -75,16 +79,24 @@ export default function PaymentUpdateModal({
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave({
-      ...cleaning,
-      ...paymentData
-    });
-    if (paymentData.paymentStatus === 'Received') {
-      confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+    setIsSaving(true);
+    setSaveError('');
+    try {
+      await onSave({
+        ...cleaning,
+        ...paymentData
+      });
+      if (paymentData.paymentStatus === 'Received') {
+        confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+      }
+      onClose();
+    } catch (err) {
+      setSaveError(err.message || 'Payment save to server failed. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-    onClose();
   };
 
   return (
@@ -274,21 +286,40 @@ export default function PaymentUpdateModal({
             />
           </div>
 
+          {/* Save Error Alert */}
+          {saveError && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-xl flex items-center gap-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{saveError}</span>
+            </div>
+          )}
+
           {/* Modal Actions */}
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              disabled={isSaving}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold shadow-md shadow-emerald-700/20 transition flex items-center gap-1.5"
+              disabled={isSaving}
+              className="px-5 py-2 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen disabled:bg-slate-400 text-white font-bold shadow-md shadow-emerald-700/20 transition flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Save Payment</span>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving to Server...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Save to Server</span>
+                </>
+              )}
             </button>
           </div>
 

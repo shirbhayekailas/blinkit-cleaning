@@ -80,6 +80,62 @@ export async function saveCleaning(cleaningData) {
   }
 }
 
+export async function updateCleaningPayment(paymentPayload) {
+  if (!paymentPayload) throw new Error('No payment payload provided');
+
+  // Lightweight payload with zero photos or heavy blobs
+  const cleanPayload = {
+    id: paymentPayload.id,
+    syncId: paymentPayload.syncId,
+    storeCode: paymentPayload.storeCode,
+    cleaningDate: paymentPayload.cleaningDate,
+    amount: Number(paymentPayload.amount) || 0,
+    amountReceived: Number(paymentPayload.amountReceived) || 0,
+    amountPending: Number(paymentPayload.amountPending) || 0,
+    paymentStatus: paymentPayload.paymentStatus || 'Pending',
+    paymentDate: paymentPayload.paymentDate || '',
+    paymentMode: paymentPayload.paymentMode || 'UPI',
+    utrNumber: paymentPayload.utrNumber || '',
+    paymentNotes: paymentPayload.paymentNotes || ''
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const res = await fetch(getApiUrl('/api/cleanings/payment'), {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      body: JSON.stringify(cleanPayload)
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let errMsg = `Server returned HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson && errJson.message) errMsg = errJson.message;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
+
+    const result = await res.json();
+    if (!result.success) {
+      throw new Error(result.message || 'Server rejected payment update');
+    }
+    return result;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error('updateCleaningPayment error:', err);
+    throw err;
+  }
+}
+
 export async function deleteCleaning(cleaningOrId) {
   try {
     let payload = {};

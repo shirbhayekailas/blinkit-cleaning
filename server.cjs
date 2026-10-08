@@ -1019,6 +1019,93 @@ app.post('/api/cleanings', (req, res) => {
   }
 });
 
+// Dedicated Ultra-Fast Lightweight Payment Update Endpoint (Zero base64 payload overhead)
+app.post('/api/cleanings/payment', (req, res) => {
+  try {
+    const paymentData = req.body || {};
+    const {
+      id,
+      syncId,
+      storeCode,
+      cleaningDate,
+      paymentStatus,
+      amount,
+      amountReceived,
+      amountPending,
+      paymentMode,
+      paymentDate,
+      utrNumber,
+      paymentNotes
+    } = paymentData;
+
+    const currentDB = readDB();
+    if (!currentDB.cleanings) currentDB.cleanings = [];
+
+    const targetId = id ? String(id) : null;
+    const targetSyncId = syncId ? String(syncId) : null;
+    const targetCode = storeCode ? String(storeCode).trim().toUpperCase() : null;
+    const targetDate = cleaningDate ? String(cleaningDate).trim() : null;
+
+    let index = -1;
+    if (targetId) {
+      index = currentDB.cleanings.findIndex(c => c && String(c.id) === targetId);
+    }
+    if (index === -1 && targetSyncId) {
+      index = currentDB.cleanings.findIndex(c => c && c.syncId && String(c.syncId) === targetSyncId);
+    }
+    if (index === -1 && targetCode && targetDate) {
+      index = currentDB.cleanings.findIndex(c => 
+        c && c.storeCode && c.cleaningDate &&
+        String(c.storeCode).trim().toUpperCase() === targetCode &&
+        String(c.cleaningDate).trim() === targetDate
+      );
+    }
+    // Fallback: If still not matched, find by storeCode with matching or most recent cleaning
+    if (index === -1 && targetCode) {
+      index = currentDB.cleanings.findIndex(c => c && c.storeCode && String(c.storeCode).trim().toUpperCase() === targetCode);
+    }
+
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cleaning record matching ID/StoreCode not found on server database.'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const existing = currentDB.cleanings[index];
+
+    const updatedRecord = {
+      ...existing,
+      paymentStatus: paymentStatus !== undefined ? paymentStatus : (existing.paymentStatus || 'Pending'),
+      amount: amount !== undefined ? Number(amount) : (Number(existing.amount) || 0),
+      amountReceived: amountReceived !== undefined ? Number(amountReceived) : (Number(existing.amountReceived) || 0),
+      amountPending: amountPending !== undefined ? Number(amountPending) : (Number(existing.amountPending) || 0),
+      paymentMode: paymentMode !== undefined ? paymentMode : (existing.paymentMode || 'UPI'),
+      paymentDate: paymentDate !== undefined ? paymentDate : (existing.paymentDate || nowIso.split('T')[0]),
+      utrNumber: utrNumber !== undefined ? utrNumber : (existing.utrNumber || ''),
+      paymentNotes: paymentNotes !== undefined ? paymentNotes : (existing.paymentNotes || ''),
+      updatedAt: nowIso
+    };
+
+    currentDB.cleanings[index] = updatedRecord;
+    writeDB(currentDB);
+
+    console.log(`[Payment Update] Updated payment for store ${updatedRecord.storeCode || updatedRecord.storeName} to ${updatedRecord.paymentStatus} (Amount Received: ${updatedRecord.amountReceived})`);
+
+    res.json({
+      success: true,
+      message: `Payment status successfully updated on server to ${updatedRecord.paymentStatus}.`,
+      cleaning: updatedRecord,
+      cleanings: currentDB.cleanings,
+      data: currentDB
+    });
+  } catch (err) {
+    console.error('Server payment update error:', err);
+    res.status(500).json({ success: false, message: 'Server payment update error: ' + err.message });
+  }
+});
+
 app.post('/api/cleanings/delete', (req, res) => {
   try {
     const { id, syncId, storeCode, cleaningDate } = req.body || {};
