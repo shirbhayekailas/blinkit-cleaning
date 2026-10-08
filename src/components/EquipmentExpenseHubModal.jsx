@@ -203,8 +203,6 @@ export default function EquipmentExpenseHubModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
-
   // -------------------------------------------------------------
   // TAB 0: TEAM DAILY DISPATCH & CUSTODY FILTERING
   // -------------------------------------------------------------
@@ -888,6 +886,8 @@ export default function EquipmentExpenseHubModal({
       toast.error('Delete failed: ' + err.message);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div
