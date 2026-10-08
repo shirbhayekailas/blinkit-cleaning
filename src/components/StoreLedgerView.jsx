@@ -146,7 +146,7 @@ export default function StoreLedgerView({
 
           {/* Download Store List PDF */}
           <button
-            onClick={() => generateStoreListPDF({ stores: filteredStores, cleanings })}
+            onClick={() => generateStoreListPDF({ stores: filteredStores, cleanings, filterLabel: 'Store Master Directory', sortBy: storeSortBy })}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 shadow-2xs transition shrink-0 active:scale-95"
             title="Download Store Master Directory PDF"
           >
@@ -156,7 +156,7 @@ export default function StoreLedgerView({
 
           {/* Download Store List Excel */}
           <button
-            onClick={() => exportStoreListExcel(filteredStores, cleanings)}
+            onClick={() => exportStoreListExcel(filteredStores, cleanings, 'Store Master Directory', { sortBy: storeSortBy })}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 shadow-2xs transition shrink-0 active:scale-95"
             title="Download Store Master Directory Excel (.xlsx)"
           >

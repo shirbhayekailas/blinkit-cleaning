@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronsLeftRight, Download, Share2, Sparkles, AlertCircle } from 'lucide-react';
+import { toast } from './Toast';
 
 export default function BeforeAfterSlider({
   beforePhoto,
@@ -155,9 +156,10 @@ export default function BeforeAfterSlider({
       link.download = `Blinkit_${storeInfo.storeCode || 'Store'}_Before_After_Proof.jpg`;
       link.href = dataUrl;
       link.click();
+      toast.success('Before & After comparison card generated!');
     } catch (err) {
       console.error('Export comparison error:', err);
-      alert('Unable to export composite card: ' + err.message);
+      toast.error('Unable to export composite card: ' + err.message);
     } finally {
       setIsExporting(false);
     }

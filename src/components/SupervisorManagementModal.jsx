@@ -16,6 +16,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { saveSupervisor, deleteSupervisor } from '../services/api';
+import { toast } from './Toast';
 
 export default function SupervisorManagementModal({
   isOpen,
@@ -57,7 +58,7 @@ export default function SupervisorManagementModal({
   const handleSave = async (e) => {
     e.preventDefault();
     if (!currentSupervisor.name || !currentSupervisor.phone || !currentSupervisor.pin) {
-      alert('Please fill Name, Phone, and 4-Digit PIN.');
+      toast.warning('Please fill Name, Phone, and 4-Digit PIN.');
       return;
     }
 
@@ -72,9 +73,9 @@ export default function SupervisorManagementModal({
       });
       setIsEditing(false);
       if (onSupervisorUpdated) onSupervisorUpdated();
-      alert('Supervisor successfully saved!');
+      toast.success('Supervisor successfully saved!');
     } catch (err) {
-      alert('Error saving supervisor: ' + err.message);
+      toast.error('Error saving supervisor: ' + err.message);
     }
   };
 
@@ -83,8 +84,9 @@ export default function SupervisorManagementModal({
       try {
         await deleteSupervisor(sup);
         if (onSupervisorUpdated) onSupervisorUpdated();
+        toast.success('Supervisor successfully deleted!');
       } catch (err) {
-        alert('Error deleting supervisor: ' + err.message);
+        toast.error('Error deleting supervisor: ' + err.message);
       }
     }
   };

@@ -35,6 +35,7 @@ import AudioRecorder from './AudioRecorder';
 import SpeechToTextInput from './SpeechToTextInput';
 import QRScannerModal from './QRScannerModal';
 import { saveCleaning, saveIssue } from '../services/api';
+import { toast } from './Toast';
 
 export default function SupervisorPortal({
   supervisor,
@@ -130,7 +131,7 @@ export default function SupervisorPortal({
   // Start Punch In
   const handlePunchIn = async () => {
     if (!selectedStoreCode) {
-      alert('Pehle Blinkit Dark Store select karein!');
+      toast.warning('Pehle Blinkit Dark Store select karein!');
       return;
     }
     const now = new Date();
@@ -212,7 +213,7 @@ export default function SupervisorPortal({
   const handleAddCustomCleaner = (e) => {
     if (e) e.preventDefault();
     if (!newCleanerName.trim()) {
-      alert('Kripya cleaner ka naam enter karein.');
+      toast.warning('Kripya cleaner ka naam enter karein.');
       return;
     }
     setCustomCleaners(prev => [
@@ -235,7 +236,7 @@ export default function SupervisorPortal({
   const handleSubmitShift = async (e) => {
     e.preventDefault();
     if (!selectedStoreCode) {
-      alert('Please select a dark store.');
+      toast.warning('Please select a dark store.');
       return;
     }
 
@@ -328,7 +329,7 @@ export default function SupervisorPortal({
       }
 
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.7 } });
-      alert(`✅ Cleaning shift submitted successfully for ${selectedStore.storeName}!`);
+      toast.success(`Cleaning shift submitted successfully for ${selectedStore.storeName}!`);
       
       // Reset form
       setSelectedStoreCode('');
@@ -344,7 +345,7 @@ export default function SupervisorPortal({
 
       if (onRecordSaved) onRecordSaved();
     } catch (err) {
-      alert('Error submitting shift: ' + err.message);
+      toast.error('Error submitting shift: ' + err.message);
     }
   };
 

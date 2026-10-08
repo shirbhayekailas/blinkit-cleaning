@@ -15,6 +15,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { saveAdvance, deleteAdvance } from '../services/api';
+import { toast } from './Toast';
 
 export default function CleanerKhataModal({
   isOpen,
@@ -70,7 +71,7 @@ export default function CleanerKhataModal({
   const handleSaveAdvance = async (e) => {
     e.preventDefault();
     if (!selectedCleaner || !advanceAmount || Number(advanceAmount) <= 0) {
-      alert('Kripya valid amount enter karein.');
+      toast.warning('Kripya valid amount enter karein.');
       return;
     }
 
@@ -89,9 +90,9 @@ export default function CleanerKhataModal({
       setRemarks('');
       setIsAdvanceFormOpen(false);
       if (onAdvanceUpdated) onAdvanceUpdated();
-      alert(`₹${advanceAmount} payout successfully recorded for ${selectedCleaner.name}!`);
+      toast.success(`₹${advanceAmount} payout successfully recorded for ${selectedCleaner.name}!`);
     } catch (err) {
-      alert('Error recording payout: ' + err.message);
+      toast.error('Error recording payout: ' + err.message);
     }
   };
 
@@ -100,8 +101,9 @@ export default function CleanerKhataModal({
       try {
         await deleteAdvance(advanceId);
         if (onAdvanceUpdated) onAdvanceUpdated();
+        toast.success('Payment record successfully deleted!');
       } catch (err) {
-        alert('Error deleting payout: ' + err.message);
+        toast.error('Error deleting payout: ' + err.message);
       }
     }
   };

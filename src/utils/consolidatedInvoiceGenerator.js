@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 
 import { getBillSettings } from './billSettingsHelper';
 import { DEFAULT_SK_LOGO } from './defaultLogo';
+import { toast } from '../components/Toast';
 
 function runAutoTable(doc, options) {
   try {
@@ -21,7 +22,7 @@ function runAutoTable(doc, options) {
 export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {}, invoiceMeta = {}) {
   try {
     if (!cleanings || cleanings.length === 0) {
-      alert('No cleanings selected for consolidated invoice.');
+      toast.warning('No cleanings selected for consolidated invoice.', 'Selection Required');
       return;
     }
 
@@ -311,6 +312,6 @@ export function generateConsolidatedInvoicePDF(cleanings = [], vendorProfile = {
     doc.save(`Consolidated_Invoice_${monthLabel.replace(/\s+/g, '_')}.pdf`);
   } catch (err) {
     console.error('Consolidated Invoice Generation Error:', err);
-    alert('Consolidated invoice download failed: ' + err.message);
+    toast.error('Consolidated invoice download failed: ' + err.message);
   }
 }

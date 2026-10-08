@@ -20,6 +20,7 @@ import {
   Layers
 } from 'lucide-react';
 import { saveChemicalStock, addChemicalLog, deleteChemicalStock, seedStandardChemicals } from '../services/api';
+import { toast } from './Toast';
 
 const CHEMICAL_CATEGORIES = [
   'Floor Care',
@@ -130,7 +131,7 @@ export default function ChemicalTrackerModal({
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!productForm.itemName.trim()) {
-      alert('Chemical item ka naam likhna zaroori hai.');
+      toast.warning('Chemical item ka naam likhna zaroori hai.');
       return;
     }
     setIsSavingProduct(true);
@@ -147,9 +148,9 @@ export default function ChemicalTrackerModal({
       await saveChemicalStock(payload);
       if (onChemicalUpdated) onChemicalUpdated();
       setShowProductModal(false);
-      alert(editingItem ? 'Chemical item successfully updated!' : 'Naya chemical product successfully catalog me add ho gaya!');
+      toast.success(editingItem ? 'Chemical item successfully updated!' : 'Naya chemical product successfully catalog me add ho gaya!');
     } catch (err) {
-      alert('Chemical save error: ' + err.message);
+      toast.error('Chemical save error: ' + err.message);
     } finally {
       setIsSavingProduct(false);
     }
@@ -162,8 +163,9 @@ export default function ChemicalTrackerModal({
     try {
       await deleteChemicalStock(chem.id);
       if (onChemicalUpdated) onChemicalUpdated();
+      toast.success('Chemical item removed from catalog');
     } catch (err) {
-      alert('Delete chemical error: ' + err.message);
+      toast.error('Delete chemical error: ' + err.message);
     }
   };
 
@@ -172,9 +174,9 @@ export default function ChemicalTrackerModal({
     try {
       await seedStandardChemicals();
       if (onChemicalUpdated) onChemicalUpdated();
-      alert('Standard Blinkit dark store chemicals catalog successfully load ho gaya!');
+      toast.success('Standard Blinkit dark store chemicals catalog successfully load ho gaya!');
     } catch (err) {
-      alert('Seed catalog error: ' + err.message);
+      toast.error('Seed catalog error: ' + err.message);
     } finally {
       setIsSeeding(false);
     }
@@ -184,7 +186,7 @@ export default function ChemicalTrackerModal({
     e.preventDefault();
     const qtyNum = Number(quantity);
     if (!selectedChemicalId || isNaN(qtyNum) || qtyNum <= 0) {
-      alert('Kripya valid chemical aur quantity enter karein.');
+      toast.warning('Kripya valid chemical aur quantity enter karein.');
       return;
     }
 
@@ -195,7 +197,7 @@ export default function ChemicalTrackerModal({
       const currentStock = Number(chem.totalStock ?? chem.quantity ?? 0);
 
       if (actionType === 'issue' && currentStock < qtyNum) {
-        alert(`Stock kam hai! Current stock sirf ${currentStock} ${chem.unit} hai.`);
+        toast.warning(`Stock kam hai! Current stock sirf ${currentStock} ${chem.unit} hai.`, 'Low Stock Alert');
         return;
       }
 
@@ -226,9 +228,9 @@ export default function ChemicalTrackerModal({
       setNotes('');
       if (onChemicalUpdated) onChemicalUpdated();
       setActiveTab('inventory');
-      alert(`Chemical stock successfully updated! New balance: ${newStock} ${chem.unit}`);
+      toast.success(`Chemical stock successfully updated! New balance: ${newStock} ${chem.unit}`);
     } catch (err) {
-      alert('Error updating chemical: ' + err.message);
+      toast.error('Error updating chemical: ' + err.message);
     }
   };
 

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { clearLoginLogs } from '../services/api';
 import { exportLoginLogsToCSV } from '../utils/auditLogger';
+import { toast } from './Toast';
 
 export default function LoginLogsModal({
   isOpen,
@@ -85,7 +86,7 @@ export default function LoginLogsModal({
 
   const handleClearLogs = async () => {
     if (currentUserRole !== 'admin') {
-      alert('Sirf Admin login logs history clear kar sakta hai.');
+      toast.warning('Sirf Admin login logs history clear kar sakta hai.');
       return;
     }
 
@@ -93,9 +94,9 @@ export default function LoginLogsModal({
       try {
         await clearLoginLogs();
         if (onLogsCleared) onLogsCleared();
-        alert('✅ Sare Login Audit Logs permanently clear ho gaye hain.');
+        toast.success('Sare Login Audit Logs permanently clear ho gaye hain.');
       } catch (err) {
-        alert('Error clearing logs: ' + err.message);
+        toast.error('Error clearing logs: ' + err.message);
       }
     }
   };

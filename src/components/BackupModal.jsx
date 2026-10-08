@@ -10,6 +10,7 @@ import {
   RefreshCw 
 } from 'lucide-react';
 import { fetchServerState, saveCleaning, saveStore } from '../services/api';
+import { toast } from './Toast';
 
 export default function BackupModal({
   isOpen,
@@ -37,8 +38,9 @@ export default function BackupModal({
       a.download = `SK_Enterprises_Cleaning_Backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success('Backup file downloaded successfully!');
     } catch (err) {
-      alert('Error generating backup: ' + err.message);
+      toast.error('Error generating backup: ' + err.message);
     }
   };
 
@@ -70,9 +72,10 @@ export default function BackupModal({
         }
 
         setMessage(`Successfully restored ${stores.length} stores & ${cleanings.length} cleaning records directly to server!`);
+        toast.success(`Restored ${stores.length} stores & ${cleanings.length} cleanings!`);
         if (onDataRestored) onDataRestored();
       } catch (err) {
-        alert('Restore failed: ' + err.message);
+        toast.error('Restore failed: ' + err.message);
       } finally {
         setRestoring(false);
       }

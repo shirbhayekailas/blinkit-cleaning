@@ -11,6 +11,7 @@ import {
   HardHat
 } from 'lucide-react';
 import { saveCleaner, deleteCleaner } from '../services/api';
+import { toast } from './Toast';
 
 export default function CleanerRosterModal({
   isOpen,
@@ -47,7 +48,7 @@ export default function CleanerRosterModal({
   const handleSave = async (e) => {
     e.preventDefault();
     if (!currentCleaner.name) {
-      alert('Please enter Cleaner Name.');
+      toast.warning('Please enter Cleaner Name.');
       return;
     }
 
@@ -62,9 +63,9 @@ export default function CleanerRosterModal({
       });
       setIsEditing(false);
       if (onCleanerUpdated) onCleanerUpdated();
-      alert('Cleaner roster successfully saved!');
+      toast.success('Cleaner roster successfully saved!');
     } catch (err) {
-      alert('Error saving cleaner: ' + err.message);
+      toast.error('Error saving cleaner: ' + err.message);
     }
   };
 
@@ -73,8 +74,9 @@ export default function CleanerRosterModal({
       try {
         await deleteCleaner(cln);
         if (onCleanerUpdated) onCleanerUpdated();
+        toast.success('Cleaner removed from roster successfully!');
       } catch (err) {
-        alert('Error deleting cleaner: ' + err.message);
+        toast.error('Error deleting cleaner: ' + err.message);
       }
     }
   };

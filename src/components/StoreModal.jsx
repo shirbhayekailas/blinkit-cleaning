@@ -10,6 +10,7 @@ import {
   Sparkles 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { toast } from './Toast';
 
 export default function StoreModal({
   isOpen,
@@ -49,7 +50,7 @@ export default function StoreModal({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.storeCode || !formData.storeName) {
-      alert('Please enter Store Code and Store Name!');
+      toast.warning('Please enter Store Code and Store Name!');
       return;
     }
     onSave(formData);

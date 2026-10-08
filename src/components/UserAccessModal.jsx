@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { changePin, saveSupervisor } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
+import { toast } from './Toast';
 
 export default function UserAccessModal({
   isOpen,
@@ -80,7 +81,7 @@ export default function UserAccessModal({
 
   const handleSaveSupPin = async (supId) => {
     if (!tempPin || tempPin.trim().length < 4) {
-      alert('PIN kam se kam 4 digits ka hona chahiye.');
+      toast.warning('PIN kam se kam 4 digits ka hona chahiye.');
       return;
     }
 
@@ -88,9 +89,9 @@ export default function UserAccessModal({
       await changePin('supervisor', tempPin.trim(), supId);
       setEditingSupId(null);
       if (onSupervisorUpdated) onSupervisorUpdated();
-      alert('Supervisor PIN successfully update ho gaya!');
+      toast.success('Supervisor PIN successfully update ho gaya!');
     } catch (err) {
-      alert('PIN save karne me error: ' + err.message);
+      toast.error('PIN save karne me error: ' + err.message);
     }
   };
 
@@ -99,16 +100,16 @@ export default function UserAccessModal({
       try {
         await changePin('supervisor', '1234', sup.id);
         if (onSupervisorUpdated) onSupervisorUpdated();
-        alert('PIN reset ho gaya!');
+        toast.success('PIN reset ho gaya to default 1234!');
       } catch (err) {
-        alert('Error: ' + err.message);
+        toast.error('Error: ' + err.message);
       }
     }
   };
 
   const handleSaveClientPin = async () => {
     if (!clientPinVal || clientPinVal.trim().length < 4) {
-      alert('Client PIN kam se kam 4 digits ka hona chahiye.');
+      toast.warning('Client PIN kam se kam 4 digits ka hona chahiye.');
       return;
     }
     const cleanPin = clientPinVal.trim();
@@ -117,6 +118,7 @@ export default function UserAccessModal({
     localStorage.setItem('client_pin_changed', 'true');
     localStorage.setItem('client_pin_updated_at', nowIso);
     setIsEditingClientPin(false);
+    toast.success('Blinkit Client PIN updated successfully!');
     try {
       await changePin('client', cleanPin, null, nowIso);
     } catch (e) {
@@ -127,7 +129,7 @@ export default function UserAccessModal({
 
   const handleSaveManagerPin = async () => {
     if (!managerPinVal || managerPinVal.trim().length < 4) {
-      alert('Manager PIN kam se kam 4 digits ka hona chahiye.');
+      toast.warning('Manager PIN kam se kam 4 digits ka hona chahiye.');
       return;
     }
     const cleanPin = managerPinVal.trim();
@@ -136,6 +138,7 @@ export default function UserAccessModal({
     localStorage.setItem('manager_pin_changed', 'true');
     localStorage.setItem('manager_pin_updated_at', nowIso);
     setIsEditingManagerPin(false);
+    toast.success('Vendor Manager PIN updated successfully!');
     try {
       await changePin('manager', cleanPin, null, nowIso);
     } catch (e) {

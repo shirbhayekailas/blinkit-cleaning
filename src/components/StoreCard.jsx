@@ -31,6 +31,7 @@ import {
 } from '../utils/whatsappFormatter';
 import { generateHygieneCertificate } from '../utils/certificateGenerator';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from './Toast';
 
 function StoreCard({
   cleaning,
@@ -69,7 +70,7 @@ function StoreCard({
 
   const handleRemindPayment = () => {
     if (!cleaning.managerPhone) {
-      alert('Store Manager phone number not available to send WhatsApp reminder.');
+      toast.warning('Store Manager phone number not available to send WhatsApp reminder.', 'Missing Phone');
       return;
     }
     const cleanPhone = cleaning.managerPhone.replace(/[^0-9]/g, '');

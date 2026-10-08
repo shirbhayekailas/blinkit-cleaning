@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { toast } from '../components/Toast';
 import { 
   exportMasterExcel,
   exportPendingPaymentsExcel,
@@ -10,7 +11,7 @@ import {
 // Default export generates the comprehensive multi-sheet workbook
 export function exportCleaningsToExcel(cleanings, filename = 'Blinkit_DeepCleaning_Tracker.xlsx') {
   if (!cleanings || cleanings.length === 0) {
-    alert('No records available to export!');
+    toast.warning('No records available to export!', 'No Records');
     return;
   }
   exportMasterExcel(cleanings, [], 'All Time Records', filename);

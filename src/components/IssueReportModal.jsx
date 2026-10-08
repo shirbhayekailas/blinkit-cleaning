@@ -12,6 +12,7 @@ import {
   Clock
 } from 'lucide-react';
 import { saveIssue } from '../services/api';
+import { toast } from './Toast';
 
 export default function IssueReportModal({
   isOpen,
@@ -39,8 +40,9 @@ export default function IssueReportModal({
         resolvedAt: newStatus === 'Resolved' ? new Date().toISOString() : null
       });
       if (onIssueUpdated) onIssueUpdated();
+      toast.success(`Issue marked as ${newStatus}!`);
     } catch (err) {
-      alert('Error updating status: ' + err.message);
+      toast.error('Error updating status: ' + err.message);
     }
   };
 

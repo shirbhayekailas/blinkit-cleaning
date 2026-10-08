@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getBillSettings } from './billSettingsHelper';
 import { naturalSortByStoreCode, sortCleaningsList, sortStoresList } from './reportExcelGenerator';
+import { toast } from '../components/Toast';
 
 // Safe helper for autoTable compatibility
 function runAutoTable(doc, options) {
@@ -218,7 +219,7 @@ export function generatePendingPaymentsPDF({ cleanings = [], filterLabel = 'All 
   const pendingList = sortCleaningsList(pendingFiltered, sortBy);
 
   if (pendingList.length === 0) {
-    alert('Congratulations! There are no pending payment records for the selected period.');
+    toast.info('There are no pending payment records for the selected period.', 'All Clear');
     return;
   }
 
@@ -370,7 +371,7 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
   const completedList = sortCleaningsList(completedFiltered, sortBy);
 
   if (completedList.length === 0) {
-    alert('No settled payment records found for the selected period.');
+    toast.warning('No settled payment records found for the selected period.', 'No Records');
     return;
   }
 
@@ -461,7 +462,7 @@ export function generateCompletedPaymentsPDF({ cleanings = [], filterLabel = 'Al
 // ----------------------------------------------------------------------
 export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Time', includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
   if (cleanings.length === 0) {
-    alert('No cleaning records found for the selected period.');
+    toast.warning('No cleaning records found for the selected period.', 'No Records');
     return;
   }
 
@@ -704,7 +705,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
 
   const storeRows = sortStoresList(Array.from(storeMap.values()), sortBy, cleanings);
   if (storeRows.length === 0) {
-    alert('No store records found.');
+    toast.warning('No store records found.', 'No Records');
     return;
   }
 
@@ -878,7 +879,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
 // ----------------------------------------------------------------------
 export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], filterLabel = 'All Time', sortBy = 'storeCodeAsc' }) {
   if (cleanings.length === 0) {
-    alert('No cleaning records found for the executive report.');
+    toast.warning('No cleaning records found for the executive report.', 'No Records');
     return;
   }
 
@@ -990,7 +991,7 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
 export function generateStoreListPDF({ stores = [], cleanings = [], filterLabel = 'All Time', sortBy = 'storeCodeAsc' } = {}) {
   const sortedStores = sortStoresList(stores, sortBy, cleanings);
   if (sortedStores.length === 0) {
-    alert('No store records available to generate PDF.');
+    toast.warning('No store records available to generate PDF.', 'No Records');
     return;
   }
 

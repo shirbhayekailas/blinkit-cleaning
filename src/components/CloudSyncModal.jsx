@@ -15,6 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import { getCloudConfig, saveCloudConfig, performCloudSync, getApiUrl } from '../utils/cloudSync';
+import { toast } from './Toast';
 
 export default function CloudSyncModal({ isOpen, onClose }) {
   const { t } = useLanguage();
@@ -63,7 +64,7 @@ export default function CloudSyncModal({ isOpen, onClose }) {
       autoSync
     });
     setConfig(updated);
-    alert('Cloud Sync settings saved successfully!');
+    toast.success('Cloud Sync settings saved successfully!');
   };
 
   const handleTriggerSync = async () => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   Building2, 
@@ -11,7 +11,12 @@ import {
   MapPin,
   Bell,
   Calendar,
-  ArrowUpDown
+  ArrowUpDown,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
+  PieChart,
+  ShieldAlert
 } from 'lucide-react';
 
 function DashboardStats({
@@ -69,6 +74,59 @@ function DashboardStats({
   const totalExpenses = totalLaborCost + totalChemicalCost;
   const netProfit = totalBilled - totalExpenses;
   const marginPct = totalBilled > 0 ? Math.round((netProfit / totalBilled) * 100) : 0;
+
+  const [showInsights, setShowInsights] = useState(false);
+  const realizationPct = totalBilled > 0 ? Math.round((totalReceived / totalBilled) * 100) : 0;
+  const pendingPct = totalBilled > 0 ? Math.round((totalPending / totalBilled) * 100) : 0;
+
+  // Aging brackets for pending dues
+  const agingBuckets = useMemo(() => {
+    const buckets = {
+      b0_7: { label: '0-7 Days', count: 0, amount: 0, badge: 'Current', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800' },
+      b8_15: { label: '8-15 Days', count: 0, amount: 0, badge: 'Due Soon', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800' },
+      b16_30: { label: '16-30 Days', count: 0, amount: 0, badge: 'Overdue', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800' },
+      b30plus: { label: '30+ Days', count: 0, amount: 0, badge: 'Critical', color: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800' }
+    };
+
+    cleanings.forEach(c => {
+      const b = Number(c.amount || 0);
+      const r = Number(c.amountReceived || 0);
+      const p = c.amountPending !== undefined ? Number(c.amountPending) : Math.max(0, b - r);
+      if (p > 0) {
+        const cDate = new Date(c.cleaningDate || today);
+        const days = Math.max(0, Math.floor((today - cDate) / (1000 * 60 * 60 * 24)));
+        if (days <= 7) {
+          buckets.b0_7.count++;
+          buckets.b0_7.amount += p;
+        } else if (days <= 15) {
+          buckets.b8_15.count++;
+          buckets.b8_15.amount += p;
+        } else if (days <= 30) {
+          buckets.b16_30.count++;
+          buckets.b16_30.amount += p;
+        } else {
+          buckets.b30plus.count++;
+          buckets.b30plus.amount += p;
+        }
+      }
+    });
+
+    return buckets;
+  }, [cleanings, today]);
+
+  // Regional breakdown by City
+  const citySummary = useMemo(() => {
+    const map = {};
+    cleanings.forEach(c => {
+      const city = c.city || 'Other';
+      if (!map[city]) map[city] = { visits: 0, billed: 0, pending: 0 };
+      map[city].visits++;
+      map[city].billed += Number(c.amount || 0);
+      const p = c.amountPending !== undefined ? Number(c.amountPending) : Math.max(0, Number(c.amount || 0) - Number(c.amountReceived || 0));
+      map[city].pending += p;
+    });
+    return Object.entries(map).sort((a, b) => b[1].visits - a[1].visits);
+  }, [cleanings]);
 
   return (
     <div className="space-y-4">
@@ -210,6 +268,112 @@ function DashboardStats({
         </div>
       </div>
 
+      {/* Realization & Aging Progress Strip */}
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-extrabold text-slate-800 dark:text-slate-100">
+              Payment Realization:
+            </span>
+            <span className="font-black text-emerald-600 dark:text-emerald-400">
+              {realizationPct}% Realized
+            </span>
+            <span className="text-slate-400">·</span>
+            <span className="font-bold text-rose-600 dark:text-rose-400">
+              {pendingPct}% Pending (₹{totalPending.toLocaleString('en-IN')})
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowInsights(!showInsights)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition self-start sm:self-auto cursor-pointer"
+          >
+            <span>{showInsights ? 'Hide Aging & Regional Breakdown' : 'View Aging & Regional Breakdown'}</span>
+            {showInsights ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {/* Realization Progress Bar */}
+        <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex shadow-inner">
+          <div 
+            style={{ width: `${Math.min(100, Math.max(0, realizationPct))}%` }} 
+            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500" 
+            title={`Realized: ${realizationPct}%`}
+          />
+          <div 
+            style={{ width: `${Math.min(100, Math.max(0, pendingPct))}%` }} 
+            className="h-full bg-gradient-to-r from-rose-400 to-rose-600 transition-all duration-500" 
+            title={`Pending: ${pendingPct}%`}
+          />
+        </div>
+
+        {/* Expandable Aging & City Section */}
+        {showInsights && (
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 space-y-3 animate-in fade-in duration-200">
+            {/* Aging Buckets Grid */}
+            <div>
+              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>Outstanding Aging Analysis (Uncollected Days)</span>
+                {onOpenReportsCenter && (
+                  <button
+                    type="button"
+                    onClick={onOpenReportsCenter}
+                    className="text-[11px] font-extrabold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                  >
+                    Open Outstanding Register ↗
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {Object.entries(agingBuckets).map(([key, bucket]) => (
+                  <div key={key} className={`p-2.5 rounded-xl border ${bucket.bg} flex flex-col justify-between`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{bucket.label}</span>
+                      <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${bucket.color}`}>
+                        {bucket.badge}
+                      </span>
+                    </div>
+                    <div className="mt-1.5">
+                      <div className={`text-base font-black ${bucket.color}`}>
+                        ₹{bucket.amount.toLocaleString('en-IN')}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {bucket.count} {bucket.count === 1 ? 'store visit' : 'store visits'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* City Regional Distribution */}
+            {citySummary.length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                  Regional Operations Breakdown
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {citySummary.map(([city, data]) => (
+                    <div 
+                      key={city}
+                      className="px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-2 text-slate-700 dark:text-slate-200"
+                    >
+                      <span>📍 <strong className="font-bold">{city}:</strong> {data.visits} visits (₹{data.billed.toLocaleString('en-IN')})</span>
+                      {data.pending > 0 && (
+                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                          Due ₹{data.pending.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Filter Chips Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs">

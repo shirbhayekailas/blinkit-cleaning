@@ -1276,7 +1276,7 @@ export default function App() {
                         isAdmin={currentUserRole === 'admin'}
                         onUpdatePayment={(c) => {
                           if (currentUserRole !== 'admin') {
-                            alert(t('alert_payment_admin_only', 'Payment details enter ya update karne ka access sirf Admin ke paas hai.'));
+                            toast.warning(t('alert_payment_admin_only', 'Payment details enter ya update karne ka access sirf Admin ke paas hai.'), 'Admin Only');
                             return;
                           }
                           setPaymentCleaning(c);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Download, Smartphone, X, CheckCircle, Share, PlusSquare } from 'lucide-react';
+import { toast } from './Toast';
 
 export default function InstallAppBanner() {
   const { t } = useLanguage();
@@ -63,7 +64,7 @@ export default function InstallAppBanner() {
       } else if (isAppleDevice) {
         setShowIOSModal(true);
       } else {
-        alert('App can be installed from your browser menu: Tap (⋮) or (Share) -> "Install App" or "Add to Home Screen".');
+        toast.info('App can be installed from your browser menu: Tap (⋮) or (Share) -> "Install App" or "Add to Home Screen".', 'Install Guide');
       }
     };
 

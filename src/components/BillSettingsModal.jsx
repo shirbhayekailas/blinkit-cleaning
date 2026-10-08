@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getBillSettings, saveBillSettings, DEFAULT_BILL_SETTINGS } from '../utils/billSettingsHelper';
 import { DEFAULT_SK_LOGO } from '../utils/defaultLogo';
+import { toast } from './Toast';
 
 export default function BillSettingsModal({ isOpen, onClose }) {
   const { t } = useLanguage();
@@ -55,7 +56,7 @@ export default function BillSettingsModal({ isOpen, onClose }) {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Kripya valid image file (PNG, JPG, SVG, WebP) select karein.');
+      toast.warning('Kripya valid image file (PNG, JPG, SVG, WebP) select karein.');
       return;
     }
 

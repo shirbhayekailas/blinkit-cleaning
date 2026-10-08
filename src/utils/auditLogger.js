@@ -1,4 +1,5 @@
 import { db } from '../db/db';
+import { toast } from '../components/Toast';
 
 /**
  * Extracts friendly device, operating system, and browser information.
@@ -85,7 +86,7 @@ export async function logUserLogout({ role, userName, loginId, reason = 'Manual 
  */
 export function exportLoginLogsToCSV(logs = []) {
   if (!logs || logs.length === 0) {
-    alert('No login logs available to export.');
+    toast.warning('No login logs available to export.', 'No Records');
     return;
   }
 

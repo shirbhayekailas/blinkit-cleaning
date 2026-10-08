@@ -31,6 +31,7 @@ import { saveCleaner } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
 import { useLanguage } from '../context/LanguageContext';
 import { naturalSortByStoreCode } from '../utils/reportExcelGenerator';
+import { toast } from './Toast';
 
 export default function CleaningEntryModal({
   isOpen,
@@ -153,7 +154,7 @@ export default function CleaningEntryModal({
   const handleQuickAddSupervisor = async (e) => {
     e?.preventDefault();
     if (!newSupName.trim()) {
-      alert('Supervisor ka naam likhein');
+      toast.warning('Supervisor ka naam likhein');
       return;
     }
     setIsSavingSupervisor(true);
@@ -179,8 +180,9 @@ export default function CleaningEntryModal({
       setNewSupName('');
       setNewSupPhone('');
       setShowAddSupervisor(false);
+      toast.success(`Supervisor ${newSup.name} added!`);
     } catch (err) {
-      alert('Supervisor save karne me error: ' + err.message);
+      toast.error('Supervisor save karne me error: ' + err.message);
     } finally {
       setIsSavingSupervisor(false);
     }
@@ -189,7 +191,7 @@ export default function CleaningEntryModal({
   const handleQuickAddCleaner = async (e) => {
     e?.preventDefault();
     if (!newCleanerName.trim()) {
-      alert('Cleaner ka naam likhein');
+      toast.warning('Cleaner ka naam likhein');
       return;
     }
     setIsSavingCleaner(true);
@@ -223,8 +225,9 @@ export default function CleaningEntryModal({
       setNewCleanerPhone('');
       setNewCleanerWage(500);
       setShowAddCleaner(false);
+      toast.success(`Cleaner ${newCleaner.name} added to roster!`);
     } catch (err) {
-      alert('Cleaner save karne me error: ' + err.message);
+      toast.error('Cleaner save karne me error: ' + err.message);
     } finally {
       setIsSavingCleaner(false);
     }
@@ -617,7 +620,7 @@ export default function CleaningEntryModal({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.storeCode || !formData.storeName) {
-      alert('Please enter Store Code and Store Name!');
+      toast.warning('Please enter Store Code and Store Name!');
       return;
     }
 

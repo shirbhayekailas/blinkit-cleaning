@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { generateConsolidatedInvoicePDF } from '../utils/consolidatedInvoiceGenerator';
 import { getBillSettings, saveBillSettings } from '../utils/billSettingsHelper';
+import { toast } from './Toast';
 
 export default function ConsolidatedInvoiceModal({
   isOpen,
@@ -112,7 +113,7 @@ export default function ConsolidatedInvoiceModal({
 
   const handleDownload = () => {
     if (selectedList.length === 0) {
-      alert('Kripya kam se kam 1 store visit select karein.');
+      toast.warning('Kripya kam se kam 1 store visit select karein.');
       return;
     }
     try {

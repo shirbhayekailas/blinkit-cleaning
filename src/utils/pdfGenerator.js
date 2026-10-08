@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getBillSettings } from './billSettingsHelper';
 import { DEFAULT_SK_LOGO } from './defaultLogo';
+import { toast } from '../components/Toast';
 
 // Safe helper for autoTable compatibility across ES modules and bundles
 function runAutoTable(doc, options) {
@@ -22,7 +23,7 @@ function runAutoTable(doc, options) {
 
 export function generateCleaningPDF(cleaning) {
   if (!cleaning) {
-    alert('No cleaning record provided to generate PDF.');
+    toast.warning('No cleaning record provided to generate PDF.');
     return;
   }
 
@@ -312,6 +313,6 @@ export function generateCleaningPDF(cleaning) {
     doc.save(filename);
   } catch (err) {
     console.error('Fatal PDF Generation Error:', err);
-    alert('PDF download failed: ' + err.message);
+    toast.error('PDF download failed: ' + err.message);
   }
 }

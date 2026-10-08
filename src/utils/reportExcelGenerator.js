@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
+import { toast } from '../components/Toast';
 
 // Helper to format currency values safely for Excel
 const toNum = (val) => {
@@ -1506,7 +1507,7 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
  */
 export function exportMasterExcel(cleanings = [], stores = [], filterLabel = 'All Time', filenameOrOptions = '', options = {}) {
   if (!cleanings || cleanings.length === 0) {
-    alert('No cleaning records available for export!');
+    toast.warning('No cleaning records available for export!', 'No Records');
     return;
   }
 

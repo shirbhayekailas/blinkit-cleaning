@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { X, Printer, QrCode, Building2, MapPin, Download, Share2, Image as ImageIcon, Check } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { toast } from './Toast';
 
 export default function StoreQRModal({ isOpen, onClose, store }) {
   const { t } = useLanguage();
@@ -147,7 +148,7 @@ export default function StoreQRModal({ isOpen, onClose, store }) {
 
       doc.save(`Blinkit_${store.storeCode}_QR_CheckIn_Card.pdf`);
     } catch (err) {
-      alert('Error creating QR PDF: ' + err.message);
+      toast.error('Error creating QR PDF: ' + err.message);
     } finally {
       setIsGeneratingPDF(false);
     }

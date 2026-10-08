@@ -14,6 +14,7 @@ import {
   Play
 } from 'lucide-react';
 import { saveSchedule, deleteSchedule } from '../services/api';
+import { toast } from './Toast';
 
 export default function ScheduleCalendarModal({
   isOpen,
@@ -43,7 +44,7 @@ export default function ScheduleCalendarModal({
   const handleSaveSchedule = async (e) => {
     e.preventDefault();
     if (!newSchedule.storeCode || !newSchedule.scheduledDate) {
-      alert('Kripya store aur scheduled date select karein.');
+      toast.warning('Kripya store aur scheduled date select karein.');
       return;
     }
 
@@ -76,9 +77,9 @@ export default function ScheduleCalendarModal({
         notes: ''
       });
       if (onScheduleUpdated) onScheduleUpdated();
-      alert('Shift successfully scheduled!');
+      toast.success('Shift successfully scheduled!');
     } catch (err) {
-      alert('Error scheduling shift: ' + err.message);
+      toast.error('Error scheduling shift: ' + err.message);
     }
   };
 
@@ -88,6 +89,7 @@ export default function ScheduleCalendarModal({
       if (sch) {
         await saveSchedule({ ...sch, status });
         if (onScheduleUpdated) onScheduleUpdated();
+        toast.success(`Shift status updated to ${status}`);
       }
     } catch (e) {
       console.warn('Update status error:', e);
@@ -99,8 +101,9 @@ export default function ScheduleCalendarModal({
       try {
         await deleteSchedule(id);
         if (onScheduleUpdated) onScheduleUpdated();
+        toast.success('Shift schedule removed successfully!');
       } catch (err) {
-        alert('Error deleting schedule: ' + err.message);
+        toast.error('Error deleting schedule: ' + err.message);
       }
     }
   };

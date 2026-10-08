@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 
 import { getBillSettings } from './billSettingsHelper';
 import { DEFAULT_SK_LOGO } from './defaultLogo';
+import { toast } from '../components/Toast';
 
 function runAutoTable(doc, options) {
   try {
@@ -339,6 +340,6 @@ export function generateVendorInvoicePDF(cleaning, vendorProfile = {}) {
     doc.save(`Invoice_${cleaning.storeCode || 'Store'}_${cleaning.cleaningDate || 'Date'}.pdf`);
   } catch (err) {
     console.error('Invoice Generation Error:', err);
-    alert('Invoice download failed: ' + err.message);
+    toast.error('Invoice download failed: ' + err.message);
   }
 }

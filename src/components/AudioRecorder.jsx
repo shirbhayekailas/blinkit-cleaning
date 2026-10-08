@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Play, Trash2, RotateCcw } from 'lucide-react';
+import { toast } from './Toast';
 
 export default function AudioRecorder({
   audioUrl,
@@ -26,7 +27,7 @@ export default function AudioRecorder({
   const startRecording = async () => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        alert('Aapke browser me mic audio recording support nahi hai.');
+        toast.warning('Aapke browser me mic audio recording support nahi hai.');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -56,7 +57,7 @@ export default function AudioRecorder({
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      alert('Microphone access denied ya mic available nahi hai: ' + err.message);
+      toast.error('Microphone access denied ya mic available nahi hai: ' + err.message);
     }
   };
 

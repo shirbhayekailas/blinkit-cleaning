@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Globe, Sparkles } from 'lucide-react';
+import { toast } from './Toast';
 
 export default function SpeechToTextInput({
   value = '',
@@ -58,7 +59,7 @@ export default function SpeechToTextInput({
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in this browser. Please use Google Chrome on Android/Desktop.');
+      toast.warning('Speech recognition is not supported in this browser. Please use Google Chrome on Android/Desktop.');
       return;
     }
 
