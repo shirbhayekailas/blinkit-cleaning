@@ -887,27 +887,141 @@ app.get('/api/database/backup', (req, res) => {
   res.send(JSON.stringify(currentDB, null, 2));
 });
 
-// FULL DATABASE RESTORE ENDPOINT
+// FULL DATABASE RESTORE ENDPOINT (Safe merge: never deletes existing records)
+// Accepts: raw database JSON, { serverState: {...} } (app export), or { data: {...} }
+const RESTORABLE_COLLECTIONS = [
+  'cleanings', 'stores', 'supervisors', 'cleaners', 'cleaningSchedules',
+  'chemicalStock', 'chemicalLogs', 'cleanerAdvances', 'storeIssues',
+  'equipments', 'equipmentMovements', 'toolAllocations', 'storeExpenses', 'teamDispatches'
+];
+
+const TOMBSTONE_FOR = {
+  cleanings: 'deletedCleanings',
+  stores: 'deletedStores',
+  supervisors: 'deletedSupervisors',
+  cleaners: 'deletedCleaners',
+  cleaningSchedules: 'deletedSchedules',
+  cleanerAdvances: 'deletedAdvances',
+  equipments: 'deletedEquipments',
+  toolAllocations: 'deletedToolAllocations',
+  storeExpenses: 'deletedStoreExpenses',
+  teamDispatches: 'deletedTeamDispatches'
+};
+
+function restoreRecordKey(collection, r) {
+  if (!r || typeof r !== 'object') return null;
+  if (collection === 'stores') {
+    const code = r.storeCode || r.code;
+    return code ? `code_${String(code).trim().toUpperCase()}` : (r.id ? `id_${r.id}` : null);
+  }
+  if (collection === 'cleanings') {
+    if (r.storeCode && r.cleaningDate) return `sd_${String(r.storeCode).trim().toUpperCase()}_${String(r.cleaningDate).trim()}`;
+    if (r.syncId) return `sync_${r.syncId}`;
+  }
+  if (r.id !== undefined && r.id !== null) return `id_${r.id}`;
+  return null;
+}
+
+function tombstoneMatchesRecord(collection, d, r) {
+  if (!d || !r) return false;
+  if (typeof d === 'string' || typeof d === 'number') {
+    const s = String(d).trim().toUpperCase();
+    return [r.id, r.syncId, r.storeCode, r.phone, r.name]
+      .filter(v => v !== undefined && v !== null)
+      .some(v => String(v).trim().toUpperCase() === s) ||
+      (r.storeCode && r.cleaningDate && `${String(r.storeCode).trim()}_${String(r.cleaningDate).trim()}`.toUpperCase() === s);
+  }
+  if (d.id && r.id && String(d.id) === String(r.id)) return true;
+  if (d.syncId && r.syncId && String(d.syncId) === String(r.syncId)) return true;
+  if (collection === 'stores' && d.storeCode && r.storeCode &&
+      String(d.storeCode).trim().toUpperCase() === String(r.storeCode).trim().toUpperCase()) return true;
+  if (collection === 'cleanings' && d.storeCode && d.cleaningDate && r.storeCode && r.cleaningDate &&
+      String(d.storeCode).trim().toUpperCase() === String(r.storeCode).trim().toUpperCase() &&
+      String(d.cleaningDate).trim() === String(r.cleaningDate).trim()) return true;
+  if (d.phone && r.phone && String(d.phone).trim() === String(r.phone).trim()) return true;
+  return false;
+}
+
 app.post('/api/database/restore', (req, res) => {
   try {
-    const backupData = req.body;
-    if (!backupData || typeof backupData !== 'object') {
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
       return res.status(400).json({ success: false, message: 'Invalid backup JSON data.' });
+    }
+    const backupData = (body.serverState && typeof body.serverState === 'object') ? body.serverState
+      : (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) ? body.data
+      : body;
+
+    const hasAnyCollection = RESTORABLE_COLLECTIONS.some(k => Array.isArray(backupData[k]) && backupData[k].length > 0);
+    if (!hasAnyCollection) {
+      return res.status(400).json({
+        success: false,
+        message: 'Backup file me koi record nahi mila (file khali hai ya galat format me hai).'
+      });
     }
 
     const currentDB = readDB();
-    const merged = { ...currentDB, ...backupData };
-    if (Array.isArray(backupData.cleanings)) merged.cleanings = backupData.cleanings;
-    if (Array.isArray(backupData.stores)) merged.stores = backupData.stores;
-    if (Array.isArray(backupData.supervisors)) merged.supervisors = backupData.supervisors;
-    if (Array.isArray(backupData.cleaners)) merged.cleaners = backupData.cleaners;
-    if (Array.isArray(backupData.cleaningSchedules)) merged.cleaningSchedules = backupData.cleaningSchedules;
-    if (Array.isArray(backupData.chemicalStock)) merged.chemicalStock = backupData.chemicalStock;
-    if (Array.isArray(backupData.chemicalLogs)) merged.chemicalLogs = backupData.chemicalLogs;
+    const summary = {};
 
-    writeDB(merged);
-    res.json({ success: true, message: 'Database successfully restored from backup!', totalCleanings: merged.cleanings.length });
+    RESTORABLE_COLLECTIONS.forEach(collection => {
+      const incoming = Array.isArray(backupData[collection]) ? backupData[collection] : [];
+      if (incoming.length === 0) return;
+      const existing = Array.isArray(currentDB[collection]) ? currentDB[collection] : [];
+
+      const map = new Map();
+      const unkeyed = [];
+      existing.forEach(r => {
+        const k = restoreRecordKey(collection, r);
+        if (k) map.set(k, r); else if (r) unkeyed.push(r);
+      });
+
+      let added = 0, updated = 0;
+      incoming.forEach(r => {
+        const k = restoreRecordKey(collection, r);
+        if (!k) return;
+        const old = map.get(k);
+        if (!old) {
+          map.set(k, r);
+          added++;
+        } else {
+          const oldT = new Date(old.updatedAt || old.createdAt || 0).getTime() || 0;
+          const newT = new Date(r.updatedAt || r.createdAt || 0).getTime() || 0;
+          if (newT > oldT) {
+            map.set(k, { ...old, ...r });
+            updated++;
+          }
+        }
+      });
+
+      currentDB[collection] = [...map.values(), ...unkeyed];
+      summary[collection] = { added, updated, total: currentDB[collection].length };
+
+      // Clear tombstones so restored records are not hidden again
+      const tombKey = TOMBSTONE_FOR[collection];
+      if (tombKey && Array.isArray(currentDB[tombKey]) && currentDB[tombKey].length > 0) {
+        currentDB[tombKey] = currentDB[tombKey].filter(d => !incoming.some(r => tombstoneMatchesRecord(collection, d, r)));
+      }
+    });
+
+    // Restore app settings only for keys that are missing on server (never overwrite live PINs)
+    if (backupData.appSettings && typeof backupData.appSettings === 'object') {
+      currentDB.appSettings = { ...backupData.appSettings, ...(currentDB.appSettings || {}) };
+    }
+
+    writeDB(currentDB);
+    const restoredCleanings = summary.cleanings ? summary.cleanings.added + summary.cleanings.updated : 0;
+    console.log(`[Restore] Backup merged. Cleanings restored: ${restoredCleanings}`, JSON.stringify(summary));
+
+    res.json({
+      success: true,
+      message: 'Backup successfully restored to server database!',
+      summary,
+      totalCleanings: (currentDB.cleanings || []).length,
+      totalStores: (currentDB.stores || []).length,
+      data: currentDB
+    });
   } catch (err) {
+    console.error('Restore error:', err);
     res.status(500).json({ success: false, message: 'Restore error: ' + err.message });
   }
 });

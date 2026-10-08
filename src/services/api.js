@@ -136,6 +136,43 @@ export async function updateCleaningPayment(paymentPayload) {
   }
 }
 
+// -------------------------------------------------------------
+// BACKUP & RESTORE (single request, safe merge on server)
+// -------------------------------------------------------------
+
+export async function fetchFullBackup() {
+  const res = await fetch(getApiUrl(`/api/sync?_t=${Date.now()}`), {
+    method: 'GET',
+    headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+  });
+  if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
+  const json = await res.json();
+  if (!json || !json.data || !Array.isArray(json.data.cleanings)) {
+    throw new Error('Server se data nahi mila. Server jaag raha ho sakta hai, 30 second baad dobara try karein.');
+  }
+  return json.data;
+}
+
+export async function restoreDatabaseBackup(backupJson) {
+  const res = await fetch(getApiUrl('/api/database/restore'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(backupJson)
+  });
+  let result = null;
+  try {
+    result = await res.json();
+  } catch (e) {
+    throw new Error(res.status === 413
+      ? 'Backup file bahut badi hai (server limit). Photos kam karke try karein.'
+      : `Server returned HTTP ${res.status}`);
+  }
+  if (!res.ok || !result || !result.success) {
+    throw new Error((result && result.message) || `Server returned HTTP ${res.status}`);
+  }
+  return result;
+}
+
 export async function deleteCleaning(cleaningOrId) {
   try {
     let payload = {};

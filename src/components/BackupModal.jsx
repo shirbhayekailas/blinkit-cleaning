@@ -9,7 +9,7 @@ import {
   CheckCircle2, 
   RefreshCw 
 } from 'lucide-react';
-import { fetchServerState, saveCleaning, saveStore } from '../services/api';
+import { fetchFullBackup, restoreDatabaseBackup } from '../services/api';
 import { toast } from './Toast';
 
 export default function BackupModal({
@@ -19,16 +19,25 @@ export default function BackupModal({
 }) {
   const { t } = useLanguage();
   const [restoring, setRestoring] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
 
   const handleExportBackup = async () => {
+    setExporting(true);
+    setErrorMsg('');
     try {
-      const serverState = await fetchServerState();
+      // Always pull the full, fresh database from server (never an empty/stale file)
+      const serverState = await fetchFullBackup();
       const backupData = {
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
+        counts: {
+          cleanings: (serverState.cleanings || []).length,
+          stores: (serverState.stores || []).length
+        },
         serverState
       };
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -36,48 +45,59 @@ export default function BackupModal({
       const a = document.createElement('a');
       a.href = url;
       a.download = `SK_Enterprises_Cleaning_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Backup file downloaded successfully!');
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success(`Backup downloaded: ${backupData.counts.cleanings} cleanings, ${backupData.counts.stores} stores.`);
     } catch (err) {
+      setErrorMsg('Backup error: ' + err.message);
       toast.error('Error generating backup: ' + err.message);
+    } finally {
+      setExporting(false);
     }
   };
 
   const handleImportBackup = (e) => {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
+    reader.onerror = () => {
+      setErrorMsg('File read nahi ho payi. Dobara try karein.');
+    };
     reader.onload = async (event) => {
+      setRestoring(true);
+      setMessage('');
+      setErrorMsg('');
       try {
-        setRestoring(true);
-        const data = JSON.parse(event.target.result);
-        const state = data.serverState || data;
-        const cleanings = state.cleanings || [];
-        const stores = state.stores || [];
-
-        if (!Array.isArray(cleanings) && !Array.isArray(stores)) {
-          throw new Error('Invalid backup file format.');
+        let data;
+        try {
+          data = JSON.parse(event.target.result);
+        } catch {
+          throw new Error('Yeh valid JSON backup file nahi hai.');
         }
 
-        // Restore stores first
-        for (const st of stores) {
-          await saveStore(st);
-        }
+        // Single request: server safely merges ALL collections (nothing existing is deleted)
+        const result = await restoreDatabaseBackup(data);
+        const s = result.summary || {};
+        const parts = Object.entries(s)
+          .filter(([, v]) => v.added + v.updated > 0)
+          .map(([k, v]) => `${k}: +${v.added}${v.updated ? ` (${v.updated} updated)` : ''}`);
 
-        // Restore cleanings
-        for (const cln of cleanings) {
-          await saveCleaning(cln);
-        }
-
-        setMessage(`Successfully restored ${stores.length} stores & ${cleanings.length} cleaning records directly to server!`);
-        toast.success(`Restored ${stores.length} stores & ${cleanings.length} cleanings!`);
-        if (onDataRestored) onDataRestored();
+        const msg = parts.length > 0
+          ? `Restore complete! ${parts.join(', ')}. Server par ab ${result.totalCleanings} cleanings aur ${result.totalStores} stores hain.`
+          : `Server par saare records pehle se maujood the. Total: ${result.totalCleanings} cleanings, ${result.totalStores} stores.`;
+        setMessage(msg);
+        toast.success(msg, 'Backup Restored');
+        if (onDataRestored) onDataRestored(true);
       } catch (err) {
+        setErrorMsg('Restore failed: ' + err.message);
         toast.error('Restore failed: ' + err.message);
       } finally {
         setRestoring(false);
+        input.value = ''; // allow choosing the same file again
       }
     };
     reader.readAsText(file);
@@ -125,6 +145,13 @@ export default function BackupModal({
             </div>
           )}
 
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           {/* Export */}
           <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-2">
             <div className="font-bold text-slate-900 dark:text-white">Export Full Database</div>
@@ -133,10 +160,11 @@ export default function BackupModal({
             </p>
             <button
               onClick={handleExportBackup}
-              className="w-full py-2 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs flex items-center justify-center gap-2 hover:opacity-90 transition"
+              disabled={exporting}
+              className="w-full py-2 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-60"
             >
-              <Download className="w-4 h-4" />
-              <span>Download JSON Backup</span>
+              {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span>{exporting ? 'Server se data aa raha hai...' : 'Download JSON Backup'}</span>
             </button>
           </div>
 
