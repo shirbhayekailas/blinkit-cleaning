@@ -1101,45 +1101,42 @@ export function buildAllCleaningsSheet(cleanings = [], filterLabel = 'All Time',
 //    Store Manager & Contact Number Removed
 // ----------------------------------------------------------------------
 export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLabel = 'All Time', { includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
-  const storeMap = new Map();
-
-  stores.forEach(s => {
-    const key = (s.storeCode || s.code || s.storeName || '').trim();
-    if (key) {
-      storeMap.set(key, {
-        code: s.storeCode || s.code || '',
-        name: s.storeName || s.name || '',
-        city: s.city || '',
-        address: s.address || '',
-        cleaningsCount: 0,
-        totalBilled: 0,
-        totalReceived: 0,
-        totalPending: 0,
-        lastCleanDate: '',
-        status: 'No Cleanings'
-      });
-    }
+  // 1. Build metadata lookup maps from stores
+  const storeMetaByCode = new Map();
+  const storeMetaByName = new Map();
+  (stores || []).forEach(s => {
+    const code = (s.storeCode || s.code || '').trim().toUpperCase();
+    const name = (s.storeName || s.name || '').trim().toLowerCase();
+    if (code) storeMetaByCode.set(code, s);
+    if (name) storeMetaByName.set(name, s);
   });
 
-  cleanings.forEach(c => {
-    const key = (c.storeCode || c.storeName || '').trim();
-    if (!key) return;
+  const storeMap = new Map();
 
-    let item = storeMap.get(key);
+  // 2. Aggregate directly from cleanings matching the filter
+  cleanings.forEach(c => {
+    const cCode = (c.storeCode || '').trim().toUpperCase();
+    const cName = (c.storeName || '').trim().toLowerCase();
+    const meta = (cCode ? storeMetaByCode.get(cCode) : null) || storeMetaByName.get(cName);
+
+    const storeKey = cCode || (meta?.storeCode || meta?.code || '').trim().toUpperCase() || cName;
+    if (!storeKey) return;
+
+    let item = storeMap.get(storeKey);
     if (!item) {
       item = {
-        code: c.storeCode || '',
-        name: c.storeName || '',
-        city: c.city || '',
-        address: c.address || '',
+        code: c.storeCode || meta?.storeCode || meta?.code || '',
+        name: meta?.storeName || meta?.name || c.storeName || '',
+        city: meta?.city || c.city || '',
+        address: meta?.address || c.address || '',
         cleaningsCount: 0,
         totalBilled: 0,
         totalReceived: 0,
         totalPending: 0,
         lastCleanDate: '',
-        status: 'Pending'
+        status: 'Active'
       };
-      storeMap.set(key, item);
+      storeMap.set(storeKey, item);
     }
 
     const billed = toNum(c.amount);
@@ -1155,6 +1152,60 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
       item.lastCleanDate = c.cleaningDate;
     }
   });
+
+  // 3. Determine if filters are applied
+  const hasFilter = filterLabel && filterLabel !== 'All Time' && filterLabel !== 'All Time Records' && (
+    filterLabel.includes('City:') ||
+    filterLabel.includes('Store:') ||
+    filterLabel.includes('Payment:') ||
+    filterLabel.includes('Month') ||
+    filterLabel.includes('Range') ||
+    filterLabel.includes('Search:')
+  );
+
+  // If unfiltered "All Time", include registered dark stores with 0 cleanings as "Not Started"
+  if (!hasFilter && stores && stores.length > 0) {
+    stores.forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      const name = (s.storeName || s.name || '').trim().toLowerCase();
+      const storeKey = code || name;
+      if (storeKey && !storeMap.has(storeKey)) {
+        storeMap.set(storeKey, {
+          code: s.storeCode || s.code || '',
+          name: s.storeName || s.name || '',
+          city: s.city || '',
+          address: s.address || '',
+          cleaningsCount: 0,
+          totalBilled: 0,
+          totalReceived: 0,
+          totalPending: 0,
+          lastCleanDate: '',
+          status: 'Not Started'
+        });
+      }
+    });
+  } else if (cleanings.length === 0 && stores && stores.length > 0) {
+    // If no cleanings matched the active filter, but specific target stores were provided (e.g. single store selected)
+    stores.forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      const name = (s.storeName || s.name || '').trim().toLowerCase();
+      const storeKey = code || name;
+      if (storeKey && !storeMap.has(storeKey)) {
+        storeMap.set(storeKey, {
+          code: s.storeCode || s.code || '',
+          name: s.storeName || s.name || '',
+          city: s.city || '',
+          address: s.address || '',
+          cleaningsCount: 0,
+          totalBilled: 0,
+          totalReceived: 0,
+          totalPending: 0,
+          lastCleanDate: '',
+          status: 'No Cleanings'
+        });
+      }
+    });
+  }
 
   const storeRows = sortStoresList(Array.from(storeMap.values()).map(item => {
     let financialStatus = 'All Cleared';
@@ -1193,13 +1244,13 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
   if (includeFinancials) {
     headerRows.push(
       ['EXECUTIVE STORE PERFORMANCE SCORECARD', '', '', '', '', '', '', ''],
-      ['Total Registered Stores', storeRows.length, 'Total Cleanings Executed', sumCleanings, 'Total Invoiced Billing', sumBilled, 'Total Outstanding Balance', sumPend],
+      ['Total Stores in Report', storeRows.length, 'Total Cleanings Executed', sumCleanings, 'Total Invoiced Billing', sumBilled, 'Total Outstanding Balance', sumPend],
       []
     );
   } else {
     headerRows.push(
       ['EXECUTIVE STORE AUDIT SCORECARD (NON-FINANCIAL)', '', '', '', '', '', '', ''],
-      ['Total Registered Stores', storeRows.length, 'Cleanings Completed', sumCleanings, 'Coverage Rate', '100% Monitored', 'Audit Status', 'Operational'],
+      ['Total Stores in Report', storeRows.length, 'Cleanings Completed', sumCleanings, 'Coverage Rate', '100% Monitored', 'Audit Status', 'Operational'],
       []
     );
   }
@@ -1399,7 +1450,7 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
     [`Report Filter Period: ${filterLabel}`, `Generated On: ${new Date().toLocaleString('en-IN')}`],
     [],
     ['KEY PERFORMANCE INDICATORS (KPIs)', 'VALUE / AMOUNT', 'REMARKS & AUDIT NOTES'],
-    ['Total Registered Dark Stores', stores.length || cleanings.length, 'Active Stores in Operations System'],
+    ['Total Dark Stores in Report', stores.length || cleanings.length, 'Active Stores in Filtered Scope'],
     ['Total Deep Cleanings Executed', totalCleanings, 'Verified Work Completion Records'],
     ['Total Gross Invoiced Billing (Rs)', totalBilled, 'Total Amount Billed to Blinkit Stores'],
     ['Total Realized Payments Received (Rs)', totalReceived, 'Payments Successfully Verified & Settled'],

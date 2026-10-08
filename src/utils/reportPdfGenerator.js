@@ -650,43 +650,41 @@ export function generateAllCleaningsPDF({ cleanings = [], filterLabel = 'All Tim
 //    Store Manager & Contact Removed
 // ----------------------------------------------------------------------
 export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLabel = 'All Time', includeFinancials = true, sortBy = 'storeCodeAsc' } = {}) {
-  const storeMap = new Map();
-
-  stores.forEach(s => {
-    const key = (s.storeCode || s.code || s.storeName || '').trim();
-    if (key) {
-      storeMap.set(key, {
-        code: s.storeCode || s.code || '',
-        name: s.storeName || s.name || '',
-        city: s.city || '',
-        address: s.address || '',
-        cleaningsCount: 0,
-        totalBilled: 0,
-        totalReceived: 0,
-        totalPending: 0,
-        lastCleanDate: ''
-      });
-    }
+  // 1. Build metadata lookup maps from stores
+  const storeMetaByCode = new Map();
+  const storeMetaByName = new Map();
+  (stores || []).forEach(s => {
+    const code = (s.storeCode || s.code || '').trim().toUpperCase();
+    const name = (s.storeName || s.name || '').trim().toLowerCase();
+    if (code) storeMetaByCode.set(code, s);
+    if (name) storeMetaByName.set(name, s);
   });
 
-  cleanings.forEach(c => {
-    const key = (c.storeCode || c.storeName || '').trim();
-    if (!key) return;
+  const storeMap = new Map();
 
-    let item = storeMap.get(key);
+  // 2. Aggregate directly from cleanings matching the filter
+  cleanings.forEach(c => {
+    const cCode = (c.storeCode || '').trim().toUpperCase();
+    const cName = (c.storeName || '').trim().toLowerCase();
+    const meta = (cCode ? storeMetaByCode.get(cCode) : null) || storeMetaByName.get(cName);
+
+    const storeKey = cCode || (meta?.storeCode || meta?.code || '').trim().toUpperCase() || cName;
+    if (!storeKey) return;
+
+    let item = storeMap.get(storeKey);
     if (!item) {
       item = {
-        code: c.storeCode || '',
-        name: c.storeName || '',
-        city: c.city || '',
-        address: c.address || '',
+        code: c.storeCode || meta?.storeCode || meta?.code || '',
+        name: meta?.storeName || meta?.name || c.storeName || '',
+        city: meta?.city || c.city || '',
+        address: meta?.address || c.address || '',
         cleaningsCount: 0,
         totalBilled: 0,
         totalReceived: 0,
         totalPending: 0,
         lastCleanDate: ''
       };
-      storeMap.set(key, item);
+      storeMap.set(storeKey, item);
     }
 
     const billed = toNum(c.amount);
@@ -702,6 +700,58 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
       item.lastCleanDate = c.cleaningDate;
     }
   });
+
+  // 3. Determine if filters are applied
+  const hasFilter = filterLabel && filterLabel !== 'All Time' && filterLabel !== 'All Time Records' && (
+    filterLabel.includes('City:') ||
+    filterLabel.includes('Store:') ||
+    filterLabel.includes('Payment:') ||
+    filterLabel.includes('Month') ||
+    filterLabel.includes('Range') ||
+    filterLabel.includes('Search:')
+  );
+
+  // If unfiltered "All Time", include registered dark stores with 0 cleanings as "Not Started"
+  if (!hasFilter && stores && stores.length > 0) {
+    stores.forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      const name = (s.storeName || s.name || '').trim().toLowerCase();
+      const storeKey = code || name;
+      if (storeKey && !storeMap.has(storeKey)) {
+        storeMap.set(storeKey, {
+          code: s.storeCode || s.code || '',
+          name: s.storeName || s.name || '',
+          city: s.city || '',
+          address: s.address || '',
+          cleaningsCount: 0,
+          totalBilled: 0,
+          totalReceived: 0,
+          totalPending: 0,
+          lastCleanDate: ''
+        });
+      }
+    });
+  } else if (cleanings.length === 0 && stores && stores.length > 0) {
+    // If no cleanings matched the active filter, but specific target stores were provided (e.g. single store selected)
+    stores.forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      const name = (s.storeName || s.name || '').trim().toLowerCase();
+      const storeKey = code || name;
+      if (storeKey && !storeMap.has(storeKey)) {
+        storeMap.set(storeKey, {
+          code: s.storeCode || s.code || '',
+          name: s.storeName || s.name || '',
+          city: s.city || '',
+          address: s.address || '',
+          cleaningsCount: 0,
+          totalBilled: 0,
+          totalReceived: 0,
+          totalPending: 0,
+          lastCleanDate: ''
+        });
+      }
+    });
+  }
 
   const storeRows = sortStoresList(Array.from(storeMap.values()), sortBy, cleanings);
   if (storeRows.length === 0) {
@@ -747,7 +797,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
 
   if (includeFinancials) {
     currentY = drawKpiCards(doc, currentY, [
-      { label: 'Registered Dark Stores', value: storeRows.length, valR: 15, valG: 23, valB: 42 },
+      { label: 'Stores in Report', value: storeRows.length, valR: 15, valG: 23, valB: 42 },
       { label: 'Cleanings Executed', value: sumCleanings, valR: 15, valG: 23, valB: 42 },
       { label: 'Total Invoiced Value', value: `Rs ${sumBilled.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
       { label: 'Total Outstanding Dues', value: `Rs ${sumPend.toLocaleString('en-IN')}`, valR: sumPend > 0 ? 220 : 15, valG: sumPend > 0 ? 38 : 23, valB: sumPend > 0 ? 38 : 42 }
@@ -779,7 +829,7 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
 
     footCols = [
       { 
-        content: `TOTAL (${storeRows.length} Registered Stores)`, 
+        content: `TOTAL (${storeRows.length} Stores in Report)`, 
         colSpan: 4, 
         styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] } 
       },
@@ -907,7 +957,7 @@ export function generateMasterExecutiveReportPDF({ cleanings = [], stores = [], 
   const collectionRate = totalBilled > 0 ? ((totalReceived / totalBilled) * 100).toFixed(1) + '%' : '0%';
 
   currentY = drawKpiCards(doc, currentY, [
-    { label: 'Registered Stores', value: stores.length || cleanings.length, valR: 15, valG: 23, valB: 42 },
+    { label: 'Stores in Report', value: stores.length || cleanings.length, valR: 15, valG: 23, valB: 42 },
     { label: 'Cleanings Executed', value: cleanings.length, valR: 15, valG: 23, valB: 42 },
     { label: 'Total Invoiced Value', value: `Rs ${totalBilled.toLocaleString('en-IN')}`, valR: 15, valG: 23, valB: 42 },
     { label: 'Total Realized Received', value: `Rs ${totalReceived.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },

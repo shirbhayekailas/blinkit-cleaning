@@ -1038,7 +1038,7 @@ export default function App() {
           setEditingStore(null);
           setIsStoreModalOpen(true);
         }}
-        onExportExcel={() => exportCleaningsToExcel(cleanings)}
+        onExportExcel={() => exportCleaningsToExcel(cleanings, 'Blinkit_DeepCleaning_Tracker.xlsx', stores, 'All Time Records')}
         onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
         onOpenBackup={() => setIsBackupOpen(true)}
         darkMode={darkMode}
@@ -1274,7 +1274,25 @@ export default function App() {
                         <span>📊 Reports</span>
                       </button>
                       <button
-                        onClick={() => exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx')}
+                        onClick={() => {
+                          const parts = [];
+                          if (paymentFilter !== 'all') parts.push(`Payment: ${paymentFilter}`);
+                          if (clusterFilter !== 'all') parts.push(`City: ${clusterFilter}`);
+                          if (storeCodeFilter !== 'all') parts.push(`Store: ${storeCodeFilter}`);
+                          if (statusFilter !== 'all') parts.push(`Status: ${statusFilter}`);
+                          if (searchTerm.trim()) parts.push(`Search: "${searchTerm}"`);
+                          const label = parts.length > 0 ? parts.join(' | ') : 'All Time Records';
+
+                          const activeCodes = new Set(filteredCleanings.map(c => (c.storeCode || '').trim().toUpperCase()).filter(Boolean));
+                          const activeNames = new Set(filteredCleanings.map(c => (c.storeName || '').trim().toLowerCase()).filter(Boolean));
+                          const matchedStores = (stores || []).filter(s => {
+                            const code = (s.storeCode || s.code || '').trim().toUpperCase();
+                            const name = (s.storeName || s.name || '').trim().toLowerCase();
+                            return (code && activeCodes.has(code)) || (name && activeNames.has(name));
+                          });
+
+                          exportCleaningsToExcel(filteredCleanings, 'Blinkit_Filtered_Cleanings.xlsx', matchedStores, label);
+                        }}
                         className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold"
                       >
                         Excel ({filteredCleanings.length})
@@ -1511,6 +1529,10 @@ export default function App() {
           onClose={() => setIsReportsCenterOpen(false)}
           cleanings={cleanings}
           stores={stores}
+          initialCity={clusterFilter !== 'all' ? clusterFilter : 'all'}
+          initialStore={storeCodeFilter !== 'all' ? storeCodeFilter : 'all'}
+          initialPayment={paymentFilter !== 'all' ? paymentFilter : 'all'}
+          initialSearch={searchTerm || ''}
         />
       )}
 
@@ -1669,7 +1691,7 @@ export default function App() {
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onOpenReportsCenter={() => setIsReportsCenterOpen(true)}
-        onExportExcel={() => exportCleaningsToExcel(cleanings)}
+        onExportExcel={() => exportCleaningsToExcel(cleanings, 'Blinkit_DeepCleaning_Tracker.xlsx', stores, 'All Time Records')}
         onToggleDarkMode={() => setDarkMode(prev => !prev)}
         darkMode={darkMode}
         onViewStoreHistory={(s) => setHistoryStore(s)}

@@ -48,7 +48,11 @@ export default function ReportsCenterModal({
   isOpen,
   onClose,
   cleanings = [],
-  stores = []
+  stores = [],
+  initialCity = 'all',
+  initialStore = 'all',
+  initialPayment = 'all',
+  initialSearch = ''
 }) {
   const { t } = useLanguage();
 
@@ -68,11 +72,20 @@ export default function ReportsCenterModal({
   const [periodFilter, setPeriodFilter] = useState('all'); // 'all' | 'this_month' | 'last_month' | 'custom'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [cityFilter, setCityFilter] = useState('all');
-  const [selectedStore, setSelectedStore] = useState('all');
-  const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'Pending' | 'Received' | 'Partial'
+  const [cityFilter, setCityFilter] = useState(initialCity);
+  const [selectedStore, setSelectedStore] = useState(initialStore);
+  const [paymentFilter, setPaymentFilter] = useState(initialPayment); // 'all' | 'Pending' | 'Received' | 'Partial'
   const [sortBy, setSortBy] = useState('dateDesc'); // 'dateDesc' | 'dateAsc' | 'storeCodeAsc' | 'storeCodeDesc' | 'amountDesc' | 'amountPendingDesc'
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialCity && initialCity !== 'all') setCityFilter(initialCity);
+      if (initialStore && initialStore !== 'all') setSelectedStore(initialStore);
+      if (initialPayment && initialPayment !== 'all') setPaymentFilter(initialPayment);
+      if (initialSearch) setSearchTerm(initialSearch);
+    }
+  }, [isOpen, initialCity, initialStore, initialPayment, initialSearch]);
   const [previewTab, setPreviewTab] = useState('pending'); // 'pending' | 'completed' | 'all' | 'stores' | 'directory'
   const [card4Mode, setCard4Mode] = useState('with_amount'); // 'with_amount' | 'without_amount'
   const [card5Mode, setCard5Mode] = useState('with_amount'); // 'with_amount' | 'without_amount'
@@ -269,54 +282,43 @@ export default function ReportsCenterModal({
     return sortCleaningsList(list, sortBy);
   }, [filteredCleanings, sortBy]);
 
-  // Store performance summary
+  // Store performance summary (strictly obeys active filters)
   const storeSummaryList = useMemo(() => {
-    const map = new Map();
-
-    const relevantStores = cityFilter === 'all'
-      ? stores
-      : stores.filter(s => (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase());
-
-    relevantStores.forEach(s => {
-      const key = (s.storeCode || s.code || s.storeName || '').trim();
-      if (key) {
-        map.set(key, {
-          code: s.storeCode || s.code || '',
-          name: s.storeName || s.name || '',
-          city: s.city || '',
-          manager: s.managerName || '',
-          phone: s.managerPhone || '',
-          cleaningsCount: 0,
-          totalBilled: 0,
-          totalReceived: 0,
-          totalPending: 0,
-          lastCleanDate: ''
-        });
-      }
+    const metaByCode = new Map();
+    const metaByName = new Map();
+    stores.forEach(s => {
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      const name = (s.storeName || s.name || '').trim().toLowerCase();
+      if (code) metaByCode.set(code, s);
+      if (name) metaByName.set(name, s);
     });
 
-    filteredCleanings.forEach(c => {
-      const key = (c.storeCode || c.storeName || '').trim();
-      if (!key) return;
+    const map = new Map();
 
-      let item = map.get(key);
+    filteredCleanings.forEach(c => {
+      const cCode = (c.storeCode || '').trim().toUpperCase();
+      const cName = (c.storeName || '').trim().toLowerCase();
+      const meta = (cCode ? metaByCode.get(cCode) : null) || metaByName.get(cName);
+
+      const storeKey = cCode || (meta?.storeCode || meta?.code || '').trim().toUpperCase() || cName;
+      if (!storeKey) return;
+
+      let item = map.get(storeKey);
       if (!item) {
-        if (cityFilter !== 'all' && (c.city || '').trim().toLowerCase() !== cityFilter.trim().toLowerCase()) {
-          return;
-        }
         item = {
-          code: c.storeCode || '',
-          name: c.storeName || '',
-          city: c.city || '',
-          manager: c.managerName || '',
-          phone: c.managerPhone || '',
+          code: c.storeCode || meta?.storeCode || meta?.code || '',
+          name: meta?.storeName || meta?.name || c.storeName || '',
+          city: meta?.city || c.city || '',
+          address: meta?.address || c.address || '',
+          manager: meta?.managerName || c.managerName || '',
+          phone: meta?.managerPhone || c.managerPhone || '',
           cleaningsCount: 0,
           totalBilled: 0,
           totalReceived: 0,
           totalPending: 0,
           lastCleanDate: ''
         };
-        map.set(key, item);
+        map.set(storeKey, item);
       }
 
       const billed = Number(c.amount) || 0;
@@ -333,8 +335,92 @@ export default function ReportsCenterModal({
       }
     });
 
+    // If NO active filters are applied, show remaining registered stores with 0 cleanings as "Pending First Cycle"
+    if (!hasActiveFilters) {
+      stores.forEach(s => {
+        const code = (s.storeCode || s.code || '').trim().toUpperCase();
+        const name = (s.storeName || s.name || '').trim().toLowerCase();
+        const storeKey = code || name;
+        if (storeKey && !map.has(storeKey)) {
+          map.set(storeKey, {
+            code: s.storeCode || s.code || '',
+            name: s.storeName || s.name || '',
+            city: s.city || '',
+            address: s.address || '',
+            manager: s.managerName || '',
+            phone: s.managerPhone || '',
+            cleaningsCount: 0,
+            totalBilled: 0,
+            totalReceived: 0,
+            totalPending: 0,
+            lastCleanDate: ''
+          });
+        }
+      });
+    } else if (selectedStore !== 'all' && map.size === 0) {
+      // If user selected a specific store but it has 0 cleanings in the current filter,
+      // show that single selected store with 0 count so user gets clear feedback
+      const selStore = stores.find(s => 
+        (s.storeCode || s.code || '').trim().toUpperCase() === selectedStore.trim().toUpperCase() ||
+        (s.storeName || s.name || '').trim().toLowerCase() === selectedStore.trim().toLowerCase()
+      );
+      if (selStore) {
+        const code = (selStore.storeCode || selStore.code || '').trim().toUpperCase();
+        map.set(code || selStore.storeName, {
+          code: selStore.storeCode || selStore.code || '',
+          name: selStore.storeName || selStore.name || '',
+          city: selStore.city || '',
+          address: selStore.address || '',
+          manager: selStore.managerName || '',
+          phone: selStore.managerPhone || '',
+          cleaningsCount: 0,
+          totalBilled: 0,
+          totalReceived: 0,
+          totalPending: 0,
+          lastCleanDate: ''
+        });
+      }
+    }
+
     return sortStoresList(Array.from(map.values()), sortBy, filteredCleanings);
-  }, [filteredCleanings, stores, cityFilter, sortBy]);
+  }, [filteredCleanings, stores, hasActiveFilters, selectedStore, sortBy]);
+
+  // Dynamically filtered stores for export packages (Master Excel, PDFs, Store Performance)
+  const filteredStores = useMemo(() => {
+    if (selectedStore !== 'all') {
+      const matched = stores.filter(s => 
+        (s.storeCode || s.code || '').trim().toUpperCase() === selectedStore.trim().toUpperCase() ||
+        (s.storeName || s.name || '').trim().toLowerCase() === selectedStore.trim().toLowerCase()
+      );
+      return matched.length > 0 ? matched : [{ storeCode: selectedStore, storeName: selectedStore }];
+    }
+
+    let list = stores;
+    if (cityFilter !== 'all') {
+      list = list.filter(s => (s.city || '').trim().toLowerCase() === cityFilter.trim().toLowerCase());
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(s =>
+        (s.storeCode || s.code || '').toLowerCase().includes(q) ||
+        (s.storeName || s.name || '').toLowerCase().includes(q) ||
+        (s.city || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (hasActiveFilters) {
+      const activeCodes = new Set(filteredCleanings.map(c => (c.storeCode || '').trim().toUpperCase()).filter(Boolean));
+      const activeNames = new Set(filteredCleanings.map(c => (c.storeName || '').trim().toLowerCase()).filter(Boolean));
+      return list.filter(s => {
+        const code = (s.storeCode || s.code || '').trim().toUpperCase();
+        const name = (s.storeName || s.name || '').trim().toLowerCase();
+        return (code && activeCodes.has(code)) || (name && activeNames.has(name));
+      });
+    }
+
+    return list;
+  }, [stores, selectedStore, cityFilter, searchTerm, hasActiveFilters, filteredCleanings]);
 
   // Filtered store master directory
   const directoryStores = useMemo(() => {
@@ -685,7 +771,7 @@ export default function ReportsCenterModal({
 
                 <div className="flex items-center gap-2 mt-3 pt-2 border-t border-emerald-500/20">
                   <button
-                    onClick={() => exportMasterExcel(filteredCleanings, stores, filterLabel, { sortBy })}
+                    onClick={() => exportMasterExcel(filteredCleanings, filteredStores, filterLabel, { sortBy })}
                     className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
                     title="Download complete 5-sheet formatted Excel workbook"
                   >
@@ -693,7 +779,7 @@ export default function ReportsCenterModal({
                     <span>Master Excel</span>
                   </button>
                   <button
-                    onClick={() => generateMasterExecutiveReportPDF({ cleanings: filteredCleanings, stores, filterLabel, sortBy })}
+                    onClick={() => generateMasterExecutiveReportPDF({ cleanings: filteredCleanings, stores: filteredStores, filterLabel, sortBy })}
                     className="flex-1 py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
                     title="Download Executive Consolidated PDF statement"
                   >
@@ -889,7 +975,7 @@ export default function ReportsCenterModal({
 
                 <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-200 dark:border-slate-750">
                   <button
-                    onClick={() => exportStorePerformanceExcel(filteredCleanings, stores, filterLabel, { includeFinancials: card5Mode === 'with_amount', sortBy })}
+                    onClick={() => exportStorePerformanceExcel(filteredCleanings, filteredStores, filterLabel, { includeFinancials: card5Mode === 'with_amount', sortBy })}
                     className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
                     title={card5Mode === 'with_amount' ? "Excel ledger with dues & settlements" : "Excel audit without money"}
                   >
@@ -897,7 +983,7 @@ export default function ReportsCenterModal({
                     <span>Excel ({card5Mode === 'with_amount' ? 'With Amt' : 'No Amt'})</span>
                   </button>
                   <button
-                    onClick={() => generateStoreSummaryPDF({ cleanings: filteredCleanings, stores, filterLabel, includeFinancials: card5Mode === 'with_amount', sortBy })}
+                    onClick={() => generateStoreSummaryPDF({ cleanings: filteredCleanings, stores: filteredStores, filterLabel, includeFinancials: card5Mode === 'with_amount', sortBy })}
                     className="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
                     title={card5Mode === 'with_amount' ? "PDF ledger with dues & settlements" : "PDF audit without money"}
                   >
