@@ -37,7 +37,8 @@ import {
   Navigation,
   Warehouse,
   CheckSquare,
-  Square
+  Square,
+  Receipt
 } from 'lucide-react';
 import {
   saveEquipment,
@@ -835,19 +836,34 @@ export default function EquipmentExpenseHubModal({
   // -------------------------------------------------------------
   // HANDLERS: STORE EXPENSES CRUD
   // -------------------------------------------------------------
-  const handleOpenAddExpense = (prefillStoreCode = '') => {
-    const storeObj = stores.find(s => (s.storeCode || s.code) === prefillStoreCode) || stores[0];
-    setExpenseForm({
-      storeCode: storeObj ? (storeObj.storeCode || storeObj.code) : '',
-      city: storeObj ? storeObj.city : 'Pune',
-      category: 'Conveyance & Transport',
-      amount: '',
-      paidTo: '',
-      paidBy: supervisors[0]?.name || 'Rahul Shinde (Supervisor)',
-      paymentMode: 'UPI',
-      date: new Date().toISOString().split('T')[0],
-      remarks: ''
-    });
+  const handleOpenAddExpense = (prefillStoreCode = '', existingExp = null) => {
+    if (existingExp) {
+      setExpenseForm({
+        id: existingExp.id,
+        storeCode: existingExp.storeCode || '',
+        city: existingExp.city || 'Pune',
+        category: existingExp.category || 'Conveyance & Transport',
+        amount: existingExp.amount || '',
+        paidTo: existingExp.paidTo || '',
+        paidBy: existingExp.paidBy || '',
+        paymentMode: existingExp.paymentMode || 'UPI',
+        date: existingExp.date || new Date().toISOString().split('T')[0],
+        remarks: existingExp.remarks || ''
+      });
+    } else {
+      const storeObj = stores.find(s => (s.storeCode || s.code) === prefillStoreCode) || stores[0];
+      setExpenseForm({
+        storeCode: storeObj ? (storeObj.storeCode || storeObj.code) : '',
+        city: storeObj ? storeObj.city : 'Pune',
+        category: 'Conveyance & Transport',
+        amount: '',
+        paidTo: '',
+        paidBy: supervisors[0]?.name || 'Rahul Shinde (Supervisor)',
+        paymentMode: 'UPI',
+        date: new Date().toISOString().split('T')[0],
+        remarks: ''
+      });
+    }
     setShowExpenseModal(true);
   };
 
@@ -1443,6 +1459,26 @@ export default function EquipmentExpenseHubModal({
                     </div>
                   );
                 })}
+
+                {filteredEquipments.length === 0 && (
+                  <div className="col-span-full p-10 text-center bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+                    <Truck className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                        Koi Heavy Machine ya Equipment Darj Nahi Hai
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Single disc scrubbers, vacuums, ladders ko system me add karke unka location track karein.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleOpenAddMachine()}
+                      className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition"
+                    >
+                      + First Heavy Machine Register Karein
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1609,6 +1645,26 @@ export default function EquipmentExpenseHubModal({
                     </div>
                   );
                 })}
+
+                {filteredToolAllocations.length === 0 && (
+                  <div className="p-10 text-center bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+                    <ShieldAlert className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                        Koi Active Tool Kit Allocation Nahi Hai
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Cleaning team ko wipers, mops, extension cables issue karke loss aur damage track karein.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleOpenAllocateTool()}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition"
+                    >
+                      + Allocate Tool Kit to Team
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1735,6 +1791,126 @@ export default function EquipmentExpenseHubModal({
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* SECTION: INDIVIDUAL RECORDED EXPENSE ENTRIES */}
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-rose-500" />
+                      <span>Recorded Expense Vouchers &amp; Receipts ({filteredExpenses.length})</span>
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Store direct expenses for tempo conveyance, snacks, repairs with bill details
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      placeholder="Search expenses..."
+                      value={expenseSearch}
+                      onChange={(e) => setExpenseSearch(e.target.value)}
+                      className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    />
+                    <select
+                      value={expenseCategoryFilter}
+                      onChange={(e) => setExpenseCategoryFilter(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold"
+                    >
+                      <option value="ALL">All Categories</option>
+                      <option value="Conveyance & Transport">Conveyance & Transport</option>
+                      <option value="Team Food & Midnight Snacks">Food & Snacks</option>
+                      <option value="Machine Repair & Maintenance">Repairs & Maintenance</option>
+                      <option value="Emergency Purchase & Consumables">Emergency Purchase</option>
+                      <option value="Miscellaneous / Other">Miscellaneous</option>
+                    </select>
+                  </div>
+                </div>
+
+                {filteredExpenses.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-[11px] font-black uppercase text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-850">
+                          <th className="py-2.5 px-3">Date</th>
+                          <th className="py-2.5 px-3">Store</th>
+                          <th className="py-2.5 px-3">Category</th>
+                          <th className="py-2.5 px-3">Paid To / Paid By</th>
+                          <th className="py-2.5 px-3">Mode</th>
+                          <th className="py-2.5 px-3 text-right">Amount</th>
+                          <th className="py-2.5 px-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
+                        {filteredExpenses.map((exp) => (
+                          <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-750 transition">
+                            <td className="py-2.5 px-3 whitespace-nowrap text-slate-500">
+                              📅 {exp.date}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-900 dark:text-white block">
+                                {exp.storeCode} - {exp.storeName}
+                              </span>
+                              <span className="text-[10px] text-slate-400">{exp.city || 'Hub'}</span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-semibold text-[10px]">
+                                {exp.category}
+                              </span>
+                              {exp.remarks && (
+                                <p className="text-[10px] text-slate-400 italic mt-0.5 max-w-xs truncate">
+                                  "{exp.remarks}"
+                                </p>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-slate-800 dark:text-slate-200 font-bold block">{exp.paidTo || '-'}</span>
+                              <span className="text-[10px] text-slate-400">By: {exp.paidBy || '-'}</span>
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 font-mono text-[10px] text-slate-600 dark:text-slate-300 font-bold">
+                                {exp.paymentMode || 'UPI'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-black text-rose-600 text-sm whitespace-nowrap">
+                              ₹{Number(exp.amount || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleOpenAddExpense(exp.storeCode, exp)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 transition"
+                                  title="Edit Expense"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteExpense(exp.id)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 transition"
+                                  title="Delete Expense"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-slate-50 dark:bg-slate-850 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 space-y-2">
+                    <Receipt className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <h5 className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                      Koi Expense Voucher Darj Nahi Hai
+                    </h5>
+                    <p className="text-[11px] text-slate-400">
+                      Tempo transport, midnight snacks, ya repair bills record karne ke liye upar "+ Add Store Expense" par click karein.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

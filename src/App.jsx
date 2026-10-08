@@ -1558,7 +1558,7 @@ export default function App() {
         toolAllocations={toolAllocations}
         storeExpenses={storeExpenses}
         teamDispatches={teamDispatches}
-        onDataUpdated={loadServerData}
+        onDataUpdated={() => loadServerData(true)}
       />
 
       <CloudSyncModal

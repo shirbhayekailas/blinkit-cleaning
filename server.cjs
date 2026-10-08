@@ -48,115 +48,15 @@ const STANDARD_CHEMICALS = [
   { id: 'chem_08', itemName: 'Metal Rust Remover & Anti-Corrosion Treatment', category: 'Maintenance', unit: 'Liters', totalStock: 10, alertThreshold: 4 }
 ];
 
-const STANDARD_EQUIPMENTS = [
-  {
-    id: 'eq_01',
-    assetTag: 'EQ-SCRUB-01',
-    name: 'Taski Ergodisc 175 Single Disc Scrubber Machine',
-    category: 'Single Disc Scrubber',
-    serialNumber: 'ERG-2024-8812',
-    currentLocationType: 'store',
-    currentStoreCode: 'ES2',
-    currentLocationName: 'ES2 - Kothrud Pune',
-    assignedSupervisor: 'Rahul Shinde',
-    status: 'Working',
-    condition: 'Excellent',
-    purchaseDate: '2024-03-15',
-    lastServiceDate: '2026-09-15',
-    nextServiceDue: '2026-11-15',
-    serviceCostTotal: 1800,
-    notes: 'Equipped with 17" pad holder & 12L solution tank'
-  },
-  {
-    id: 'eq_02',
-    assetTag: 'EQ-SCRUB-02',
-    name: 'Roots MultiClean 17" Heavy Duty Floor Scrubber',
-    category: 'Single Disc Scrubber',
-    serialNumber: 'RMC-17-4590',
-    currentLocationType: 'warehouse',
-    currentStoreCode: '',
-    currentLocationName: 'Central Base Hub (Navi Mumbai)',
-    assignedSupervisor: 'Akash Jadhav',
-    status: 'Working',
-    condition: 'Good',
-    purchaseDate: '2024-06-20',
-    lastServiceDate: '2026-08-10',
-    nextServiceDue: '2026-10-25',
-    serviceCostTotal: 1200,
-    notes: 'Standby machine for Mumbai & Thane clusters'
-  },
-  {
-    id: 'eq_03',
-    assetTag: 'EQ-VAC-01',
-    name: 'Taski Vacumat 22T Wet & Dry Vacuum Extractor',
-    category: 'Wet & Dry Vacuum',
-    serialNumber: 'VAC-22T-3391',
-    currentLocationType: 'store',
-    currentStoreCode: 'ES2',
-    currentLocationName: 'ES2 - Kothrud Pune',
-    assignedSupervisor: 'Rahul Shinde',
-    status: 'Working',
-    condition: 'Excellent',
-    purchaseDate: '2024-04-10',
-    lastServiceDate: '2026-09-20',
-    nextServiceDue: '2026-12-20',
-    serviceCostTotal: 850,
-    notes: 'Heavy suction squeegee attachment intact'
-  },
-  {
-    id: 'eq_04',
-    assetTag: 'EQ-VAC-02',
-    name: 'Roots WDO 60 Industrial Wet & Dry Vacuum Cleaner',
-    category: 'Wet & Dry Vacuum',
-    serialNumber: 'WDO-60-1928',
-    currentLocationType: 'warehouse',
-    currentStoreCode: '',
-    currentLocationName: 'Central Base Hub (Navi Mumbai)',
-    assignedSupervisor: 'Akash Jadhav',
-    status: 'Service Due',
-    condition: 'Needs Filter Cleaning',
-    purchaseDate: '2024-01-18',
-    lastServiceDate: '2026-07-05',
-    nextServiceDue: '2026-10-05',
-    serviceCostTotal: 1500,
-    notes: 'Filter replacement scheduled this weekend'
-  },
-  {
-    id: 'eq_05',
-    assetTag: 'EQ-JET-01',
-    name: 'Karcher HD 5/11 P High-Pressure Jet Cleaner (110 Bar)',
-    category: 'High-Pressure Jet Washer',
-    serialNumber: 'KRC-HD-9920',
-    currentLocationType: 'store',
-    currentStoreCode: 'MH-TAL-01',
-    currentLocationName: 'MH-TAL-01 - Taloja Phase 1',
-    assignedSupervisor: 'Rahul Shinde',
-    status: 'Working',
-    condition: 'Excellent',
-    purchaseDate: '2024-05-12',
-    lastServiceDate: '2026-09-01',
-    nextServiceDue: '2026-11-01',
-    serviceCostTotal: 600,
-    notes: 'High pressure spray lance for chiller & drains'
-  },
-  {
-    id: 'eq_06',
-    assetTag: 'EQ-LADD-01',
-    name: '8-Step Heavy Duty Aluminum Step Ladder & Extension Rod',
-    category: 'Safety Ladder & Access',
-    serialNumber: 'LAD-AL-8831',
-    currentLocationType: 'warehouse',
-    currentStoreCode: '',
-    currentLocationName: 'Central Base Hub (Navi Mumbai)',
-    assignedSupervisor: 'Akash Jadhav',
-    status: 'Working',
-    condition: 'Good',
-    purchaseDate: '2024-02-14',
-    lastServiceDate: '2026-08-15',
-    nextServiceDue: '2026-11-15',
-    serviceCostTotal: 0,
-    notes: 'Non-slip rubber feet tested and certified'
-  }
+// Clean zero-demo initial state: Vendor starts 100% clean with actual operational records
+const STANDARD_EQUIPMENTS = [];
+
+// Demo IDs that must be wiped if found in legacy database files
+const DEMO_DISPATCH_IDS = ['disp_01', 'disp_02'];
+const DEMO_EXPENSE_IDS = ['exp_01', 'exp_02', 'exp_03'];
+const DEMO_EQUIPMENT_IDS = [
+  'eq_01', 'eq_02', 'eq_03', 'eq_04', 'eq_05', 'eq_06',
+  'eq_scrub_01', 'eq_vac_01', 'eq_jet_01', 'eq_scrub_02', 'eq_vac_02', 'eq_lad_01'
 ];
 
 const STANDARD_TOOL_ITEMS = [
@@ -171,106 +71,8 @@ const STANDARD_TOOL_ITEMS = [
   { id: 't_ppe', name: 'Safety PPE Kit (Nitrile Gloves, Masks, Boots)', category: 'Safety PPE', standardQty: 4, unitPrice: 250 }
 ];
 
-const STANDARD_STORE_EXPENSES = [
-  {
-    id: 'exp_01',
-    storeCode: 'ES2',
-    storeName: 'Blinkit Dark Store - Kothrud',
-    city: 'Pune',
-    category: 'Conveyance & Transport',
-    amount: 800,
-    paidTo: 'Tempo Logistics (MH-12)',
-    paidBy: 'Rahul Shinde (Supervisor)',
-    paymentMode: 'UPI',
-    date: '2026-10-06',
-    remarks: 'Tempo transport for Scrubber & Vacuum from base to Kothrud store'
-  },
-  {
-    id: 'exp_02',
-    storeCode: 'ES2',
-    storeName: 'Blinkit Dark Store - Kothrud',
-    city: 'Pune',
-    category: 'Team Food & Midnight Snacks',
-    amount: 220,
-    paidTo: 'Night Tea & Snack Stall',
-    paidBy: 'Rahul Shinde',
-    paymentMode: 'Cash',
-    date: '2026-10-06',
-    remarks: 'Tea and biscuits for 4 cleaners during 3 AM break'
-  },
-  {
-    id: 'exp_03',
-    storeCode: 'MH-TAL-01',
-    storeName: 'Blinkit Dark Store - Taloja Phase 1',
-    city: 'Navi Mumbai',
-    category: 'Conveyance & Transport',
-    amount: 450,
-    paidTo: 'Local Auto Tempo',
-    paidBy: 'Admin (SK Enterprises)',
-    paymentMode: 'UPI',
-    date: '2026-10-05',
-    remarks: 'Machine delivery & pickup'
-  }
-];
-
-const STANDARD_TEAM_DISPATCHES = [
-  {
-    id: 'disp_01',
-    date: '2026-10-06',
-    teamName: 'Team Alpha (Pune Cluster)',
-    supervisorName: 'Rahul Shinde',
-    cleaners: ['Ramesh Cleaner', 'Suresh Valmiki'],
-    storeCode: 'ES2',
-    storeName: 'Blinkit Dark Store - Kothrud',
-    city: 'Pune',
-    status: 'Completed',
-    carriedEquipments: [
-      { id: 'eq_scrub_01', name: 'Taski Ergodisc 165 Single Disc Scrubber', assetTag: 'EQ-SCRUB-01' },
-      { id: 'eq_vac_01', name: 'Taski Vacumat 22T Wet & Dry Vacuum Cleaner', assetTag: 'EQ-VAC-01' }
-    ],
-    carriedTools: [
-      { name: 'Kentucky Mop & Bucket', qty: 2 },
-      { name: '24" Floor Wiper', qty: 2 },
-      { name: '17" Black Floor Pads', qty: 3 },
-      { name: '50m Extension Cable', qty: 1 }
-    ],
-    leftBehindItems: [
-      { name: 'Karcher HD High Pressure Jet Washer', assetTag: 'EQ-JET-01', location: 'Central Base Hub (Navi Mumbai) - Bay 2', reason: 'Not needed for indoor vinyl floor deep cleaning' },
-      { name: 'Roots MultiClean Scrubber', assetTag: 'EQ-SCRUB-02', location: 'Central Base Hub (Navi Mumbai) - Bay 1', reason: 'Reserved for Mumbai Cluster' },
-      { name: 'Aluminum Step Ladder (12ft)', assetTag: 'EQ-LAD-01', location: 'Stored at ES2 Kothrud Store Room (Racks area)', reason: 'Left safely for follow-up high dusting' }
-    ],
-    nextDestination: 'Blinkit Dark Store - Baner (Pune)',
-    nextDate: '2026-10-07',
-    notes: 'Team moved to Baner next morning via Tempo MH-12'
-  },
-  {
-    id: 'disp_02',
-    date: '2026-10-07',
-    teamName: 'Team Alpha (Pune Cluster)',
-    supervisorName: 'Rahul Shinde',
-    cleaners: ['Ramesh Cleaner', 'Suresh Valmiki'],
-    storeCode: 'MH-BAN-01',
-    storeName: 'Blinkit Dark Store - Baner',
-    city: 'Pune',
-    status: 'Completed',
-    carriedEquipments: [
-      { id: 'eq_scrub_01', name: 'Taski Ergodisc 165 Single Disc Scrubber', assetTag: 'EQ-SCRUB-01' },
-      { id: 'eq_vac_01', name: 'Taski Vacumat 22T Wet & Dry Vacuum Cleaner', assetTag: 'EQ-VAC-01' }
-    ],
-    carriedTools: [
-      { name: 'Kentucky Mop & Bucket', qty: 2 },
-      { name: '24" Floor Wiper', qty: 2 },
-      { name: '50m Extension Cable', qty: 1 }
-    ],
-    leftBehindItems: [
-      { name: 'Aluminum Step Ladder (12ft)', assetTag: 'EQ-LAD-01', location: 'Stored at ES2 Kothrud Utility Area', reason: 'Left at previous store Kothrud' },
-      { name: 'Roots WDO 60 Vacuum', assetTag: 'EQ-VAC-02', location: 'Central Base Hub (Navi Mumbai)', reason: 'Kept at Base' }
-    ],
-    nextDestination: 'Blinkit Dark Store - Kothrud (Return Check)',
-    nextDate: '2026-10-08',
-    notes: 'Cleaned chiller and front racking'
-  }
-];
+const STANDARD_STORE_EXPENSES = [];
+const STANDARD_TEAM_DISPATCHES = [];
 
 const DEFAULT_DB = {
   cleanings: [],
@@ -283,11 +85,11 @@ const DEFAULT_DB = {
   cleanerAdvances: [],
   storeIssues: [],
   loginLogs: [],
-  equipments: [...STANDARD_EQUIPMENTS],
+  equipments: [],
   equipmentMovements: [],
   toolAllocations: [],
-  storeExpenses: [...STANDARD_STORE_EXPENSES],
-  teamDispatches: [...STANDARD_TEAM_DISPATCHES],
+  storeExpenses: [],
+  teamDispatches: [],
   deletedStores: [],
   deletedCleanings: [],
   deletedSupervisors: [],
@@ -339,21 +141,48 @@ function readDB() {
           }
         }
       }
-      // Ensure equipments array exists and has standard machines if empty
-      if (!Array.isArray(merged.equipments) || merged.equipments.length === 0) {
-        merged.equipments = [...STANDARD_EQUIPMENTS];
+      // Ensure equipment and dispatch arrays exist without re-seeding demo data
+      let dbNeedsCleanWrite = false;
+
+      if (!Array.isArray(merged.equipments)) {
+        merged.equipments = [];
+      } else {
+        const prevCount = merged.equipments.length;
+        merged.equipments = merged.equipments.filter(e => e && !DEMO_EQUIPMENT_IDS.includes(String(e.id)));
+        if (merged.equipments.length !== prevCount) dbNeedsCleanWrite = true;
       }
+
       if (!Array.isArray(merged.equipmentMovements)) {
         merged.equipmentMovements = [];
       }
+
       if (!Array.isArray(merged.toolAllocations)) {
         merged.toolAllocations = [];
       }
-      if (!Array.isArray(merged.storeExpenses) || merged.storeExpenses.length === 0) {
-        merged.storeExpenses = [...STANDARD_STORE_EXPENSES];
+
+      if (!Array.isArray(merged.storeExpenses)) {
+        merged.storeExpenses = [];
+      } else {
+        const prevCount = merged.storeExpenses.length;
+        merged.storeExpenses = merged.storeExpenses.filter(e => e && !DEMO_EXPENSE_IDS.includes(String(e.id)));
+        if (merged.storeExpenses.length !== prevCount) dbNeedsCleanWrite = true;
       }
-      if (!Array.isArray(merged.teamDispatches) || merged.teamDispatches.length === 0) {
-        merged.teamDispatches = [...STANDARD_TEAM_DISPATCHES];
+
+      if (!Array.isArray(merged.teamDispatches)) {
+        merged.teamDispatches = [];
+      } else {
+        const prevCount = merged.teamDispatches.length;
+        merged.teamDispatches = merged.teamDispatches.filter(d => d && !DEMO_DISPATCH_IDS.includes(String(d.id)));
+        if (merged.teamDispatches.length !== prevCount) dbNeedsCleanWrite = true;
+      }
+
+      // If demo data was purged from disk, persist cleaned database immediately so it never resurfaces
+      if (dbNeedsCleanWrite) {
+        try {
+          fs.writeFileSync(DB_FILE, JSON.stringify(merged, null, 2), 'utf8');
+        } catch (wErr) {
+          console.warn('Clean write notice:', wErr.message);
+        }
       }
 
       // Environment variables always take precedence if explicitly configured in Render/hosting
