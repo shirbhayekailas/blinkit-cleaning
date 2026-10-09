@@ -226,38 +226,117 @@ function applyCorporateTheme(ws, options = {}) {
   const lastColLetter = getColLetter(totalColumns - 1);
   const headerExcelRow = headerRowIndex + 1; // 1-indexed
 
-  // 1. Enable native Excel AutoFilter dropdowns
+  // 1. Automatic Column Widths Fallback if not already provided
+  if (!ws['!cols'] || ws['!cols'].length === 0) {
+    const autoCols = [];
+    for (let c = 0; c < totalColumns; c++) {
+      if (c === 0) autoCols.push({ wch: 6 });       // S.No
+      else if (c === 1) autoCols.push({ wch: 16 });  // Code / ID
+      else if (c === 2) autoCols.push({ wch: 32 });  // Store Name
+      else if (currencyColIndices.includes(c)) autoCols.push({ wch: 22 }); // Currency
+      else autoCols.push({ wch: 20 });
+    }
+    ws['!cols'] = autoCols;
+  }
+
+  // 2. Automatic Merges for Executive Brand Banners & Scorecards
+  if (!ws['!merges']) ws['!merges'] = [];
+  const merges = ws['!merges'];
+
+  // Row 0: Grand Title Banner (SK ENTERPRISES - always full width)
+  const existingR0 = merges.find(m => m.s.r === 0 && m.s.c === 0);
+  if (existingR0) {
+    existingR0.e.c = totalColumns - 1;
+  } else {
+    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalColumns - 1 } });
+  }
+
+  // Row 1: Subtitle Banner (always full width)
+  const existingR1 = merges.find(m => m.s.r === 1 && m.s.c === 0);
+  if (existingR1) {
+    existingR1.e.c = totalColumns - 1;
+  } else {
+    merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: totalColumns - 1 } });
+  }
+
+  // Row 2: Metadata / Filter Banner (split or full width)
+  if (!merges.some(m => m.s.r === 2)) {
+    if (totalColumns >= 6) {
+      const split = Math.floor(totalColumns / 2);
+      merges.push({ s: { r: 2, c: 0 }, e: { r: 2, c: split - 1 } });
+      merges.push({ s: { r: 2, c: split }, e: { r: 2, c: totalColumns - 1 } });
+    } else {
+      merges.push({ s: { r: 2, c: 0 }, e: { r: 2, c: totalColumns - 1 } });
+    }
+  }
+
+  // Row 4: Scorecard Title Banner
+  if (hasScorecard && !merges.some(m => m.s.r === 4)) {
+    merges.push({ s: { r: 4, c: 0 }, e: { r: 4, c: Math.min(7, totalColumns - 1) } });
+  }
+
+  // 3. Executive Row Heights (Spacious Grand Title, Breathable Headers & Data Rows)
+  const rowHeights = [];
+  for (let r = 0; r < totalRows; r++) {
+    if (r === 0) {
+      rowHeights.push({ hpt: 36 });       // Grand Title: SK ENTERPRISES (Prominent 36pt)
+    } else if (r === 1) {
+      rowHeights.push({ hpt: 22 });       // Subtitle Banner
+    } else if (r === 2) {
+      rowHeights.push({ hpt: 20 });       // Metadata & Period Banner
+    } else if (r === 3) {
+      rowHeights.push({ hpt: 10 });       // Visual Spacer
+    } else if (hasScorecard && r === 4) {
+      rowHeights.push({ hpt: 20 });       // Scorecard Title
+    } else if (hasScorecard && r === 5) {
+      rowHeights.push({ hpt: 28 });       // KPI Scorecard Cards
+    } else if (hasScorecard && r === 6) {
+      rowHeights.push({ hpt: 10 });       // Visual Spacer
+    } else if (r === headerRowIndex) {
+      rowHeights.push({ hpt: 28 });       // Table Column Headers (comfortable with wrapText)
+    } else if (r === totalRows - 1) {
+      rowHeights.push({ hpt: 26 });       // Accounting Grand Total Row
+    } else {
+      rowHeights.push({ hpt: 22 });       // Standard Data Rows (clean & readable)
+    }
+  }
+  ws['!rows'] = rowHeights;
+
+  // 4. Enable native Excel AutoFilter dropdowns
   if (lastColLetter && headerExcelRow > 0 && totalRows > headerExcelRow) {
     ws['!autofilter'] = { ref: `A${headerExcelRow}:${lastColLetter}${totalRows - 1}` };
   }
 
-  // 2. Freeze panes at header row
+  // 5. Freeze panes at header row
   if (headerExcelRow > 0) {
     ws['!views'] = [{ state: 'frozen', ySplit: headerExcelRow }];
   }
 
-  // 3. Row 1: Brand Title Banner
+  // 6. Row 1 (Excel): Brand Title Banner (A1 to lastCol)
+  if (!ws['A1'] || !ws['A1'].v) {
+    ws['A1'] = { t: 's', v: 'SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES' };
+  }
   for (let c = 0; c < totalColumns; c++) {
     const ref = `${getColLetter(c)}1`;
     if (!ws[ref]) ws[ref] = { t: 's', v: '' };
     ws[ref].s = STYLES.titleBanner;
   }
 
-  // 4. Row 2: Subtitle
+  // 7. Row 2 (Excel): Subtitle Banner
   for (let c = 0; c < totalColumns; c++) {
     const ref = `${getColLetter(c)}2`;
     if (!ws[ref]) ws[ref] = { t: 's', v: '' };
     ws[ref].s = STYLES.subtitleBanner;
   }
 
-  // 5. Row 3: Metadata & Period
+  // 8. Row 3 (Excel): Metadata & Period
   for (let c = 0; c < totalColumns; c++) {
     const ref = `${getColLetter(c)}3`;
     if (!ws[ref]) ws[ref] = { t: 's', v: '' };
     ws[ref].s = STYLES.metaBanner;
   }
 
-  // 6. Rows 5 & 6: KPI Scorecard Block
+  // 9. Rows 5 & 6 (Excel): KPI Scorecard Block
   if (hasScorecard) {
     for (let c = 0; c < Math.min(8, totalColumns); c++) {
       const ref = `${getColLetter(c)}5`;
@@ -277,7 +356,8 @@ function applyCorporateTheme(ws, options = {}) {
           } else if (c === 5) {
             ws[ref].s = STYLES.kpiValueSuccess;
           } else if (c === 7) {
-            ws[ref].s = STYLES.kpiValueDanger;
+            const valNum = Number(ws[ref].v) || 0;
+            ws[ref].s = (valNum > 0) ? STYLES.kpiValueDanger : STYLES.kpiValueSuccess;
           } else {
             ws[ref].s = STYLES.kpiValueNeutral;
           }
@@ -311,7 +391,9 @@ function applyCorporateTheme(ws, options = {}) {
             labelText.includes('price')
           );
 
-          if (typeof ws[ref].v === 'number') {
+          const nVal = typeof ws[ref].v === 'number' ? ws[ref].v : Number(ws[ref].v);
+          if (!isNaN(nVal) && ws[ref].v !== '' && ws[ref].v !== null && ws[ref].v !== undefined) {
+            ws[ref].v = nVal;
             ws[ref].t = 'n';
             if (isCurrency) {
               ws[ref].z = '"₹"#,##0';
@@ -324,7 +406,7 @@ function applyCorporateTheme(ws, options = {}) {
     }
   }
 
-  // 7. Table Column Headers
+  // 10. Table Column Headers
   for (let c = 0; c < totalColumns; c++) {
     const ref = `${getColLetter(c)}${headerExcelRow}`;
     if (ws[ref]) {
@@ -332,7 +414,7 @@ function applyCorporateTheme(ws, options = {}) {
     }
   }
 
-  // 8. Data Rows (headerExcelRow + 1 to totalRows - 1)
+  // 11. Data Rows (headerExcelRow + 1 to totalRows - 1)
   for (let r = headerExcelRow + 1; r < totalRows; r++) {
     const isEven = (r % 2 === 0);
     const baseRowStyle = isEven ? STYLES.dataRowEven : STYLES.dataRowOdd;
@@ -353,7 +435,9 @@ function applyCorporateTheme(ws, options = {}) {
 
       // Currency number format
       if (currencyColIndices.includes(c)) {
-        if (typeof cell.v === 'number') {
+        const n = typeof cell.v === 'number' ? cell.v : Number(cell.v);
+        if (!isNaN(n) && cell.v !== '' && cell.v !== null && cell.v !== undefined) {
+          cell.v = n;
           cell.t = 'n';
           cell.z = '"₹"#,##0';
         }
@@ -361,7 +445,9 @@ function applyCorporateTheme(ws, options = {}) {
 
       // Integer count format
       if (numberColIndices.includes(c)) {
-        if (typeof cell.v === 'number') {
+        const n = typeof cell.v === 'number' ? cell.v : Number(cell.v);
+        if (!isNaN(n) && cell.v !== '' && cell.v !== null && cell.v !== undefined) {
+          cell.v = n;
           cell.t = 'n';
           cell.z = '#,##0';
         }
@@ -383,20 +469,24 @@ function applyCorporateTheme(ws, options = {}) {
     }
   }
 
-  // 9. Grand Total Summary Row
+  // 12. Grand Total Summary Row
   for (let c = 0; c < totalColumns; c++) {
     const ref = `${getColLetter(c)}${totalRows}`;
     if (ws[ref]) {
       let align = 'left';
       if (currencyColIndices.includes(c)) {
         align = 'right';
-        if (typeof ws[ref].v === 'number') {
+        const n = typeof ws[ref].v === 'number' ? ws[ref].v : Number(ws[ref].v);
+        if (!isNaN(n) && ws[ref].v !== '' && ws[ref].v !== null && ws[ref].v !== undefined) {
+          ws[ref].v = n;
           ws[ref].t = 'n';
           ws[ref].z = '"₹"#,##0';
         }
       } else if (numberColIndices.includes(c)) {
         align = 'center';
-        if (typeof ws[ref].v === 'number') {
+        const n = typeof ws[ref].v === 'number' ? ws[ref].v : Number(ws[ref].v);
+        if (!isNaN(n) && ws[ref].v !== '' && ws[ref].v !== null && ws[ref].v !== undefined) {
+          ws[ref].v = n;
           ws[ref].t = 'n';
           ws[ref].z = '#,##0';
         }
@@ -1559,6 +1649,17 @@ export function buildExecutiveSummarySheet(cleanings = [], stores = [], filterLa
     }
   }
 
+  const summaryRowHeights = [];
+  for (let r = 0; r < rows.length; r++) {
+    if (r === 0) summaryRowHeights.push({ hpt: 36 });       // SK ENTERPRISES Title Banner
+    else if (r === 1) summaryRowHeights.push({ hpt: 22 });  // Subtitle Banner
+    else if (r === 2) summaryRowHeights.push({ hpt: 20 });  // Metadata & Generated Date
+    else if (r === 3 || r === 13 || r === 18) summaryRowHeights.push({ hpt: 10 }); // Clean Visual Spacers
+    else if (r === 4 || r === 14 || r === 15) summaryRowHeights.push({ hpt: 26 }); // Section / Table Headers
+    else summaryRowHeights.push({ hpt: 22 });               // Standard Content Rows
+  }
+  ws['!rows'] = summaryRowHeights;
+
   return ws;
 }
 
@@ -1739,14 +1840,51 @@ export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = '
     ];
   });
 
-  const fullSheetData = [...headerRows, columns, ...dataRows];
+  const summaryRow = [
+    'TOTAL / SUMMARY',
+    `Total Stores: ${totalStores}`,
+    '',
+    `Cities: ${uniqueCities}`,
+    '',
+    '',
+    '',
+    totalVisits,
+    '',
+    'ACTIVE',
+    ''
+  ];
+
+  const fullSheetData = [...headerRows, columns, ...dataRows, summaryRow];
   const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
+
+  ws['!cols'] = [
+    { wch: 6 },  // S.No
+    { wch: 15 }, // Store Code
+    { wch: 34 }, // Store Name
+    { wch: 18 }, // City / Hub
+    { wch: 44 }, // Full Store Address
+    { wch: 22 }, // Store Manager
+    { wch: 18 }, // Manager Contact
+    { wch: 20 }, // Cleanings Completed
+    { wch: 18 }, // Last Cleaning Date
+    { wch: 16 }, // Status
+    { wch: 36 }  // Google Maps Location
+  ];
+
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: columns.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: columns.length - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    { s: { r: 2, c: 5 }, e: { r: 2, c: columns.length - 1 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
+  ];
+
   applyCorporateTheme(ws, {
     headerRowIndex: 7,
     totalColumns: columns.length,
     totalRows: fullSheetData.length,
     numberColIndices: [0, 7],
-    centerColIndices: [0, 1, 7, 8, 9],
+    centerColIndices: [0, 1, 3, 7, 8, 9],
     statusColIndex: 9,
     hasScorecard: true
   });
@@ -1798,24 +1936,22 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
 
   // Title & Metadata rows
   const headerRows = [
-    ['SK ENTERPRISES | FACILITY & DEEP CLEANING SERVICES'],
-    [`STORE CLEANING LEDGER & AUDIT STATEMENT: ${sName} (${sCode})`],
-    [`City / Hub: ${sCity} | Address: ${sAddress} | Manager: ${sManager} (Ph: ${sPhone})`],
-    [`Audit Period: ${filterLabel} | Report Generated: ${new Date().toLocaleString('en-IN')}`],
+    ['SK ENTERPRISES - FACILITY MANAGEMENT & COMMERCIAL CLEANING SERVICES'],
+    [`BLINKIT STORE AUDIT & CLEANING HISTORY: ${(sName || '').toUpperCase()} (${(sCode || '').toUpperCase()}) - ${(sCity || '').toUpperCase()}`],
+    [`Store Manager: ${sManager} (${sPhone}) | Address: ${sAddress}`, '', '', '', '', '', `Audit Period: ${filterLabel} | Generated: ${new Date().toLocaleString('en-IN')}`, ''],
     [],
-    // KPI Cards row
+    ['EXECUTIVE STORE AUDIT & FINANCIAL SCORECARD', '', '', '', '', '', '', ''],
     [
       'Total Cleanings Done', totalVisits,
-      'Total Invoiced (₹)', totalBilled,
-      'Total Received (₹)', totalReceived,
-      'Pending Balance (₹)', totalPending,
-      'Clearance Status', totalPending === 0 ? 'ALL CLEARED' : 'PENDING'
+      'Total Invoiced Value', totalBilled,
+      'Total Amount Received', totalReceived,
+      'Outstanding Balance', totalPending
     ],
     []
   ];
 
   const columns = [
-    '#',
+    'S.No',
     'Cleaning Date',
     'Shift',
     'Timings',
@@ -1825,9 +1961,9 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
     'Scope of Work Executed',
     'Chemicals / Consumables Used',
     'Work Status',
-    'Invoiced Amount (₹)',
-    'Amount Received (₹)',
-    'Pending Balance (₹)',
+    'Invoiced Amount (Rs)',
+    'Amount Received (Rs)',
+    'Pending Balance (Rs)',
     'Payment Status',
     'Payment Date',
     'Payment Mode / UTR',
@@ -1848,7 +1984,7 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
       c.shift || 'Night Shift',
       timingsStr,
       c.durationHours || 0,
-      c.supervisor || 'On-Duty Lead',
+      c.supervisor || c.supervisorName || 'On-Duty Lead',
       c.cleanersCount || c.headcount || 4,
       scopeStr,
       chemsStr,
@@ -1856,7 +1992,7 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
       billed,
       recv,
       pend,
-      c.paymentStatus || 'Pending',
+      c.paymentStatus || (pend === 0 ? 'Received' : 'Pending'),
       c.paymentDate || '--',
       c.paymentMode || c.utrNumber || '--',
       c.remarks || c.notes || '--'
@@ -1864,7 +2000,7 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
   });
 
   const totalsRow = [
-    'TOTALS',
+    'TOTAL / SUMMARY',
     `Total Visits: ${totalVisits}`,
     '',
     '',
@@ -1877,16 +2013,43 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
     totalBilled,
     totalReceived,
     totalPending,
-    totalPending === 0 ? 'All Cleared' : 'Pending',
+    totalPending === 0 ? 'Full Paid' : 'Pending',
     '',
     '',
     ''
   ];
 
-  const fullData = [...headerRows, columns, ...dataRows, [], totalsRow];
+  const fullData = [...headerRows, columns, ...dataRows, totalsRow];
   const ws = XLSX.utils.aoa_to_sheet(fullData);
 
-  // Apply corporate styling
+  ws['!cols'] = [
+    { wch: 6 },  // S.No
+    { wch: 15 }, // Cleaning Date
+    { wch: 14 }, // Shift
+    { wch: 18 }, // Timings
+    { wch: 14 }, // Duration
+    { wch: 22 }, // Supervisor
+    { wch: 12 }, // Headcount
+    { wch: 38 }, // Scope
+    { wch: 32 }, // Chemicals
+    { wch: 16 }, // Status
+    { wch: 22 }, // Invoiced Amount
+    { wch: 22 }, // Amount Received
+    { wch: 22 }, // Pending Balance
+    { wch: 18 }, // Payment Status
+    { wch: 16 }, // Payment Date
+    { wch: 24 }, // UTR
+    { wch: 36 }  // Remarks
+  ];
+
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: columns.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: columns.length - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
+    { s: { r: 2, c: 6 }, e: { r: 2, c: columns.length - 1 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }
+  ];
+
   applyCorporateTheme(ws, {
     headerRowIndex: 7,
     totalColumns: columns.length,
@@ -1897,27 +2060,6 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
     statusColIndex: 13,
     hasScorecard: true
   });
-
-  // Set column widths
-  ws['!cols'] = [
-    { wch: 6 },  // #
-    { wch: 14 }, // Date
-    { wch: 14 }, // Shift
-    { wch: 18 }, // Timings
-    { wch: 14 }, // Duration
-    { wch: 20 }, // Supervisor
-    { wch: 12 }, // Headcount
-    { wch: 35 }, // Scope
-    { wch: 30 }, // Chemicals
-    { wch: 16 }, // Status
-    { wch: 18 }, // Invoiced
-    { wch: 18 }, // Received
-    { wch: 18 }, // Pending
-    { wch: 16 }, // Payment Status
-    { wch: 14 }, // Payment Date
-    { wch: 20 }, // UTR
-    { wch: 30 }  // Remarks
-  ];
 
   XLSX.utils.book_append_sheet(wb, ws, `${sCode}_Cleaning_Ledger`.slice(0, 31));
 
