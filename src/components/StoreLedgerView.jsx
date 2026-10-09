@@ -25,8 +25,8 @@ import {
   Filter
 } from 'lucide-react';
 import { shareStoreLocationWhatsApp, shareStoreDirectoryWhatsApp } from '../utils/whatsappFormatter';
-import { naturalSortByStoreCode, exportStoreListExcel } from '../utils/reportExcelGenerator';
-import { generateStoreListPDF } from '../utils/reportPdfGenerator';
+import { naturalSortByStoreCode, exportStoreListExcel, exportSingleStoreExcel } from '../utils/reportExcelGenerator';
+import { generateStoreListPDF, generateSingleStoreStatementPDF } from '../utils/reportPdfGenerator';
 import { doesCleaningMatchStore, getStoreKey } from '../utils/storeUtils';
 
 export default function StoreLedgerView({
@@ -397,22 +397,46 @@ export default function StoreLedgerView({
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="p-3 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/50 grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onViewStoreHistory(store)}
-                    className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 transition flex items-center justify-center gap-1.5 shadow-xs"
-                  >
-                    <History className="w-3.5 h-3.5" />
-                    <span>{t('ledger_view_history', 'View History')}</span>
-                  </button>
+                <div className="p-3 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/50 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => onViewStoreHistory(store)}
+                      className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 transition flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      <span>{t('ledger_view_history', 'View History')}</span>
+                    </button>
 
-                  <button
-                    onClick={() => onLogCleaningForStore(store)}
-                    className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-blinkit-green hover:bg-blinkit-darkgreen text-white transition flex items-center justify-center gap-1 shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{t('ledger_log_cleaning', 'Log Cleaning')}</span>
-                  </button>
+                    <button
+                      onClick={() => onLogCleaningForStore(store)}
+                      className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-blinkit-green hover:bg-blinkit-darkgreen text-white transition flex items-center justify-center gap-1 shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{t('ledger_log_cleaning', 'Log Cleaning')}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => exportSingleStoreExcel(store, cleanings)}
+                      className="flex-1 py-1 px-2 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 text-[11px] font-bold transition flex items-center justify-center gap-1"
+                      title="Download Store Cleaning History in Excel format"
+                    >
+                      <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                      <span>Excel (.xlsx)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => generateSingleStoreStatementPDF(store, cleanings)}
+                      className="flex-1 py-1 px-2 rounded-lg bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 text-[11px] font-bold transition flex items-center justify-center gap-1"
+                      title="Download Store Cleaning Statement in PDF format"
+                    >
+                      <FileText className="w-3 h-3 text-rose-600" />
+                      <span>PDF (.pdf)</span>
+                    </button>
+                  </div>
                 </div>
 
               </div>

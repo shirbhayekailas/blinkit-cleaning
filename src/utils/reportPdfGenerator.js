@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getBillSettings } from './billSettingsHelper';
 import { naturalSortByStoreCode, sortCleaningsList, sortStoresList } from './reportExcelGenerator';
+import { doesCleaningMatchStore } from './storeUtils';
 import { toast } from '../components/Toast';
 
 // Safe helper for autoTable compatibility
@@ -667,20 +668,17 @@ export function generateStoreSummaryPDF({ cleanings = [], stores = [], filterLab
     const cCode = (c.storeCode || '').trim().toUpperCase();
     const cCity = (c.city || '').trim().toUpperCase();
     const cName = (c.storeName || '').trim().toLowerCase();
-    const meta = (stores || []).find(s => {
-      const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
-      if (sCode !== cCode) return false;
-      if (cCity && s.city && s.city.trim().toUpperCase() !== cCity) return false;
-      return true;
-    });
+    const meta = (stores || []).find(s => doesCleaningMatchStore(c, s));
 
-    const storeKey = cCity ? `${cCode}__${cCity}` : (cCode || cName);
+    const finalCode = (meta?.storeCode || meta?.code || cCode).trim().toUpperCase();
+    const finalCity = (meta?.city || cCity).trim().toUpperCase();
+    const storeKey = finalCity ? `${finalCode}__${finalCity}` : (finalCode || meta?.id || cName);
     if (!storeKey) return;
 
     let item = storeMap.get(storeKey);
     if (!item) {
       item = {
-        code: c.storeCode || meta?.storeCode || meta?.code || '',
+        code: finalCode,
         name: meta?.storeName || meta?.name || c.storeName || '',
         city: meta?.city || c.city || '',
         address: meta?.address || c.address || '',
@@ -1092,8 +1090,7 @@ export function generateStoreListPDF({ stores = [], cleanings = [], filterLabel 
   });
 
   const tableRows = sortedStores.map((s, idx) => {
-    const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
-    const storeVisits = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === sCode);
+    const storeVisits = cleanings.filter(c => doesCleaningMatchStore(c, s));
     const visitCount = storeVisits.length;
     const lastDate = storeVisits.length > 0 
       ? storeVisits.map(c => c.cleaningDate).filter(Boolean).sort().reverse()[0] || '--'
@@ -1139,5 +1136,133 @@ export function generateStoreListPDF({ stores = [], cleanings = [], filterLabel 
 
   addFooterAndPageNumbers(doc);
   doc.save(`Blinkit_Store_Master_Directory_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+/**
+ * Generate and download a dedicated Executive Cleaning & Financial Statement PDF for a single dark store.
+ */
+export function generateSingleStoreStatementPDF(store, cleanings = [], filterLabel = 'All Time', filename = '') {
+  if (!store) {
+    toast.warning('No store selected for PDF export.', 'PDF Export Failed');
+    return;
+  }
+
+  const storeCleanings = cleanings
+    .filter(c => doesCleaningMatchStore(c, store))
+    .sort((a, b) => new Date(b.cleaningDate) - new Date(a.cleaningDate));
+
+  const totalVisits = storeCleanings.length;
+  const totalBilled = storeCleanings.reduce((sum, c) => sum + toNum(c.amount), 0);
+  const totalReceived = storeCleanings.reduce((sum, c) => sum + toNum(c.amountReceived), 0);
+  const totalPending = storeCleanings.reduce((sum, c) => {
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, toNum(c.amount) - toNum(c.amountReceived));
+    return sum + pend;
+  }, 0);
+
+  const sCode = store.storeCode || store.code || 'STORE';
+  const sName = store.storeName || store.name || sCode;
+  const sCity = store.city || 'Hub';
+  const sAddress = store.address || 'Address not registered';
+  const sManager = store.managerName || 'Not Assigned';
+  const sPhone = store.managerPhone || 'N/A';
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  let currentY = drawHeaderBanner(doc, {
+    title: 'STORE CLEANING LEDGER & FINANCIAL STATEMENT',
+    subtitle: `${sName.toUpperCase()} (${sCode}) - ${sCity.toUpperCase()}`,
+    filterLabel: `Period: ${filterLabel} | Store Manager: ${sManager} (Ph: ${sPhone})`,
+    refCode: `STORE-LEDGER-${sCode}`
+  });
+
+  // Store Address info text
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Store Address: ${sAddress}`, 14, currentY + 3.5);
+  currentY += 6;
+
+  // KPI Scorecard Cards
+  currentY = drawKpiCards(doc, currentY, [
+    { label: 'Total Visits Logged', value: `${totalVisits} Cleanings`, valR: 15, valG: 23, valB: 42 },
+    { label: 'Total Invoiced Value', value: `Rs ${totalBilled.toLocaleString('en-IN')}`, valR: 15, valG: 23, valB: 42 },
+    { label: 'Total Amount Received', value: `Rs ${totalReceived.toLocaleString('en-IN')}`, valR: 12, valG: 131, valB: 31 },
+    { label: 'Outstanding Pending Dues', value: `Rs ${totalPending.toLocaleString('en-IN')}`, bgR: totalPending > 0 ? 255 : 241, bgG: totalPending > 0 ? 241 : 248, bgB: totalPending > 0 ? 242 : 233, valR: totalPending > 0 ? 220 : 12, valG: totalPending > 0 ? 38 : 131, valB: totalPending > 0 ? 38 : 31 },
+    { label: 'Payment Status', value: totalPending === 0 ? 'ALL CLEARED' : 'PENDING SETTLEMENT', valR: totalPending === 0 ? 12 : 220, valG: totalPending === 0 ? 131 : 38, valB: totalPending === 0 ? 31 : 38 }
+  ]);
+
+  // Cleanings table rows
+  const tableRows = storeCleanings.map((c, idx) => {
+    const billed = toNum(c.amount);
+    const recv = toNum(c.amountReceived);
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
+    const scopeStr = Array.isArray(c.scopeOfWork) ? c.scopeOfWork.join(', ') : (c.scopeOfWork || 'General Deep Cleaning');
+    const timingsStr = (c.startTime && c.endTime) ? `${c.startTime}-${c.endTime}` : (c.shift || 'Night');
+
+    return [
+      idx + 1,
+      c.cleaningDate || '-',
+      timingsStr,
+      c.supervisor || 'Lead',
+      c.cleanersCount || c.headcount || 4,
+      scopeStr,
+      c.status || 'Completed',
+      `Rs ${billed.toLocaleString('en-IN')}`,
+      `Rs ${recv.toLocaleString('en-IN')}`,
+      `Rs ${pend.toLocaleString('en-IN')}`,
+      c.paymentStatus || 'Pending',
+      c.utrNumber || c.paymentMode || '-'
+    ];
+  });
+
+  const headCols = [
+    '#', 'Date', 'Shift / Timings', 'Supervisor', 'Team', 'Scope of Work Executed',
+    'Status', 'Invoiced', 'Received', 'Pending Dues', 'Payment', 'UTR / Mode'
+  ];
+
+  const footCols = [
+    {
+      content: `TOTAL (${totalVisits} Cleaning Visits Logged)`,
+      colSpan: 7,
+      styles: { halign: 'left', fontStyle: 'bold', fontSize: 8, textColor: [15, 23, 42] }
+    },
+    { content: `Rs ${totalBilled.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
+    { content: `Rs ${totalReceived.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: [12, 131, 31] } },
+    { content: `Rs ${totalPending.toLocaleString('en-IN')}`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8, textColor: totalPending > 0 ? [220, 38, 38] : [12, 131, 31] } },
+    { content: totalPending === 0 ? 'CLEARED' : 'PENDING', colSpan: 2, styles: { halign: 'center', fontStyle: 'bold', fontSize: 8, textColor: totalPending === 0 ? [12, 131, 31] : [220, 38, 38] } }
+  ];
+
+  runAutoTable(doc, {
+    startY: currentY,
+    head: [headCols],
+    body: tableRows.length > 0 ? tableRows : [['-', '-', '-', '-', '-', 'No cleaning records found for this store', '-', '-', '-', '-', '-', '-']],
+    foot: [footCols],
+    theme: 'grid',
+    styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42] },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 12, halign: 'center' },
+      5: { cellWidth: 55 },
+      6: { cellWidth: 20, halign: 'center' },
+      7: { cellWidth: 22, halign: 'right' },
+      8: { cellWidth: 22, halign: 'right' },
+      9: { cellWidth: 22, halign: 'right' },
+      10: { cellWidth: 20, halign: 'center' },
+      11: { cellWidth: 20, halign: 'center' }
+    }
+  });
+
+  addFooterAndPageNumbers(doc);
+
+  const cleanStoreName = sName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const defaultFilename = `Blinkit_${sCode}_${cleanStoreName}_Statement_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(filename || defaultFilename);
+  toast.success(`PDF Statement downloaded for ${sName} (${sCode})!`, 'PDF Export Ready');
 }
 

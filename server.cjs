@@ -88,16 +88,24 @@ function doesCleaningMatchStoreServer(cleaning, store) {
     return false;
   }
 
-  const cName = (cleaning.storeName || '').trim().toLowerCase();
-  const sName = (store.storeName || store.name || '').trim().toLowerCase();
-  if (cName && sName) {
-    if ((cName.includes('pune') && sName.includes('mumbai')) || (cName.includes('mumbai') && sName.includes('pune'))) {
-      return false;
-    }
-    if ((cName.includes('pune') && sName.includes('kurla')) || (cName.includes('kurla') && sName.includes('pune'))) {
-      return false;
-    }
-  }
+  // Cross-field text disambiguation (checks city, store name, and address)
+  const cText = `${cCity} ${(cleaning.storeName || '')} ${(cleaning.address || '')}`.toLowerCase();
+  const sText = `${sCity} ${(store.storeName || store.name || '')} ${(store.address || '')}`.toLowerCase();
+
+  const puneKeywords = ['pune', 'bavdhan', 'kothrud', 'wakad', 'baner', 'hinjewadi', 'vimannagar', 'viman nagar', 'kharadi', 'hadapsar', 'pcmc'];
+  const mumbaiKeywords = ['mumbai', 'kurla', 'thane', 'navi mumbai', 'andheri', 'bandra', 'dadar', 'vashi', 'ghatkopar', 'chembur', 'borivali', 'kandivali', 'malad', 'mira road', 'bhayandar', 'panvel', 'kalyan', 'dombivli'];
+
+  const isCPune = puneKeywords.some(kw => cText.includes(kw));
+  const isSPune = puneKeywords.some(kw => sText.includes(kw));
+  const isCMumbai = mumbaiKeywords.some(kw => cText.includes(kw));
+  const isSMumbai = mumbaiKeywords.some(kw => sText.includes(kw));
+
+  if (isCPune && isSMumbai) return false;
+  if (isCMumbai && isSPune) return false;
+
+  // Specific locality mismatch (e.g. Bavdhan vs Kurla)
+  if (cText.includes('bavdhan') && sText.includes('kurla')) return false;
+  if (cText.includes('kurla') && sText.includes('bavdhan')) return false;
 
   return true;
 }

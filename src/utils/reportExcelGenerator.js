@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx-js-style';
 import { toast } from '../components/Toast';
+import { doesCleaningMatchStore } from './storeUtils';
 
 // Helper to format currency values safely for Excel
 const toNum = (val) => {
@@ -1118,20 +1119,17 @@ export function buildStorePerformanceSheet(cleanings = [], stores = [], filterLa
     const cCode = (c.storeCode || '').trim().toUpperCase();
     const cCity = (c.city || '').trim().toUpperCase();
     const cName = (c.storeName || '').trim().toLowerCase();
-    const meta = (stores || []).find(s => {
-      const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
-      if (sCode !== cCode) return false;
-      if (cCity && s.city && s.city.trim().toUpperCase() !== cCity) return false;
-      return true;
-    });
+    const meta = (stores || []).find(s => doesCleaningMatchStore(c, s));
 
-    const storeKey = cCity ? `${cCode}__${cCity}` : (cCode || cName);
+    const finalCode = (meta?.storeCode || meta?.code || cCode).trim().toUpperCase();
+    const finalCity = (meta?.city || cCity).trim().toUpperCase();
+    const storeKey = finalCity ? `${finalCode}__${finalCity}` : (finalCode || meta?.id || cName);
     if (!storeKey) return;
 
     let item = storeMap.get(storeKey);
     if (!item) {
       item = {
-        code: c.storeCode || meta?.storeCode || meta?.code || '',
+        code: finalCode,
         name: meta?.storeName || meta?.name || c.storeName || '',
         city: meta?.city || c.city || '',
         address: meta?.address || c.address || '',
@@ -1710,8 +1708,7 @@ export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = '
   ];
 
   const dataRows = sortedStores.map((s, idx) => {
-    const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
-    const storeVisits = cleanings.filter(c => (c.storeCode || '').trim().toUpperCase() === sCode);
+    const storeVisits = cleanings.filter(c => doesCleaningMatchStore(c, s));
     const visitCount = storeVisits.length;
     const lastDate = storeVisits.length > 0 
       ? storeVisits.map(c => c.cleaningDate).filter(Boolean).sort().reverse()[0] || '--'
@@ -1748,5 +1745,158 @@ export function exportStoreListExcel(stores = [], cleanings = [], filterLabel = 
   XLSX.utils.book_append_sheet(wb, ws, 'Store Master Directory');
   const defaultName = `Blinkit_Store_Master_Directory_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename || defaultName);
+}
+
+/**
+ * Export a single store's complete cleaning history and financial statement to Excel (.xlsx)
+ */
+export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All Time', filename = '') {
+  if (!store) {
+    toast.warning('No store selected for export.', 'Export Failed');
+    return;
+  }
+
+  // Ensure we only include cleanings that actually belong to this store
+  const storeCleanings = cleanings
+    .filter(c => doesCleaningMatchStore(c, store))
+    .sort((a, b) => new Date(b.cleaningDate) - new Date(a.cleaningDate));
+
+  const totalVisits = storeCleanings.length;
+  const totalBilled = storeCleanings.reduce((sum, c) => sum + toNum(c.amount), 0);
+  const totalReceived = storeCleanings.reduce((sum, c) => sum + toNum(c.amountReceived), 0);
+  const totalPending = storeCleanings.reduce((sum, c) => {
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, toNum(c.amount) - toNum(c.amountReceived));
+    return sum + pend;
+  }, 0);
+
+  const sCode = store.storeCode || store.code || 'STORE';
+  const sName = store.storeName || store.name || sCode;
+  const sCity = store.city || 'Hub';
+  const sAddress = store.address || 'Address not registered';
+  const sManager = store.managerName || 'Not Assigned';
+  const sPhone = store.managerPhone || 'N/A';
+
+  const wb = XLSX.utils.book_new();
+
+  // Title & Metadata rows
+  const headerRows = [
+    ['SK ENTERPRISES | FACILITY & DEEP CLEANING SERVICES'],
+    [`STORE CLEANING LEDGER & AUDIT STATEMENT: ${sName} (${sCode})`],
+    [`City / Hub: ${sCity} | Address: ${sAddress} | Manager: ${sManager} (Ph: ${sPhone})`],
+    [`Audit Period: ${filterLabel} | Report Generated: ${new Date().toLocaleString('en-IN')}`],
+    [],
+    // KPI Cards row
+    [
+      'Total Cleanings Done', totalVisits,
+      'Total Invoiced (₹)', totalBilled,
+      'Total Received (₹)', totalReceived,
+      'Pending Balance (₹)', totalPending,
+      'Clearance Status', totalPending === 0 ? 'ALL CLEARED' : 'PENDING'
+    ],
+    []
+  ];
+
+  const columns = [
+    '#',
+    'Cleaning Date',
+    'Shift',
+    'Timings',
+    'Duration (Hrs)',
+    'Supervisor',
+    'Headcount',
+    'Scope of Work Executed',
+    'Chemicals / Consumables Used',
+    'Work Status',
+    'Invoiced Amount (₹)',
+    'Amount Received (₹)',
+    'Pending Balance (₹)',
+    'Payment Status',
+    'Payment Date',
+    'Payment Mode / UTR',
+    'Remarks / Notes'
+  ];
+
+  const dataRows = storeCleanings.map((c, idx) => {
+    const billed = toNum(c.amount);
+    const recv = toNum(c.amountReceived);
+    const pend = c.amountPending !== undefined ? toNum(c.amountPending) : Math.max(0, billed - recv);
+    const scopeStr = Array.isArray(c.scopeOfWork) ? c.scopeOfWork.join(', ') : (c.scopeOfWork || 'General Deep Cleaning');
+    const chemsStr = Array.isArray(c.chemicalsUsed) ? c.chemicalsUsed.join(', ') : (c.chemicalsUsed || 'Standard Kit');
+    const timingsStr = (c.startTime && c.endTime) ? `${c.startTime} - ${c.endTime}` : (c.startTime || c.shift || 'Night');
+
+    return [
+      idx + 1,
+      c.cleaningDate || '--',
+      c.shift || 'Night Shift',
+      timingsStr,
+      c.durationHours || 0,
+      c.supervisor || 'On-Duty Lead',
+      c.cleanersCount || c.headcount || 4,
+      scopeStr,
+      chemsStr,
+      c.status || 'Completed',
+      billed,
+      recv,
+      pend,
+      c.paymentStatus || 'Pending',
+      c.paymentDate || '--',
+      c.paymentMode || c.utrNumber || '--',
+      c.remarks || c.notes || '--'
+    ];
+  });
+
+  const totalsRow = [
+    'TOTALS',
+    `Total Visits: ${totalVisits}`,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    totalBilled,
+    totalReceived,
+    totalPending,
+    totalPending === 0 ? 'All Cleared' : 'Pending',
+    '',
+    '',
+    ''
+  ];
+
+  const fullData = [...headerRows, columns, ...dataRows, [], totalsRow];
+  const ws = XLSX.utils.aoa_to_sheet(fullData);
+
+  // Apply corporate styling
+  applyCorporateTheme(ws);
+
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 6 },  // #
+    { wch: 14 }, // Date
+    { wch: 14 }, // Shift
+    { wch: 18 }, // Timings
+    { wch: 14 }, // Duration
+    { wch: 20 }, // Supervisor
+    { wch: 12 }, // Headcount
+    { wch: 35 }, // Scope
+    { wch: 30 }, // Chemicals
+    { wch: 16 }, // Status
+    { wch: 18 }, // Invoiced
+    { wch: 18 }, // Received
+    { wch: 18 }, // Pending
+    { wch: 16 }, // Payment Status
+    { wch: 14 }, // Payment Date
+    { wch: 20 }, // UTR
+    { wch: 30 }  // Remarks
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, `${sCode}_Cleaning_Ledger`.slice(0, 31));
+
+  const cleanStoreName = sName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const defaultFilename = `Blinkit_${sCode}_${cleanStoreName}_Cleaning_History_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename || defaultFilename);
+  toast.success(`Excel report downloaded for ${sName} (${sCode})!`, 'Excel Export Ready');
 }
 

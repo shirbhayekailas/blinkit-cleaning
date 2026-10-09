@@ -11,6 +11,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   FileText, 
+  FileSpreadsheet,
+  Download,
   Share2, 
   MapPin, 
   Phone, 
@@ -24,6 +26,8 @@ import {
 import { generateCleaningPDF } from '../utils/pdfGenerator';
 import { formatPaymentReminderWhatsApp, shareStoreLocationWhatsApp } from '../utils/whatsappFormatter';
 import { doesCleaningMatchStore } from '../utils/storeUtils';
+import { exportSingleStoreExcel } from '../utils/reportExcelGenerator';
+import { generateSingleStoreStatementPDF } from '../utils/reportPdfGenerator';
 
 export default function StoreHistoryModal({
   isOpen,
@@ -130,12 +134,33 @@ export default function StoreHistoryModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <button
+              type="button"
+              onClick={() => exportSingleStoreExcel(store, storeCleanings)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
+              title="Download Store Cleaning History in Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => generateSingleStoreStatementPDF(store, storeCleanings)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition"
+              title="Download Store Statement in PDF (.pdf)"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">PDF</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Store Cumulative Financial Summary Bar */}
@@ -372,10 +397,28 @@ export default function StoreHistoryModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex justify-end">
+        <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => exportSingleStoreExcel(store, storeCleanings)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 text-xs font-bold transition shadow-2xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Download Excel (.xlsx)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => generateSingleStoreStatementPDF(store, storeCleanings)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 text-xs font-bold transition shadow-2xs"
+            >
+              <FileText className="w-4 h-4 text-rose-600" />
+              <span>Download PDF Statement</span>
+            </button>
+          </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold text-xs hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+            className="px-5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-semibold text-xs hover:bg-slate-300 dark:hover:bg-slate-700 transition ml-auto"
           >
             Close History
           </button>
