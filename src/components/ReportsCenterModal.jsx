@@ -21,6 +21,7 @@ import {
   FileCheck,
   ArrowUpDown,
   RotateCcw,
+  MapPin,
   FolderTree,
   Eye,
   History

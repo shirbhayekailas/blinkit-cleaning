@@ -205,26 +205,36 @@ const STYLES = {
  * - Status Badges (Red for Pending, Green for Settled)
  * - Accounting double-underlined Grand Total Row
  */
-function applyCorporateTheme(ws, {
-  headerRowIndex,          // 0-indexed row of table headers (e.g. 7)
-  totalColumns,            // Total column count
-  totalRows,               // Total rows in sheet
-  currencyColIndices = [], // 0-indexed column indices with money
-  numberColIndices = [],   // 0-indexed column indices with integer numbers
-  centerColIndices = [],   // 0-indexed column indices to center
-  statusColIndex = -1,     // 0-indexed column index of payment/audit status
-  hasScorecard = true
-}) {
+function applyCorporateTheme(ws, options = {}) {
   if (!ws) return;
+
+  const {
+    headerRowIndex,          // 0-indexed row of table headers (e.g. 7)
+    totalColumns,            // Total column count
+    totalRows,               // Total rows in sheet
+    currencyColIndices = [], // 0-indexed column indices with money
+    numberColIndices = [],   // 0-indexed column indices with integer numbers
+    centerColIndices = [],   // 0-indexed column indices to center
+    statusColIndex = -1,     // 0-indexed column index of payment/audit status
+    hasScorecard = true
+  } = options;
+
+  if (typeof totalColumns !== 'number' || typeof headerRowIndex !== 'number' || typeof totalRows !== 'number') {
+    return;
+  }
 
   const lastColLetter = getColLetter(totalColumns - 1);
   const headerExcelRow = headerRowIndex + 1; // 1-indexed
 
   // 1. Enable native Excel AutoFilter dropdowns
-  ws['!autofilter'] = { ref: `A${headerExcelRow}:${lastColLetter}${totalRows - 1}` };
+  if (lastColLetter && headerExcelRow > 0 && totalRows > headerExcelRow) {
+    ws['!autofilter'] = { ref: `A${headerExcelRow}:${lastColLetter}${totalRows - 1}` };
+  }
 
   // 2. Freeze panes at header row
-  ws['!views'] = [{ state: 'frozen', ySplit: headerExcelRow }];
+  if (headerExcelRow > 0) {
+    ws['!views'] = [{ state: 'frozen', ySplit: headerExcelRow }];
+  }
 
   // 3. Row 1: Brand Title Banner
   for (let c = 0; c < totalColumns; c++) {
@@ -1731,7 +1741,15 @@ export function buildStoreListSheet(stores = [], cleanings = [], filterLabel = '
 
   const fullSheetData = [...headerRows, columns, ...dataRows];
   const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
-  applyCorporateTheme(ws);
+  applyCorporateTheme(ws, {
+    headerRowIndex: 7,
+    totalColumns: columns.length,
+    totalRows: fullSheetData.length,
+    numberColIndices: [0, 7],
+    centerColIndices: [0, 1, 7, 8, 9],
+    statusColIndex: 9,
+    hasScorecard: true
+  });
   return ws;
 }
 
@@ -1869,7 +1887,16 @@ export function exportSingleStoreExcel(store, cleanings = [], filterLabel = 'All
   const ws = XLSX.utils.aoa_to_sheet(fullData);
 
   // Apply corporate styling
-  applyCorporateTheme(ws);
+  applyCorporateTheme(ws, {
+    headerRowIndex: 7,
+    totalColumns: columns.length,
+    totalRows: fullData.length,
+    currencyColIndices: [10, 11, 12],
+    numberColIndices: [0, 4, 6],
+    centerColIndices: [0, 1, 2, 3, 4, 6, 9, 13, 14, 15],
+    statusColIndex: 13,
+    hasScorecard: true
+  });
 
   // Set column widths
   ws['!cols'] = [
