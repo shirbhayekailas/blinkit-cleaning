@@ -12,3 +12,11 @@ services:
         value: 10000
       - key: ELECTRON_SKIP_BINARY_DOWNLOAD
         value: "1"
+      - key: SUPABASE_URL
+        value: "https://eymcwmwpercvdwcciqaq.supabase.co"
+      - key: SUPABASE_ANON_KEY
+        value: "sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_"
+      - key: VITE_SUPABASE_URL
+        value: "https://eymcwmwpercvdwcciqaq.supabase.co"
+      - key: VITE_SUPABASE_ANON_KEY
+        value: "sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_"

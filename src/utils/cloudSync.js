@@ -153,8 +153,8 @@ export async function clearDemoDataOnServer() {
 const STORAGE_KEY = 'blinkit_cloud_sync_config';
 
 export function getCloudConfig() {
-  const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
-  const envKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+  const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+  const envKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

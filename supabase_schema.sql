@@ -1,13 +1,8 @@
 -- ========================================================================
 -- BLINKIT DARK STORE DEEP CLEANING TRACKER - SUPABASE DATABASE SCHEMA
 -- ========================================================================
--- This script creates all necessary tables, indexes, and open access policies
--- for real-time global cloud synchronization.
---
--- How to apply:
--- 1. Create a free project at https://supabase.com
--- 2. Open the SQL Editor on the left menu.
--- 3. Paste this entire script and click "Run".
+-- Project: https://eymcwmwpercvdwcciqaq.supabase.co
+-- Vendor: SK Enterprises
 -- ========================================================================
 
 -- Enable UUID extension
@@ -19,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.stores (
   store_code TEXT UNIQUE NOT NULL,
   store_name TEXT NOT NULL,
   address TEXT,
-  city TEXT DEFAULT 'Delhi NCR',
+  city TEXT DEFAULT 'Mumbai',
   google_maps_url TEXT,
   manager_name TEXT,
   manager_phone TEXT,
@@ -34,6 +29,7 @@ CREATE TABLE IF NOT EXISTS public.stores (
 -- 2. CLEANINGS (STORE VISIT & SHIFT RECORDS) TABLE
 CREATE TABLE IF NOT EXISTS public.cleanings (
   id TEXT PRIMARY KEY,
+  sync_id TEXT,
   store_code TEXT NOT NULL,
   store_name TEXT NOT NULL,
   address TEXT,
@@ -50,8 +46,10 @@ CREATE TABLE IF NOT EXISTS public.cleanings (
   labor_cost NUMERIC DEFAULT 0,
   net_profit NUMERIC DEFAULT 0,
   scope_of_work JSONB,
-  equipment_check JSONB,
+  checklist JSONB,
+  equipment JSONB,
   photos JSONB,
+  chemicals_used JSONB,
   manager_signature TEXT,
   audio_remarks TEXT,
   rating NUMERIC DEFAULT 5.0,
@@ -71,6 +69,8 @@ CREATE TABLE IF NOT EXISTS public.cleanings (
   supervisor_id TEXT,
   supervisor_name TEXT,
   supervisor_phone TEXT,
+  team_vendor TEXT DEFAULT 'SK ENTERPRISES',
+  shift TEXT,
   next_cleaning_cycle_days INTEGER DEFAULT 30,
   gps_coords JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS public.supervisors (
   pin TEXT NOT NULL DEFAULT '1234',
   assigned_store_codes JSONB,
   status TEXT DEFAULT 'Active',
+  active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -109,6 +110,7 @@ CREATE TABLE IF NOT EXISTS public.cleaning_schedules (
   store_name TEXT NOT NULL,
   scheduled_date DATE NOT NULL,
   shift_time TEXT DEFAULT '01:00 AM',
+  shift TEXT,
   supervisor_id TEXT,
   supervisor_name TEXT,
   cleaners_count INTEGER DEFAULT 4,
@@ -121,10 +123,11 @@ CREATE TABLE IF NOT EXISTS public.cleaning_schedules (
 -- 6. CHEMICAL INVENTORY STOCK TABLE
 CREATE TABLE IF NOT EXISTS public.chemical_stock (
   id TEXT PRIMARY KEY,
-  chemical_name TEXT NOT NULL,
+  item_name TEXT NOT NULL,
+  category TEXT,
   unit TEXT DEFAULT 'Liters',
-  current_stock NUMERIC DEFAULT 50,
-  min_stock_alert NUMERIC DEFAULT 10,
+  total_stock NUMERIC DEFAULT 50,
+  alert_threshold NUMERIC DEFAULT 10,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -133,7 +136,7 @@ CREATE TABLE IF NOT EXISTS public.chemical_stock (
 CREATE TABLE IF NOT EXISTS public.chemical_logs (
   id TEXT PRIMARY KEY,
   chemical_id TEXT NOT NULL,
-  chemical_name TEXT NOT NULL,
+  item_name TEXT NOT NULL,
   log_type TEXT NOT NULL, -- 'ADD_STOCK' or 'ISSUE_TO_STORE'
   quantity NUMERIC NOT NULL,
   store_code TEXT,
@@ -154,7 +157,55 @@ CREATE TABLE IF NOT EXISTS public.cleaner_advances (
   advance_date DATE NOT NULL,
   payment_mode TEXT DEFAULT 'Cash',
   notes TEXT,
+  remarks TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. STORE ISSUES & DEFECTS TABLE
+CREATE TABLE IF NOT EXISTS public.store_issues (
+  id TEXT PRIMARY KEY,
+  store_code TEXT NOT NULL,
+  cleaning_id TEXT,
+  issue_type TEXT,
+  description TEXT,
+  status TEXT DEFAULT 'Open',
+  photo TEXT,
+  reported_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+-- 10. STORE EXPENSES & LOGISTICS TABLE
+CREATE TABLE IF NOT EXISTS public.store_expenses (
+  id TEXT PRIMARY KEY,
+  store_code TEXT,
+  city TEXT,
+  category TEXT,
+  amount NUMERIC DEFAULT 0,
+  date DATE,
+  paid_to TEXT,
+  payment_mode TEXT,
+  remarks TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. FLEET & SCRUBBER MACHINES TABLE
+CREATE TABLE IF NOT EXISTS public.equipments (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  asset_tag TEXT,
+  category TEXT,
+  current_location_name TEXT,
+  status TEXT DEFAULT 'Available',
+  condition TEXT DEFAULT 'Good',
+  last_service_date DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. APP SETTINGS & BILL DETAILS TABLE
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -170,19 +221,46 @@ ALTER TABLE public.cleaning_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chemical_stock ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chemical_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cleaner_advances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.store_issues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.store_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
--- Allow public read/write access via Supabase anon key
-CREATE POLICY "Allow public all on stores" ON public.stores FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on cleanings" ON public.cleanings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on supervisors" ON public.supervisors FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on cleaners" ON public.cleaners FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on cleaning_schedules" ON public.cleaning_schedules FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on chemical_stock" ON public.chemical_stock FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on chemical_logs" ON public.chemical_logs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public all on cleaner_advances" ON public.cleaner_advances FOR ALL USING (true) WITH CHECK (true);
+-- Drop existing policies if any to avoid errors on rerun
+DROP POLICY IF EXISTS "Allow all on stores" ON public.stores;
+DROP POLICY IF EXISTS "Allow all on cleanings" ON public.cleanings;
+DROP POLICY IF EXISTS "Allow all on supervisors" ON public.supervisors;
+DROP POLICY IF EXISTS "Allow all on cleaners" ON public.cleaners;
+DROP POLICY IF EXISTS "Allow all on cleaning_schedules" ON public.cleaning_schedules;
+DROP POLICY IF EXISTS "Allow all on chemical_stock" ON public.chemical_stock;
+DROP POLICY IF EXISTS "Allow all on chemical_logs" ON public.chemical_logs;
+DROP POLICY IF EXISTS "Allow all on cleaner_advances" ON public.cleaner_advances;
+DROP POLICY IF EXISTS "Allow all on store_issues" ON public.store_issues;
+DROP POLICY IF EXISTS "Allow all on store_expenses" ON public.store_expenses;
+DROP POLICY IF EXISTS "Allow all on equipments" ON public.equipments;
+DROP POLICY IF EXISTS "Allow all on app_settings" ON public.app_settings;
 
--- Enable Supabase Realtime for instant updates on all devices
-ALTER PUBLICATION supabase_realtime ADD TABLE public.cleanings;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.stores;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.cleaning_schedules;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.chemical_stock;
+-- Allow read/write access via Supabase key
+CREATE POLICY "Allow all on stores" ON public.stores FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on cleanings" ON public.cleanings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on supervisors" ON public.supervisors FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on cleaners" ON public.cleaners FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on cleaning_schedules" ON public.cleaning_schedules FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on chemical_stock" ON public.chemical_stock FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on chemical_logs" ON public.chemical_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on cleaner_advances" ON public.cleaner_advances FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on store_issues" ON public.store_issues FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on store_expenses" ON public.store_expenses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on equipments" ON public.equipments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on app_settings" ON public.app_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- Enable Supabase Realtime for instant updates across devices
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.cleanings;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.stores;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.cleaning_schedules;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.chemical_stock;
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
