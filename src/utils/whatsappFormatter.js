@@ -1,3 +1,5 @@
+import { doesCleaningMatchStore } from './storeUtils';
+
 export function formatWhatsAppMessage(cleaning) {
   const statusEmoji = cleaning.status === 'Completed' ? '✅' : '⏳';
 
@@ -166,6 +168,70 @@ _Shared via Blinkit Deep Cleaning Operations Tracker_`;
 
 export function shareStoreDirectoryWhatsApp(stores = [], targetPhone = '') {
   const msg = formatStoreDirectoryWhatsApp(stores);
+  const cleanPhone = (targetPhone || '').replace(/[^0-9]/g, '');
+  const url = cleanPhone
+    ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
+    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+// 1-Click WhatsApp Selected Stores Broadcast Formatter
+export function formatSelectedStoresWhatsApp(stores = [], cleanings = [], options = {}) {
+  const {
+    includeManager = true,
+    includeAddress = true,
+    includeMaps = true,
+    includeCleanings = true,
+    customNote = '',
+    title = 'BLINKIT DARK STORE SELECTION'
+  } = options;
+
+  const vendorName = localStorage.getItem('vendor_company_name') || 'SK ENTERPRISES';
+  const total = stores.length;
+
+  const storeItems = stores.map((s, idx) => {
+    const code = (s.storeCode || s.code || 'N/A').trim().toUpperCase();
+    const name = s.storeName || s.name || 'Dark Store';
+    const city = s.city ? ` [${s.city}]` : '';
+
+    const lines = [];
+    if (includeAddress && s.address) {
+      lines.push(`   📍 *Address:* ${s.address}`);
+    }
+    if (includeMaps && s.googleMapsUrl) {
+      lines.push(`   🗺️ *Location:* ${s.googleMapsUrl}`);
+    }
+    if (includeManager && (s.managerName || s.managerPhone)) {
+      lines.push(`   👤 *Manager:* ${s.managerName || 'N/A'}${s.managerPhone ? ` (📞 ${s.managerPhone})` : ''}`);
+    }
+    if (includeCleanings && cleanings && cleanings.length > 0) {
+      const storeVisits = cleanings.filter(c => doesCleaningMatchStore(c, s));
+      if (storeVisits.length > 0) {
+        const sorted = [...storeVisits].sort((a, b) => (b.cleaningDate || '').localeCompare(a.cleaningDate || ''));
+        const lastDate = sorted[0]?.cleaningDate;
+        lines.push(`   🧹 *Visits:* ${storeVisits.length} Cleanings Logged | *Last:* ${lastDate || '--'}`);
+      }
+    }
+
+    const linesStr = lines.length > 0 ? `\n${lines.join('\n')}` : '';
+    return `${idx + 1}. *[${code}]* ${name}${city}${linesStr}`;
+  }).join('\n\n');
+
+  return `*🏢 ${title.toUpperCase()} 🏢*
+---------------------------------------
+📋 *Selected Stores:* ${total}
+💼 *Facility Vendor:* ${vendorName}
+📅 *Date:* ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+${customNote ? `💬 *Note:* ${customNote}\n` : ''}---------------------------------------
+
+${storeItems || 'No stores selected.'}
+
+---------------------------------------
+_Shared via Blinkit Deep Cleaning Operations Tracker_`;
+}
+
+export function shareSelectedStoresWhatsApp(stores = [], cleanings = [], options = {}, targetPhone = '') {
+  const msg = formatSelectedStoresWhatsApp(stores, cleanings, options);
   const cleanPhone = (targetPhone || '').replace(/[^0-9]/g, '');
   const url = cleanPhone
     ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`

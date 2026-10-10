@@ -28,6 +28,7 @@ import { shareStoreLocationWhatsApp, shareStoreDirectoryWhatsApp } from '../util
 import { naturalSortByStoreCode, exportStoreListExcel, exportSingleStoreExcel } from '../utils/reportExcelGenerator';
 import { generateStoreListPDF, generateSingleStoreStatementPDF } from '../utils/reportPdfGenerator';
 import { doesCleaningMatchStore, getStoreKey } from '../utils/storeUtils';
+import StoreShareModal from './StoreShareModal';
 
 export default function StoreLedgerView({
   stores = [],
@@ -45,6 +46,28 @@ export default function StoreLedgerView({
   const [storeSortBy, setStoreSortBy] = useState('storeCodeAsc');
   const [cityFilter, setCityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedStoreKeys, setSelectedStoreKeys] = useState(new Set());
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  const getStoreId = (s) => (s.id ? String(s.id) : getStoreKey(s));
+
+  const toggleStoreSelection = (s) => {
+    const id = getStoreId(s);
+    setSelectedStoreKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedStoreKeys(new Set(filteredStores.map(getStoreId)));
+  };
+
+  const clearStoreSelection = () => {
+    setSelectedStoreKeys(new Set());
+  };
 
   // Extract unique cities
   const uniqueCities = useMemo(() => {
@@ -118,6 +141,11 @@ export default function StoreLedgerView({
     return list;
   }, [stores, searchTerm, cityFilter, statusFilter, storeSortBy, storeMetricsMap]);
 
+  // List of selected store objects
+  const selectedStoresList = useMemo(() => {
+    return stores.filter(s => selectedStoreKeys.has(getStoreId(s)));
+  }, [stores, selectedStoreKeys]);
+
   return (
     <div className="space-y-4 sm:space-y-5 min-w-0">
       
@@ -132,6 +160,11 @@ export default function StoreLedgerView({
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
               {filteredStores.length} {filteredStores.length === 1 ? 'store' : 'stores'}
             </span>
+            {selectedStoreKeys.size > 0 && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
+                ✓ {selectedStoreKeys.size} selected
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 break-words">
             {t('ledger_desc', 'Manage registered dark stores, store-wise cleaning records & pending payments')}
@@ -140,14 +173,22 @@ export default function StoreLedgerView({
 
         {/* Action Buttons: Export PDF, Excel, WhatsApp, Reports, Add Store */}
         <div className="flex items-center gap-2 flex-wrap self-start lg:self-auto">
-          {/* Share Store List on WhatsApp */}
+          {/* Share Selected Stores on WhatsApp */}
           <button
-            onClick={() => shareStoreDirectoryWhatsApp(filteredStores)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 shadow-2xs transition shrink-0 active:scale-95"
-            title="Share Store Master Directory on WhatsApp"
+            onClick={() => setIsShareModalOpen(true)}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border shadow-2xs transition shrink-0 active:scale-95 ${
+              selectedStoreKeys.size > 0
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-700 shadow-md shadow-emerald-700/20'
+                : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border-emerald-200 dark:border-emerald-800'
+            }`}
+            title="Select and share dark stores on WhatsApp"
           >
-            <Share2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Share List</span>
+            <Share2 className="w-3.5 h-3.5" />
+            <span>
+              {selectedStoreKeys.size > 0 
+                ? `Share Selected (${selectedStoreKeys.size})` 
+                : 'Share Stores'}
+            </span>
           </button>
 
           {/* Download Store List PDF */}
@@ -265,20 +306,39 @@ export default function StoreLedgerView({
             const totalReceived = storeCleanings.reduce((sum, c) => sum + (Number(c.amountReceived) || 0), 0);
             const totalPending = storeCleanings.reduce((sum, c) => sum + (Number(c.amountPending) || 0), 0);
 
+            const sId = getStoreId(store);
+            const isSelected = selectedStoreKeys.has(sId);
+
             return (
               <div
                 key={store.id ? `st_${store.id}` : getStoreKey(store)}
-                className="bg-white dark:bg-slate-800/95 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition flex flex-col justify-between overflow-hidden"
+                className={`bg-white dark:bg-slate-800/95 rounded-2xl border transition flex flex-col justify-between overflow-hidden ${
+                  isSelected
+                    ? 'ring-2 ring-emerald-500 border-emerald-400 dark:border-emerald-600 shadow-md bg-emerald-50/15 dark:bg-emerald-950/20'
+                    : 'border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md'
+                }`}
               >
                 
                 {/* Store Card Header */}
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 bg-gradient-to-r from-amber-50/40 via-white to-slate-50 dark:from-slate-800 dark:to-slate-800/60">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950">
-                          {store.storeCode}
-                        </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label 
+                          onClick={(e) => e.stopPropagation()} 
+                          className="flex items-center gap-1.5 cursor-pointer select-none group/chk"
+                          title={isSelected ? 'Deselect store' : 'Select store to share / export'}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleStoreSelection(store)}
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                          />
+                          <span className="font-mono text-xs font-black px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 group-hover/chk:brightness-95">
+                            {store.storeCode}
+                          </span>
+                        </label>
                         <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                           {store.city || 'Hub'}
                         </span>
@@ -461,6 +521,68 @@ export default function StoreLedgerView({
           </button>
         </div>
       )}
+
+      {/* Floating Multi-Select Actions Bar */}
+      {selectedStoreKeys.size > 0 && (
+        <div className="sticky bottom-4 z-40 p-3 sm:p-3.5 bg-slate-900/95 dark:bg-slate-900/95 text-white backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/80 flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-xs sm:text-sm font-bold">
+              {selectedStoreKeys.size} {selectedStoreKeys.size === 1 ? 'store selected' : 'stores selected'}
+            </span>
+            <button
+              onClick={selectAllFiltered}
+              className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 underline ml-2"
+            >
+              Select All ({filteredStores.length})
+            </button>
+            <button
+              onClick={clearStoreSelection}
+              className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 ml-1"
+            >
+              Clear
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-black rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md active:scale-95 transition"
+            >
+              <Share2 className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Share Selected ({selectedStoreKeys.size})</span>
+            </button>
+
+            <button
+              onClick={() => generateStoreListPDF({ stores: selectedStoresList, cleanings, filterLabel: `Selected Stores (${selectedStoreKeys.size})`, sortBy: storeSortBy })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-rose-600/90 hover:bg-rose-500 text-white shadow-xs active:scale-95 transition"
+              title="Download PDF for selected stores"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>PDF ({selectedStoreKeys.size})</span>
+            </button>
+
+            <button
+              onClick={() => exportStoreListExcel(selectedStoresList, cleanings, `Selected Stores (${selectedStoreKeys.size})`, { sortBy: storeSortBy })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 shadow-xs active:scale-95 transition"
+              title="Download Excel for selected stores"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Excel ({selectedStoreKeys.size})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Selectable Store Share Modal */}
+      <StoreShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        stores={stores}
+        cleanings={cleanings}
+        initialSelectedIds={selectedStoreKeys.size > 0 ? Array.from(selectedStoreKeys) : filteredStores.map(getStoreId)}
+        onSelectionChange={(newIds) => setSelectedStoreKeys(new Set(newIds))}
+      />
 
     </div>
   );
