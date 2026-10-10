@@ -218,6 +218,78 @@ function toCamelCase(obj) {
 }
 
 /**
+ * Formats a cleaning record strictly for the Supabase PostgreSQL schema
+ */
+export function formatCleaningForSupabase(c) {
+  if (!c || typeof c !== 'object') return null;
+  return {
+    id: String(c.id || c.syncId || `${c.storeCode}_${c.cleaningDate}`),
+    sync_id: c.syncId ? String(c.syncId) : null,
+    store_code: (c.storeCode || '').trim().toUpperCase(),
+    store_name: c.storeName || c.storeCode || '',
+    address: c.address || '',
+    city: c.city || '',
+    google_maps_url: c.googleMapsUrl || '',
+    manager_name: c.managerName || '',
+    manager_phone: c.managerPhone || '',
+    cleaning_date: c.cleaningDate || new Date().toISOString().split('T')[0],
+    punch_in_time: c.punchInTime || c.startTime || '',
+    punch_out_time: c.punchOutTime || c.endTime || '',
+    duration_hours: Number(c.durationHours) || 0,
+    total_cleaners: Number(c.totalCleaners || c.headcount) || 4,
+    team_members: c.teamMembers || '',
+    labor_cost: Number(c.laborCost) || 0,
+    net_profit: Number(c.netProfit) || 0,
+    scope_of_work: Array.isArray(c.scopeOfWork) ? c.scopeOfWork : [],
+    checklist: c.checklist || {},
+    equipment: c.equipment || {},
+    photos: Array.isArray(c.photos) ? c.photos : [],
+    chemicals_used: Array.isArray(c.chemicalsUsed) ? c.chemicalsUsed : [],
+    manager_signature: c.managerSignature || '',
+    audio_remarks: c.audioRemarks || '',
+    rating: Number(c.rating) || 5.0,
+    remarks: c.remarks || '',
+    amount: Number(c.amount) || 0,
+    payment_status: c.paymentStatus || 'Pending',
+    amount_received: Number(c.amountReceived) || 0,
+    amount_pending: Number(c.amountPending) || 0,
+    payment_date: c.paymentDate || null,
+    payment_mode: c.paymentMode || '',
+    utr_number: c.utrNumber || '',
+    payment_notes: c.paymentNotes || '',
+    supervisor_id: c.supervisorId ? String(c.supervisorId) : null,
+    supervisor_name: c.supervisorName || '',
+    supervisor_phone: c.supervisorPhone || '',
+    team_vendor: c.teamVendor || 'SK ENTERPRISES',
+    shift: c.shift || '',
+    next_cleaning_cycle_days: Number(c.nextCleaningCycleDays) || 30,
+    updated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Formats a dark store record strictly for the Supabase PostgreSQL schema
+ */
+export function formatStoreForSupabase(s) {
+  if (!s || typeof s !== 'object') return null;
+  return {
+    id: String(s.id || s.storeCode),
+    store_code: (s.storeCode || s.code || '').trim().toUpperCase(),
+    store_name: s.storeName || s.storeCode || '',
+    address: s.address || '',
+    city: s.city || 'Mumbai',
+    google_maps_url: s.googleMapsUrl || '',
+    manager_name: s.managerName || '',
+    manager_phone: s.managerPhone || '',
+    assistant_manager_name: s.assistantManagerName || '',
+    assistant_manager_phone: s.assistantManagerPhone || '',
+    contract_rate: Number(s.contractRate) || 8500,
+    next_cleaning_cycle_days: Number(s.nextCleaningCycleDays) || 30,
+    updated_at: new Date().toISOString()
+  };
+}
+
+/**
  * Instantly pushes a single created or updated record directly to Supabase Cloud
  */
 export async function syncSingleRecordToSupabase(tableName, record) {
@@ -226,16 +298,19 @@ export async function syncSingleRecordToSupabase(tableName, record) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
 
   try {
-    const snake = toSnakeCase(record);
-    if (!snake.id) {
-      snake.id = String(record.id || record.syncId || Date.now());
+    let payload = null;
+    if (tableName === 'cleanings') {
+      payload = formatCleaningForSupabase(record);
+    } else if (tableName === 'stores') {
+      payload = formatStoreForSupabase(record);
+    } else {
+      payload = toSnakeCase(record);
+      if (!payload.id) payload.id = String(record.id || Date.now());
     }
-    // Clean nulls/undefined for postgres
-    Object.keys(snake).forEach(k => {
-      if (snake[k] === undefined) delete snake[k];
-    });
 
-    await fetch(`${config.supabaseUrl}/rest/v1/${tableName}?on_conflict=id`, {
+    if (!payload) return;
+
+    const res = await fetch(`${config.supabaseUrl}/rest/v1/${tableName}?on_conflict=id`, {
       method: 'POST',
       headers: {
         'apikey': config.supabaseKey,
@@ -243,8 +318,15 @@ export async function syncSingleRecordToSupabase(tableName, record) {
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates'
       },
-      body: JSON.stringify([snake])
+      body: JSON.stringify([payload])
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`Supabase push (${tableName}) failed: HTTP ${res.status}`, errText);
+    } else {
+      console.log(`✅ Supabase ${tableName} updated successfully: ${payload.id || payload.store_code}`);
+    }
   } catch (err) {
     console.warn(`Instant Supabase sync notice (${tableName}):`, err);
   }

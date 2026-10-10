@@ -37,6 +37,133 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// -------------------------------------------------------------
+// LIVE SUPABASE CLOUD DATABASE SYNC ENGINE
+// -------------------------------------------------------------
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+
+async function pushCleaningToSupabase(cleaning) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !cleaning) return;
+  try {
+    const payload = {
+      id: String(cleaning.id || cleaning.syncId || `${cleaning.storeCode}_${cleaning.cleaningDate}`),
+      sync_id: cleaning.syncId ? String(cleaning.syncId) : null,
+      store_code: (cleaning.storeCode || '').trim().toUpperCase(),
+      store_name: cleaning.storeName || cleaning.storeCode || '',
+      address: cleaning.address || '',
+      city: cleaning.city || '',
+      google_maps_url: cleaning.googleMapsUrl || '',
+      manager_name: cleaning.managerName || '',
+      manager_phone: cleaning.managerPhone || '',
+      cleaning_date: cleaning.cleaningDate || new Date().toISOString().split('T')[0],
+      punch_in_time: cleaning.punchInTime || cleaning.startTime || '',
+      punch_out_time: cleaning.punchOutTime || cleaning.endTime || '',
+      duration_hours: Number(cleaning.durationHours) || 0,
+      total_cleaners: Number(cleaning.totalCleaners || cleaning.headcount) || 4,
+      team_members: cleaning.teamMembers || '',
+      labor_cost: Number(cleaning.laborCost) || 0,
+      net_profit: Number(cleaning.netProfit) || 0,
+      scope_of_work: Array.isArray(cleaning.scopeOfWork) ? cleaning.scopeOfWork : [],
+      checklist: cleaning.checklist || {},
+      equipment: cleaning.equipment || {},
+      photos: Array.isArray(cleaning.photos) ? cleaning.photos : [],
+      chemicals_used: Array.isArray(cleaning.chemicalsUsed) ? cleaning.chemicalsUsed : [],
+      manager_signature: cleaning.managerSignature || '',
+      audio_remarks: cleaning.audioRemarks || '',
+      rating: Number(cleaning.rating) || 5.0,
+      remarks: cleaning.remarks || '',
+      amount: Number(cleaning.amount) || 0,
+      payment_status: cleaning.paymentStatus || 'Pending',
+      amount_received: Number(cleaning.amountReceived) || 0,
+      amount_pending: Number(cleaning.amountPending) || 0,
+      payment_date: cleaning.paymentDate || null,
+      payment_mode: cleaning.paymentMode || '',
+      utr_number: cleaning.utrNumber || '',
+      payment_notes: cleaning.paymentNotes || '',
+      supervisor_id: cleaning.supervisorId ? String(cleaning.supervisorId) : null,
+      supervisor_name: cleaning.supervisorName || '',
+      supervisor_phone: cleaning.supervisorPhone || '',
+      team_vendor: cleaning.teamVendor || 'SK ENTERPRISES',
+      shift: cleaning.shift || '',
+      next_cleaning_cycle_days: Number(cleaning.nextCleaningCycleDays) || 30,
+      updated_at: new Date().toISOString()
+    };
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/cleanings?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([payload])
+    });
+
+    if (res.ok) {
+      console.log(`[Supabase Server Sync] Successfully pushed cleaning ${payload.store_code} (${payload.id})`);
+    } else {
+      console.warn(`[Supabase Server Sync] Cleanings push failed HTTP ${res.status}:`, await res.text());
+    }
+  } catch (err) {
+    console.warn('[Supabase Server Sync Error]:', err.message);
+  }
+}
+
+async function pushStoreToSupabase(store) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !store) return;
+  try {
+    const payload = {
+      id: String(store.id || store.storeCode),
+      store_code: (store.storeCode || store.code || '').trim().toUpperCase(),
+      store_name: store.storeName || store.storeCode || '',
+      address: store.address || '',
+      city: store.city || 'Mumbai',
+      google_maps_url: store.googleMapsUrl || '',
+      manager_name: store.managerName || '',
+      manager_phone: store.managerPhone || '',
+      assistant_manager_name: store.assistantManagerName || '',
+      assistant_manager_phone: store.assistantManagerPhone || '',
+      contract_rate: Number(store.contractRate) || 8500,
+      next_cleaning_cycle_days: Number(store.nextCleaningCycleDays) || 30,
+      updated_at: new Date().toISOString()
+    };
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/stores?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([payload])
+    });
+
+    if (res.ok) {
+      console.log(`[Supabase Server Sync] Successfully pushed store ${payload.store_code} (${payload.id})`);
+    } else {
+      console.warn(`[Supabase Server Sync] Stores push failed HTTP ${res.status}:`, await res.text());
+    }
+  } catch (err) {
+    console.warn('[Supabase Server Sync Error]:', err.message);
+  }
+}
+
+async function deleteFromSupabase(table, id) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !id) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(String(id))}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+  } catch (e) {}
+}
+
 const STANDARD_CHEMICALS = [
   { id: 'chem_01', itemName: 'Industrial Heavy Duty Floor Degreaser', category: 'Floor Care', unit: 'Liters', totalStock: 50, alertThreshold: 15 },
   { id: 'chem_02', itemName: 'TASKI R2 Multi-Surface Hygienic Cleaner', category: 'General Cleaning', unit: 'Liters', totalStock: 40, alertThreshold: 10 },
@@ -1238,6 +1365,8 @@ app.post('/api/cleanings', (req, res) => {
     }
 
     writeDB(currentDB);
+    // Instant Push to Supabase Cloud Database
+    pushCleaningToSupabase(updatedRecord);
     res.json({
       success: true,
       message: 'Cleaning record successfully saved to server database.',
@@ -1335,6 +1464,8 @@ app.post('/api/cleanings/payment', (req, res) => {
 
     currentDB.cleanings[index] = updatedRecord;
     writeDB(currentDB);
+    // Instant Push updated payment status to Supabase Cloud
+    pushCleaningToSupabase(updatedRecord);
 
     console.log(`[Payment Update] Updated payment for store ${updatedRecord.storeCode || updatedRecord.storeName} to ${updatedRecord.paymentStatus} (Amount Received: ${updatedRecord.amountReceived})`);
 
@@ -1420,6 +1551,9 @@ app.post('/api/cleanings/delete', (req, res) => {
 
     currentDB.lastUpdated = nowIso;
     writeDB(currentDB);
+    // Instant Delete from Supabase Cloud
+    if (targetId) deleteFromSupabase('cleanings', targetId);
+    if (targetSyncId) deleteFromSupabase('cleanings', targetSyncId);
 
     res.json({
       success: true,
@@ -1487,6 +1621,8 @@ app.post('/api/stores', (req, res) => {
     }
 
     writeDB(currentDB);
+    // Instant Push to Supabase Cloud Database
+    pushStoreToSupabase(savedStore);
     res.json({
       success: true,
       message: 'Store master ledger me update ho gaya.',
@@ -1641,6 +1777,9 @@ app.post('/api/stores/delete', (req, res) => {
 
     currentDB.lastUpdated = nowIso;
     writeDB(currentDB);
+    // Instant Delete store from Supabase Cloud
+    if (targetStore && targetStore.id) deleteFromSupabase('stores', targetStore.id);
+    else if (cleanCode) deleteFromSupabase('stores', cleanCode);
     res.json({
       success: true,
       message: `Store ${cleanCode || (targetStore && targetStore.storeName) || ''} permanently deleted from server database.`,
