@@ -217,6 +217,39 @@ function toCamelCase(obj) {
   return res;
 }
 
+/**
+ * Instantly pushes a single created or updated record directly to Supabase Cloud
+ */
+export async function syncSingleRecordToSupabase(tableName, record) {
+  if (!record || typeof record !== 'object') return;
+  const config = getCloudConfig();
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+
+  try {
+    const snake = toSnakeCase(record);
+    if (!snake.id) {
+      snake.id = String(record.id || record.syncId || Date.now());
+    }
+    // Clean nulls/undefined for postgres
+    Object.keys(snake).forEach(k => {
+      if (snake[k] === undefined) delete snake[k];
+    });
+
+    await fetch(`${config.supabaseUrl}/rest/v1/${tableName}?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        'apikey': config.supabaseKey,
+        'Authorization': `Bearer ${config.supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([snake])
+    });
+  } catch (err) {
+    console.warn(`Instant Supabase sync notice (${tableName}):`, err);
+  }
+}
+
 export function isCleaningDeleted(c, deletedCleanings = []) {
   if (!c || !deletedCleanings || deletedCleanings.length === 0) return false;
   const cSyncId = c.syncId ? String(c.syncId) : null;

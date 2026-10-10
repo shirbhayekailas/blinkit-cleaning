@@ -39,7 +39,7 @@ import ToastContainer, { toast } from './components/Toast';
 import ConfirmModal from './components/ConfirmModal';
 import CommandPalette from './components/CommandPalette';
 import OperationsPulseBar from './components/OperationsPulseBar';
-import { syncSmartCredentials } from './utils/cloudSync';
+import { syncSmartCredentials, syncSingleRecordToSupabase } from './utils/cloudSync';
 import { lockRecordInVault, purgeFromVault, reconcileVaultWithServer } from './utils/vaultManager';
 import { doesCleaningMatchStore } from './utils/storeUtils';
 import * as api from './services/api';
@@ -550,6 +550,8 @@ export default function App() {
     
     // Lock into permanent client vault (Guarantees zero data loss on server redeploys)
     lockRecordInVault('cleaning', optimisticRecord);
+    // Instant Push to Supabase Cloud Database
+    syncSingleRecordToSupabase('cleanings', optimisticRecord);
 
     setServerData(prev => {
       const existing = prev.cleanings || [];
@@ -614,6 +616,8 @@ export default function App() {
 
       // 2. Lock confirmed server record into vault & cache
       lockRecordInVault('cleaning', confirmedCleaning);
+      // Instant Push updated payment status to Supabase Cloud
+      syncSingleRecordToSupabase('cleanings', confirmedCleaning);
 
       setServerData(prev => {
         let next;
@@ -767,6 +771,8 @@ export default function App() {
     const code = (storeData.storeCode || '').trim().toUpperCase();
     const city = (storeData.city || '').trim().toLowerCase();
     lockRecordInVault('store', storeData);
+    // Instant Push to Supabase Cloud Database
+    syncSingleRecordToSupabase('stores', storeData);
 
     setServerData(prev => {
       const existing = prev.stores || [];
