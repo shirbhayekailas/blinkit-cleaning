@@ -164,6 +164,138 @@ async function deleteFromSupabase(table, id) {
   } catch (e) {}
 }
 
+let isSyncingSupabase = false;
+let lastSupabaseSyncTime = 0;
+
+function toCamelCaseServer(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  const res = {};
+  for (const key of Object.keys(obj)) {
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    res[camelKey] = obj[key];
+  }
+  return res;
+}
+
+/**
+ * High-Performance Two-Way Auto-Sync between Server database.json and Supabase Cloud
+ */
+async function syncWithSupabaseServer(force = false) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+  const now = Date.now();
+  if (isSyncingSupabase) return;
+  if (!force && now - lastSupabaseSyncTime < 25000) return;
+
+  isSyncingSupabase = true;
+  lastSupabaseSyncTime = now;
+
+  try {
+    const headers = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    };
+
+    const [storesRes, cleaningsRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/stores?select=*`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/cleanings?select=*`, { headers })
+    ]);
+
+    if (!storesRes.ok || !cleaningsRes.ok) {
+      isSyncingSupabase = false;
+      return;
+    }
+
+    const remoteStores = await storesRes.json();
+    const remoteCleanings = await cleaningsRes.json();
+
+    const currentDB = readDB();
+    if (!currentDB.stores) currentDB.stores = [];
+    if (!currentDB.cleanings) currentDB.cleanings = [];
+
+    let dbChanged = false;
+
+    // 1. Merge Remote Stores into Server Database
+    for (const rStore of remoteStores) {
+      const camel = toCamelCaseServer(rStore);
+      const sId = String(camel.id || camel.storeCode);
+      const sCode = (camel.storeCode || '').trim().toUpperCase();
+      const sCity = (camel.city || '').trim().toLowerCase();
+
+      const existingIdx = currentDB.stores.findIndex(s => {
+        if (!s) return false;
+        if (s.id && String(s.id) === sId) return true;
+        if (sCode && (s.storeCode || '').trim().toUpperCase() === sCode) {
+          if (sCity && (s.city || '').trim().toLowerCase() === sCity) return true;
+        }
+        return false;
+      });
+
+      if (existingIdx === -1) {
+        currentDB.stores.push(camel);
+        dbChanged = true;
+      } else {
+        currentDB.stores[existingIdx] = { ...currentDB.stores[existingIdx], ...camel };
+      }
+    }
+
+    // 2. Merge Remote Cleanings into Server Database
+    for (const rClean of remoteCleanings) {
+      const camel = toCamelCaseServer(rClean);
+      camel.startTime = rClean.punch_in_time || camel.startTime || '';
+      camel.endTime = rClean.punch_out_time || camel.endTime || '';
+      camel.headcount = rClean.total_cleaners || camel.headcount || 4;
+
+      const cId = String(camel.id);
+      const cSyncId = camel.syncId ? String(camel.syncId) : null;
+      const cCode = (camel.storeCode || '').trim().toUpperCase();
+      const cDate = (camel.cleaningDate || '').trim();
+
+      const existingIdx = currentDB.cleanings.findIndex(c => {
+        if (!c) return false;
+        if (c.id && String(c.id) === cId) return true;
+        if (cSyncId && c.syncId && String(c.syncId) === cSyncId) return true;
+        if (cCode && cDate && (c.storeCode || '').trim().toUpperCase() === cCode && (c.cleaningDate || '').trim() === cDate) {
+          return true;
+        }
+        return false;
+      });
+
+      if (existingIdx === -1) {
+        currentDB.cleanings.unshift(camel);
+        dbChanged = true;
+      } else {
+        currentDB.cleanings[existingIdx] = { ...currentDB.cleanings[existingIdx], ...camel };
+      }
+    }
+
+    // 3. Reverse Check: Push any local records not in Supabase
+    const remoteCleanIds = new Set(remoteCleanings.map(c => String(c.id)));
+    for (const localClean of currentDB.cleanings) {
+      const lId = String(localClean.id || localClean.syncId || `${localClean.storeCode}_${localClean.cleaningDate}`);
+      if (!remoteCleanIds.has(lId)) {
+        await pushCleaningToSupabase(localClean);
+      }
+    }
+
+    const remoteStoreKeys = new Set(remoteStores.map(s => `${(s.store_code || '').trim().toUpperCase()}_${(s.city || '').trim().toLowerCase()}`));
+    for (const localStore of currentDB.stores) {
+      const key = `${(localStore.storeCode || '').trim().toUpperCase()}_${(localStore.city || '').trim().toLowerCase()}`;
+      if (!remoteStoreKeys.has(key)) {
+        await pushStoreToSupabase(localStore);
+      }
+    }
+
+    if (dbChanged) {
+      writeDB(currentDB);
+      console.log(`[Supabase AutoSync] Merged & Synchronized! Server now has ${currentDB.stores.length} Stores, ${currentDB.cleanings.length} Cleanings.`);
+    }
+  } catch (err) {
+    console.warn('[Supabase AutoSync Error]:', err.message);
+  } finally {
+    isSyncingSupabase = false;
+  }
+}
+
 const STANDARD_CHEMICALS = [
   { id: 'chem_01', itemName: 'Industrial Heavy Duty Floor Degreaser', category: 'Floor Care', unit: 'Liters', totalStock: 50, alertThreshold: 15 },
   { id: 'chem_02', itemName: 'TASKI R2 Multi-Surface Hygienic Cleaner', category: 'General Cleaning', unit: 'Liters', totalStock: 40, alertThreshold: 10 },
@@ -904,6 +1036,8 @@ app.post('/api/settings/bill', (req, res) => {
 
 // 1. Get complete server database state (Supports ultra-fast lightweight conditional 304 sync)
 app.get('/api/state', (req, res) => {
+  // Non-blocking background sync with Supabase
+  syncWithSupabaseServer(false);
   const currentDB = readDB();
   const clientLastUpdated = req.query.lastUpdated;
 
@@ -924,6 +1058,7 @@ app.get('/api/state', (req, res) => {
 });
 
 app.get('/api/sync', (req, res) => {
+  syncWithSupabaseServer(false);
   const currentDB = readDB();
   res.json({
     success: true,
@@ -2840,6 +2975,9 @@ if (fs.existsSync(distPath)) {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Blinkit Cleaning Server & Global Database running on http://0.0.0.0:${PORT}`);
+  // Two-Way Automatic Live Sync with Supabase Cloud
+  setTimeout(() => syncWithSupabaseServer(true), 2000);
+  setInterval(() => syncWithSupabaseServer(false), 30000); // Recurring auto-sync every 30 seconds
 });
 
 server.on('error', (err) => {
