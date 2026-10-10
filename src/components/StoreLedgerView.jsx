@@ -324,21 +324,24 @@ export default function StoreLedgerView({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <label 
+                        <div 
                           onClick={(e) => e.stopPropagation()} 
-                          className="flex items-center gap-1.5 cursor-pointer select-none group/chk"
-                          title={isSelected ? 'Deselect store' : 'Select store to share / export'}
+                          className="flex items-center gap-1.5"
                         >
                           <input
                             type="checkbox"
+                            id={`store_card_chk_${sId}`}
                             checked={isSelected}
                             onChange={() => toggleStoreSelection(store)}
                             className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600 cursor-pointer"
                           />
-                          <span className="font-mono text-xs font-black px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 group-hover/chk:brightness-95">
+                          <label
+                            htmlFor={`store_card_chk_${sId}`}
+                            className="font-mono text-xs font-black px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 cursor-pointer select-none hover:brightness-95"
+                          >
                             {store.storeCode}
-                          </span>
-                        </label>
+                          </label>
+                        </div>
                         <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                           {store.city || 'Hub'}
                         </span>
@@ -580,7 +583,7 @@ export default function StoreLedgerView({
         onClose={() => setIsShareModalOpen(false)}
         stores={stores}
         cleanings={cleanings}
-        initialSelectedIds={selectedStoreKeys.size > 0 ? Array.from(selectedStoreKeys) : filteredStores.map(getStoreId)}
+        initialSelectedIds={Array.from(selectedStoreKeys)}
         onSelectionChange={(newIds) => setSelectedStoreKeys(new Set(newIds))}
       />
 

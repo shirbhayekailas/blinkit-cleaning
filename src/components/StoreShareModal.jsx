@@ -1,25 +1,18 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   X, 
   Share2, 
   Copy, 
   Check, 
   Search, 
-  Filter, 
   MapPin, 
-  Phone, 
   ExternalLink, 
-  Building2, 
-  CheckSquare, 
-  Square, 
   FileText, 
   FileSpreadsheet, 
   Sparkles,
-  ChevronDown,
-  ChevronUp,
-  MessageCircle,
   Eye,
-  Info
+  Info,
+  CheckCheck
 } from 'lucide-react';
 import { toast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
@@ -43,11 +36,11 @@ export default function StoreShareModal({
 
   const getStoreId = (s) => (s.id ? String(s.id) : getStoreKey(s));
 
-  // Selection state
+  // Selection state (local to modal while active)
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCity, setSelectedCity] = useState('all');
-  const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'selected'
+  const [viewFilter, setViewFilter] = useState('all'); // 'all' | 'selected' | 'unselected'
   const [copied, setCopied] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -59,13 +52,16 @@ export default function StoreShareModal({
   const [customNote, setCustomNote] = useState('');
   const [targetPhone, setTargetPhone] = useState('');
 
-  // Synchronize initial selection on modal open
+  // Ref to guarantee initialization happens strictly ONCE when the modal opens
+  const prevIsOpenRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
+      // Modal is opening fresh
       if (initialSelectedIds && initialSelectedIds.length > 0) {
         setSelectedIds(new Set(initialSelectedIds.map(String)));
       } else {
-        // If nothing initially selected, default to all stores
+        // If nothing was selected before opening, select all by default so user can immediately share or deselect
         setSelectedIds(new Set(stores.map(getStoreId)));
       }
       setSearchTerm('');
@@ -73,15 +69,8 @@ export default function StoreShareModal({
       setViewFilter('all');
       setCopied(false);
     }
-  }, [isOpen, initialSelectedIds, stores]);
-
-  // Notify parent on selection change
-  const updateSelection = (newSet) => {
-    setSelectedIds(newSet);
-    if (onSelectionChange) {
-      onSelectionChange(Array.from(newSet));
-    }
-  };
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Extract unique cities
   const uniqueCities = useMemo(() => {
@@ -93,6 +82,7 @@ export default function StoreShareModal({
     return stores.filter(s => {
       const sId = getStoreId(s);
       if (viewFilter === 'selected' && !selectedIds.has(sId)) return false;
+      if (viewFilter === 'unselected' && selectedIds.has(sId)) return false;
 
       const matchesCity = selectedCity === 'all' || s.city === selectedCity;
       if (!matchesCity) return false;
@@ -133,34 +123,48 @@ export default function StoreShareModal({
   // Toggle single store
   const toggleStore = (s) => {
     const id = getStoreId(s);
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    updateSelection(next);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Select all currently filtered stores
-  const selectAllFiltered = () => {
-    const next = new Set(selectedIds);
-    modalFilteredStores.forEach(s => next.add(getStoreId(s)));
-    updateSelection(next);
+  const handleSelectAllFiltered = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      modalFilteredStores.forEach(s => next.add(getStoreId(s)));
+      return next;
+    });
   };
 
   // Deselect all currently filtered stores
-  const deselectAllFiltered = () => {
-    const next = new Set(selectedIds);
-    modalFilteredStores.forEach(s => next.delete(getStoreId(s)));
-    updateSelection(next);
+  const handleDeselectFiltered = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      modalFilteredStores.forEach(s => next.delete(getStoreId(s)));
+      return next;
+    });
   };
 
   // Select entire catalog
-  const selectAll = () => {
-    updateSelection(new Set(stores.map(getStoreId)));
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(stores.map(getStoreId)));
   };
 
   // Clear all selections
-  const clearAll = () => {
-    updateSelection(new Set());
+  const handleClearAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  // Close and synchronize state back to parent
+  const handleClose = () => {
+    if (onSelectionChange) {
+      onSelectionChange(Array.from(selectedIds));
+    }
+    onClose();
   };
 
   // Handle WhatsApp Share
@@ -168,6 +172,9 @@ export default function StoreShareModal({
     if (selectedStores.length === 0) {
       toast.warning('Please select at least 1 store to share.', 'No Store Selected');
       return;
+    }
+    if (onSelectionChange) {
+      onSelectionChange(Array.from(selectedIds));
     }
     shareSelectedStoresWhatsApp(selectedStores, cleanings, {
       includeManager,
@@ -198,6 +205,9 @@ export default function StoreShareModal({
       toast.warning('Please select at least 1 store to export PDF.', 'No Store Selected');
       return;
     }
+    if (onSelectionChange) {
+      onSelectionChange(Array.from(selectedIds));
+    }
     generateStoreListPDF({
       stores: selectedStores,
       cleanings,
@@ -212,6 +222,9 @@ export default function StoreShareModal({
       toast.warning('Please select at least 1 store to export Excel.', 'No Store Selected');
       return;
     }
+    if (onSelectionChange) {
+      onSelectionChange(Array.from(selectedIds));
+    }
     exportStoreListExcel(
       selectedStores,
       cleanings,
@@ -223,7 +236,7 @@ export default function StoreShareModal({
   return (
     <div 
       className="fixed inset-0 z-100 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 md:p-6 animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div 
         className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden my-auto"
@@ -240,7 +253,7 @@ export default function StoreShareModal({
               <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 truncate">
                 <span>Share Stores on WhatsApp</span>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  {selectedStores.length} of {stores.length} Selected
+                  {selectedIds.size} of {stores.length} Selected
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -250,7 +263,8 @@ export default function StoreShareModal({
           </div>
 
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handleClose}
             className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 active:scale-95"
             title="Close"
           >
@@ -277,6 +291,7 @@ export default function StoreShareModal({
                 />
                 {searchTerm && (
                   <button
+                    type="button"
                     onClick={() => setSearchTerm('')}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                   >
@@ -285,7 +300,7 @@ export default function StoreShareModal({
                 )}
               </div>
 
-              {/* City Filter */}
+              {/* City Filter & View Filter Tabs */}
               <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto pb-1 sm:pb-0">
                 <select
                   value={selectedCity}
@@ -300,9 +315,10 @@ export default function StoreShareModal({
                   ))}
                 </select>
 
-                {/* View Tabs: All vs Selected Only */}
+                {/* View Tabs: All vs Selected Only vs Unselected */}
                 <div className="inline-flex rounded-xl p-0.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                   <button
+                    type="button"
                     onClick={() => setViewFilter('all')}
                     className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
                       viewFilter === 'all'
@@ -313,6 +329,7 @@ export default function StoreShareModal({
                     All ({stores.length})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setViewFilter('selected')}
                     className={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
                       viewFilter === 'selected'
@@ -320,7 +337,7 @@ export default function StoreShareModal({
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
-                    Selected ({selectedStores.length})
+                    Selected ({selectedIds.size})
                   </button>
                 </div>
               </div>
@@ -332,30 +349,39 @@ export default function StoreShareModal({
                 <span className="font-bold text-slate-700 dark:text-slate-300">
                   Showing {modalFilteredStores.length} stores:
                 </span>
+                
+                {/* Select All Filtered Button */}
                 <button
-                  onClick={selectAllFiltered}
-                  className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold hover:bg-emerald-100 transition active:scale-95"
+                  type="button"
+                  onClick={handleSelectAllFiltered}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold hover:bg-emerald-100 transition active:scale-95 border border-emerald-200 dark:border-emerald-800"
                 >
                   ✓ Select All ({modalFilteredStores.length})
                 </button>
+
+                {/* Deselect Filtered Button */}
                 <button
-                  onClick={deselectAllFiltered}
-                  className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold hover:bg-slate-200 transition active:scale-95"
+                  type="button"
+                  onClick={handleDeselectFiltered}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold hover:bg-slate-200 transition active:scale-95 border border-slate-200 dark:border-slate-700"
                 >
-                  ✕ Deselect
+                  ✕ Deselect Filtered
                 </button>
-                {selectedStores.length > 0 && (
-                  <button
-                    onClick={clearAll}
-                    className="text-rose-600 dark:text-rose-400 font-semibold hover:underline"
-                  >
-                    Clear All Selection
-                  </button>
-                )}
+
+                {/* Clear All Selection Button */}
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-bold hover:bg-rose-100 transition active:scale-95 border border-rose-200 dark:border-rose-800"
+                >
+                  Clear All ({selectedIds.size})
+                </button>
               </div>
 
-              <div className="text-slate-500 dark:text-slate-400 font-medium">
-                Tip: Click any store card to toggle selection
+              <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                  {selectedIds.size} of {stores.length} Selected
+                </span>
               </div>
             </div>
           </div>
@@ -381,19 +407,19 @@ export default function StoreShareModal({
                     onClick={() => toggleStore(store)}
                     className={`p-3 rounded-2xl border transition cursor-pointer select-none flex items-start gap-3 ${
                       isSelected
-                        ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-400 dark:border-emerald-700 shadow-2xs'
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-600 shadow-2xs'
                         : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600'
                     }`}
                   >
-                    {/* Custom Checkbox */}
-                    <div className="pt-0.5 shrink-0">
-                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition border ${
-                        isSelected 
-                          ? 'bg-emerald-600 border-emerald-600 text-white' 
-                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-transparent'
-                      }`}>
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </div>
+                    {/* Native Checkbox with stopPropagation */}
+                    <div className="pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        id={`modal_chk_${sId}`}
+                        checked={isSelected}
+                        onChange={() => toggleStore(store)}
+                        className="w-5 h-5 rounded-md text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                      />
                     </div>
 
                     {/* Store Information */}
@@ -450,10 +476,21 @@ export default function StoreShareModal({
                 );
               })
             ) : (
-              <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-500 text-xs">
-                {viewFilter === 'selected' 
-                  ? 'No stores selected yet. Switch to "All" to select dark stores.' 
-                  : 'No dark stores match your search filter.'}
+              <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-500 text-xs space-y-2">
+                <p>
+                  {viewFilter === 'selected' 
+                    ? 'No dark stores selected. Click "All" tab or "Select All" to pick stores.' 
+                    : 'No dark stores match your search filter.'}
+                </p>
+                {viewFilter === 'selected' && (
+                  <button
+                    type="button"
+                    onClick={() => setViewFilter('all')}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 transition"
+                  >
+                    Show All Stores
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -566,9 +603,10 @@ export default function StoreShareModal({
           {/* Quick PDF & Excel Downloads for Selected Stores */}
           <div className="flex items-center gap-1.5">
             <button
+              type="button"
               onClick={handleExportPDF}
               disabled={selectedStores.length === 0}
-              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 border border-rose-200 dark:border-rose-800 disabled:opacity-40 transition active:scale-95"
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 border border-rose-200 dark:border-rose-800 disabled:opacity-40 transition active:scale-95 cursor-pointer"
               title="Download PDF List of Selected Stores"
             >
               <FileText className="w-3.5 h-3.5" />
@@ -576,9 +614,10 @@ export default function StoreShareModal({
             </button>
 
             <button
+              type="button"
               onClick={handleExportExcel}
               disabled={selectedStores.length === 0}
-              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 disabled:opacity-40 transition active:scale-95"
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 disabled:opacity-40 transition active:scale-95 cursor-pointer"
               title="Download Excel List of Selected Stores"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -589,9 +628,10 @@ export default function StoreShareModal({
           {/* Primary Action Buttons */}
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleCopyMessage}
               disabled={selectedStores.length === 0}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 disabled:opacity-40 transition active:scale-95"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 disabled:opacity-40 transition active:scale-95 cursor-pointer"
               title="Copy formatted message to clipboard"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
@@ -599,9 +639,10 @@ export default function StoreShareModal({
             </button>
 
             <button
+              type="button"
               onClick={handleShareWhatsApp}
               disabled={selectedStores.length === 0}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-700/20 disabled:opacity-40 transition active:scale-95"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-700/20 disabled:opacity-40 transition active:scale-95 cursor-pointer"
             >
               <Share2 className="w-4 h-4 stroke-[2.5]" />
               <span>Send on WhatsApp ({selectedStores.length})</span>
