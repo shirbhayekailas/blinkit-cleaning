@@ -19,7 +19,8 @@ import {
   CornerDownLeft, 
   FileText,
   Sliders,
-  Truck
+  Truck,
+  X
 } from 'lucide-react';
 
 export default function CommandPalette({
