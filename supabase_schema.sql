@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. STORES MASTER LEDGER TABLE
 CREATE TABLE IF NOT EXISTS public.stores (
   id TEXT PRIMARY KEY,
-  store_code TEXT UNIQUE NOT NULL,
+  store_code TEXT NOT NULL,
   store_name TEXT NOT NULL,
   address TEXT,
   city TEXT DEFAULT 'Mumbai',
