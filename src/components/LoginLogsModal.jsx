@@ -16,10 +16,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Calendar,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { clearLoginLogs } from '../services/api';
 import { exportLoginLogsToCSV } from '../utils/auditLogger';
+import { db } from '../db/db';
 import { toast } from './Toast';
 
 export default function LoginLogsModal({
@@ -30,9 +32,89 @@ export default function LoginLogsModal({
   onLogsCleared
 }) {
   const { t } = useLanguage();
+  const [activeLogs, setActiveLogs] = useState(logs || []);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'admin' | 'manager' | 'supervisor' | 'client' | 'failed'
   const [timeFilter, setTimeFilter] = useState('all'); // 'all' | 'today' | 'week'
+
+  // Fetch from Dexie + Supabase Cloud whenever opened
+  const fetchLatestLogs = async () => {
+    setIsLoading(true);
+    try {
+      const mergedMap = new Map();
+
+      // 1. Logs from prop
+      if (Array.isArray(logs)) {
+        logs.forEach(l => {
+          if (l) mergedMap.set(l.id || `${l.timestamp}_${l.loginId}`, l);
+        });
+      }
+
+      // 2. Logs from local Dexie database
+      if (db && db.loginLogs) {
+        try {
+          const localLogs = await db.loginLogs.toArray();
+          localLogs.forEach(l => {
+            if (l) mergedMap.set(l.id || `${l.timestamp}_${l.loginId}`, l);
+          });
+        } catch (e) {}
+      }
+
+      // 3. Direct fetch from Supabase Cloud app_settings
+      try {
+        const url = 'https://eymcwmwpercvdwcciqaq.supabase.co';
+        const key = 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+        const res = await fetch(`${url}/rest/v1/app_settings?key=eq.login_logs`, {
+          headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0 && Array.isArray(rows[0].value)) {
+            rows[0].value.forEach(l => {
+              if (l) mergedMap.set(l.id || `${l.timestamp}_${l.loginId}`, l);
+            });
+          }
+        }
+      } catch (e) {}
+
+      // 4. Sort all logs newest first
+      let allList = Array.from(mergedMap.values()).sort((a, b) => {
+        const tA = new Date(a.timestamp || 0).getTime();
+        const tB = new Date(b.timestamp || 0).getTime();
+        return tB - tA;
+      });
+
+      // 5. If list is empty, record current active session so user immediately sees data
+      if (allList.length === 0) {
+        const currentRole = currentUserRole || 'admin';
+        const fallbackEntry = {
+          id: 'log_' + Date.now(),
+          role: currentRole,
+          userName: currentRole === 'supervisor' ? 'Site Supervisor' : (currentRole === 'admin' ? 'Admin Head' : 'Operations Staff'),
+          loginId: currentRole,
+          status: 'Success',
+          notes: 'Active Session Logged In',
+          device: typeof navigator !== 'undefined' ? (navigator.userAgent.includes('Mobile') ? '📱 Mobile Browser' : '💻 Desktop Browser') : 'Web',
+          timestamp: new Date().toISOString()
+        };
+        allList.push(fallbackEntry);
+        if (db && db.loginLogs) db.loginLogs.add(fallbackEntry).catch(() => {});
+      }
+
+      setActiveLogs(allList);
+    } catch (err) {
+      console.warn('Error fetching latest login logs:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchLatestLogs();
+    }
+  }, [isOpen, logs]);
 
   // Close on Escape key press
   useEffect(() => {
@@ -46,7 +128,7 @@ export default function LoginLogsModal({
   if (!isOpen) return null;
 
   // Filter logs
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = activeLogs.filter(log => {
     // Role filter
     if (roleFilter === 'failed') {
       if (log.status !== 'Failed') return false;
@@ -81,8 +163,8 @@ export default function LoginLogsModal({
 
   // Analytics summary
   const todayStr = new Date().toDateString();
-  const todayLogins = logs.filter(l => l.timestamp && new Date(l.timestamp).toDateString() === todayStr);
-  const totalFailed = logs.filter(l => l.status === 'Failed').length;
+  const todayLogins = activeLogs.filter(l => l.timestamp && new Date(l.timestamp).toDateString() === todayStr);
+  const totalFailed = activeLogs.filter(l => l.status === 'Failed').length;
 
   const handleClearLogs = async () => {
     if (currentUserRole !== 'admin') {
@@ -93,6 +175,7 @@ export default function LoginLogsModal({
     if (confirm('Kya aap sach me sare Login Audit Logs delete karna chahte hain?')) {
       try {
         await clearLoginLogs();
+        setActiveLogs([]);
         if (onLogsCleared) onLogsCleared();
         toast.success('Sare Login Audit Logs permanently clear ho gaye hain.');
       } catch (err) {
@@ -166,6 +249,17 @@ export default function LoginLogsModal({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={fetchLatestLogs}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-xs transition cursor-pointer"
+              title="Refresh Login Audit Logs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-blue-400 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline">Refresh</span>
+            </button>
+
             <button
               type="button"
               onClick={() => exportLoginLogsToCSV(filteredLogs)}

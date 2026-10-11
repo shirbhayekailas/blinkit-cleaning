@@ -106,7 +106,6 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       supervisorsRes,
       cleanersRes,
       settingsRes,
-      billSettingsRes,
       schedulesRes,
       chemicalsRes,
       issuesRes,
@@ -117,8 +116,7 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       fetch(`${url}/rest/v1/cleanings?select=*`, { headers }),
       fetch(`${url}/rest/v1/supervisors?select=*`, { headers }),
       fetch(`${url}/rest/v1/cleaners?select=*`, { headers }),
-      fetch(`${url}/rest/v1/app_settings?key=eq.auth_credentials`, { headers }),
-      fetch(`${url}/rest/v1/app_settings?key=eq.bill_settings`, { headers }),
+      fetch(`${url}/rest/v1/app_settings?select=*`, { headers }),
       fetch(`${url}/rest/v1/cleaning_schedules?select=*`, { headers }),
       fetch(`${url}/rest/v1/chemical_stock?select=*`, { headers }),
       fetch(`${url}/rest/v1/store_issues?select=*`, { headers }),
@@ -182,22 +180,25 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
     const equipments = rawEquipments.map(toCamelCase);
 
     let appSettings = null;
+    let loginLogs = [];
     if (settingsRes && settingsRes.ok) {
       const sRows = await settingsRes.json();
-      if (sRows && sRows.length > 0 && sRows[0].value) {
-        appSettings = sRows[0].value;
-        syncSmartCredentials(appSettings);
-      }
-    }
-
-    if (billSettingsRes && billSettingsRes.ok) {
-      const bRows = await billSettingsRes.json();
-      if (bRows && bRows.length > 0 && bRows[0].value) {
-        if (!appSettings) appSettings = {};
-        appSettings.billSettings = bRows[0].value;
-        try {
-          localStorage.setItem('blinkit_bill_settings_v1', JSON.stringify(bRows[0].value));
-        } catch (e) {}
+      if (Array.isArray(sRows)) {
+        for (const row of sRows) {
+          if (row.key === 'auth_credentials' && row.value) {
+            if (!appSettings) appSettings = {};
+            Object.assign(appSettings, row.value);
+            syncSmartCredentials(row.value);
+          } else if (row.key === 'bill_settings' && row.value) {
+            if (!appSettings) appSettings = {};
+            appSettings.billSettings = row.value;
+            try {
+              localStorage.setItem('blinkit_bill_settings_v1', JSON.stringify(row.value));
+            } catch (e) {}
+          } else if (row.key === 'login_logs' && Array.isArray(row.value)) {
+            loginLogs = row.value;
+          }
+        }
       }
     }
 
@@ -215,7 +216,7 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       equipments,
       chemicalLogs: [],
       cleanerAdvances: [],
-      loginLogs: [],
+      loginLogs,
       equipmentMovements: [],
       toolAllocations: [],
       teamDispatches: [],
@@ -618,25 +619,107 @@ export async function deleteIssue(issueOrId) {
 // LOGIN LOGS & RESET
 // -------------------------------------------------------------
 
+export async function saveLoginLogToCloud(entry) {
+  const config = getCloudConfig();
+  const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+  const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+
+  try {
+    const headers = {
+      'apikey': key,
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json'
+    };
+
+    // 1. Fetch current logs from Supabase
+    const res = await fetch(`${url}/rest/v1/app_settings?key=eq.login_logs`, { headers });
+    let currentLogs = [];
+    if (res.ok) {
+      const rows = await res.json();
+      if (rows && rows.length > 0 && Array.isArray(rows[0].value)) {
+        currentLogs = rows[0].value;
+      }
+    }
+
+    // 2. Prepend new log (keep max 250 logs)
+    const logId = entry.id || ('log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4));
+    const normalized = { ...entry, id: logId };
+    const updatedLogs = [normalized, ...currentLogs.filter(l => l && l.id !== logId)].slice(0, 250);
+
+    // 3. Upsert back to Supabase
+    await fetch(`${url}/rest/v1/app_settings`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        key: 'login_logs',
+        value: updatedLogs,
+        updated_at: new Date().toISOString()
+      })
+    });
+  } catch (err) {
+    console.warn('saveLoginLogToCloud notice:', err);
+  }
+}
+
 export async function logUserLogin(entry) {
   try {
-    await fetch(getApiUrl('/api/logs/add'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry)
-    });
+    // 1. Direct Supabase Cloud Save
+    await saveLoginLogToCloud(entry);
+
+    // 2. Also notify backend if reachable
+    if (shouldAttemptRender()) {
+      fetch(getApiUrl('/api/logs/add'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry)
+      }).catch(() => {});
+    }
   } catch (err) {
     console.warn('logUserLogin warning:', err.message);
   }
 }
 
 export async function clearLoginLogs() {
+  const config = getCloudConfig();
+  const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+  const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+
+  // 1. Clear local Dexie logs
   try {
-    const res = await fetch(getApiUrl('/api/logs/clear'), {
+    const { db } = await import('../db/db');
+    if (db && db.loginLogs) {
+      await db.loginLogs.clear();
+    }
+  } catch (e) {}
+
+  // 2. Clear Supabase Cloud logs
+  try {
+    await fetch(`${url}/rest/v1/app_settings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        key: 'login_logs',
+        value: [],
+        updated_at: new Date().toISOString()
+      })
     });
-    return await res.json();
+
+    if (shouldAttemptRender()) {
+      fetch(getApiUrl('/api/logs/clear'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(() => {});
+    }
+
+    return { ok: true };
   } catch (err) {
     console.error('clearLoginLogs error:', err);
     throw err;

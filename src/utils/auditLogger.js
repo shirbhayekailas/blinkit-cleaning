@@ -1,5 +1,6 @@
 import { db } from '../db/db';
 import { toast } from '../components/Toast';
+import { saveLoginLogToCloud } from '../services/api';
 
 /**
  * Extracts friendly device, operating system, and browser information.
@@ -32,11 +33,12 @@ export function getDeviceInfo() {
 }
 
 /**
- * Records a login event into Dexie loginLogs table.
+ * Records a login event into Dexie loginLogs table and Supabase Cloud.
  */
 export async function logUserLogin({ role, userName, loginId, status = 'Success', notes = '' }) {
   try {
     const entry = {
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       role, // 'admin' | 'manager' | 'supervisor' | 'client' | 'unknown'
       userName: userName || 'User',
       loginId: loginId || 'N/A',
@@ -49,6 +51,9 @@ export async function logUserLogin({ role, userName, loginId, status = 'Success'
     if (db.loginLogs) {
       await db.loginLogs.add(entry);
     }
+    // Also save directly to Supabase Cloud
+    saveLoginLogToCloud(entry).catch(console.warn);
+
     return entry;
   } catch (err) {
     console.warn('Audit logger warning:', err);
@@ -57,11 +62,12 @@ export async function logUserLogin({ role, userName, loginId, status = 'Success'
 }
 
 /**
- * Records a logout event into Dexie loginLogs table.
+ * Records a logout event into Dexie loginLogs table and Supabase Cloud.
  */
 export async function logUserLogout({ role, userName, loginId, reason = 'Manual Logout' }) {
   try {
     const entry = {
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       role: role || 'unknown',
       userName: userName || 'User',
       loginId: loginId || 'N/A',
@@ -74,6 +80,9 @@ export async function logUserLogout({ role, userName, loginId, reason = 'Manual 
     if (db.loginLogs) {
       await db.loginLogs.add(entry);
     }
+    // Also save directly to Supabase Cloud
+    saveLoginLogToCloud(entry).catch(console.warn);
+
     return entry;
   } catch (err) {
     console.warn('Audit logger logout warning:', err);
