@@ -13,6 +13,7 @@ import {
 import { db } from '../db/db';
 import { logUserLogin } from '../utils/auditLogger';
 import { applyRemoteDataToLocalDB, getApiUrl } from '../utils/cloudSync';
+import { login } from '../services/api';
 
 export default function LoginModal({
   isOpen,
@@ -134,39 +135,24 @@ export default function LoginModal({
     }
 
     // -----------------------------------------------------------------
-    // 2. REMOTE SERVER AUTHENTICATION (For new devices or changed PINs)
+    // 2. REMOTE & SUPABASE CLOUD AUTHENTICATION (For new devices or changed PINs)
     // -----------------------------------------------------------------
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max
-
     try {
-      const response = await fetch(getApiUrl('/api/auth/login'), {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
-      });
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const resData = await response.json();
-        if (resData.success) {
-          onLoginSuccess({
-            role: resData.role,
-            user: resData.user
-          });
-          onClose();
-          return;
-        }
-      } else if (response.status === 401 || response.status === 403) {
-        const errData = await response.json().catch(() => ({}));
-        setError(errData.message || 'Invalid Login ID or Password. Please try again.');
+      const authRes = await login(inputId, inputPass, deviceInfo);
+      if (authRes && authRes.ok && authRes.data?.success) {
+        onLoginSuccess({
+          role: authRes.data.role,
+          user: authRes.data.user
+        });
+        onClose();
+        return;
+      } else if (authRes && (authRes.status === 401 || authRes.status === 403)) {
+        setError(authRes.data?.message || 'Invalid Login ID or Password. Please try again.');
         setIsSubmitting(false);
         return;
       }
     } catch (netErr) {
-      clearTimeout(timeoutId);
-      console.warn('Server auth unreachable, using local check:', netErr);
+      console.warn('Cloud login notice:', netErr.message);
     }
 
     // 2. Fallback to Local Auth

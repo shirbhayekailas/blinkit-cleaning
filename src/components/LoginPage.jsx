@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 import { db } from '../db/db';
 import { logUserLogin } from '../utils/auditLogger';
-import { applyRemoteDataToLocalDB, performCloudSync, getApiUrl } from '../utils/cloudSync';
+import { applyRemoteDataToLocalDB, performCloudSync, getApiUrl, getCloudConfig, syncSmartCredentials } from '../utils/cloudSync';
+import { login } from '../services/api';
 import LanguageSelector from './LanguageSelector';
 import { useLanguage } from '../context/LanguageContext';
-
 
 export default function LoginPage({
   onLoginSuccess,
@@ -35,9 +35,25 @@ export default function LoginPage({
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fast background check for offline credentials
+  // Proactively fetch latest cloud credentials from Supabase on fresh devices
   useEffect(() => {
-    // Light ping in background, zero blocking
+    const fetchLatestCredentials = async () => {
+      try {
+        const config = getCloudConfig();
+        const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+        const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+        const res = await fetch(`${url}/rest/v1/app_settings?key=eq.auth_credentials`, {
+          headers: { apikey: key, Authorization: `Bearer ${key}` }
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0 && rows[0].value) {
+            syncSmartCredentials(rows[0].value);
+          }
+        }
+      } catch (e) {}
+    };
+    fetchLatestCredentials();
     fetch(getApiUrl('/api/health')).catch(() => {});
   }, []);
 
@@ -142,38 +158,23 @@ export default function LoginPage({
     }
 
     // -----------------------------------------------------------------
-    // 2. REMOTE SERVER AUTHENTICATION (For new devices or changed PINs)
+    // 2. REMOTE & SUPABASE CLOUD AUTHENTICATION (For new devices or changed PINs)
     // -----------------------------------------------------------------
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout max
-
     try {
-      const response = await fetch(getApiUrl('/api/auth/login'), {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId: inputId, password: inputPass, deviceInfo })
-      });
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const resData = await response.json();
-        if (resData.success) {
-          onLoginSuccess({
-            role: resData.role,
-            user: resData.user
-          });
-          return;
-        }
-      } else if (response.status === 401 || response.status === 403) {
-        const errData = await response.json().catch(() => ({}));
-        setError(errData.message || 'Galat Login ID ya Password darj kiya gaya hai. Kripya check karke dobara dalein.');
+      const authRes = await login(inputId, inputPass, deviceInfo);
+      if (authRes && authRes.ok && authRes.data?.success) {
+        onLoginSuccess({
+          role: authRes.data.role,
+          user: authRes.data.user
+        });
+        return;
+      } else if (authRes && (authRes.status === 401 || authRes.status === 403)) {
+        setError(authRes.data?.message || 'Galat Login ID ya Password darj kiya gaya hai. Kripya check karke dobara dalein.');
         setIsSubmitting(false);
         return;
       }
     } catch (netErr) {
-      clearTimeout(timeoutId);
-      console.warn('Server auth failed or timed out:', netErr.message);
+      console.warn('Cloud login notice:', netErr.message);
     }
 
     // -----------------------------------------------------------------
