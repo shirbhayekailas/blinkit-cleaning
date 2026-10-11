@@ -113,6 +113,9 @@ function DashboardStats({
 
   // Aging brackets for pending dues
   const agingBuckets = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const buckets = {
       b0_7: { label: '0-7 Days', count: 0, amount: 0, badge: 'Current', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800' },
       b8_15: { label: '8-15 Days', count: 0, amount: 0, badge: 'Due Soon', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800' },
@@ -144,7 +147,7 @@ function DashboardStats({
     });
 
     return buckets;
-  }, [cleanings, today]);
+  }, [cleanings]);
 
   // Regional breakdown by City
   const citySummary = useMemo(() => {
