@@ -46,17 +46,26 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_OfiB_
 async function pushCleaningToSupabase(cleaning) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !cleaning) return;
   try {
+    const sCode = (cleaning.storeCode || '').trim().toUpperCase();
+    const cDate = (cleaning.cleaningDate || new Date().toISOString().split('T')[0]).trim();
+    const cCity = (cleaning.city || '').trim().toLowerCase();
+    const deterministicKey = `clean_${sCode}_${cDate}_${cCity.replace(/\s+/g, '')}`;
+    let recordId = String(cleaning.id || cleaning.syncId || deterministicKey);
+    if (!recordId || /^\d{13}$/.test(recordId) || /^sync_\d{13}$/.test(recordId)) {
+      recordId = deterministicKey;
+    }
+
     const payload = {
-      id: String(cleaning.id || cleaning.syncId || `${cleaning.storeCode}_${cleaning.cleaningDate}`),
-      sync_id: cleaning.syncId ? String(cleaning.syncId) : null,
-      store_code: (cleaning.storeCode || '').trim().toUpperCase(),
+      id: recordId,
+      sync_id: cleaning.syncId ? String(cleaning.syncId) : recordId,
+      store_code: sCode,
       store_name: cleaning.storeName || cleaning.storeCode || '',
       address: cleaning.address || '',
       city: cleaning.city || '',
       google_maps_url: cleaning.googleMapsUrl || '',
       manager_name: cleaning.managerName || '',
       manager_phone: cleaning.managerPhone || '',
-      cleaning_date: cleaning.cleaningDate || new Date().toISOString().split('T')[0],
+      cleaning_date: cDate,
       punch_in_time: cleaning.punchInTime || cleaning.startTime || '',
       punch_out_time: cleaning.punchOutTime || cleaning.endTime || '',
       duration_hours: Number(cleaning.durationHours) || 0,
@@ -114,9 +123,15 @@ async function pushCleaningToSupabase(cleaning) {
 async function pushStoreToSupabase(store) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !store) return;
   try {
+    const sCode = (store.storeCode || store.code || '').trim().toUpperCase();
+    let storeId = String(store.id || sCode).trim();
+    if (!storeId || /^\d{13}$/.test(storeId)) {
+      storeId = sCode;
+    }
+
     const payload = {
-      id: String(store.id || store.storeCode),
-      store_code: (store.storeCode || store.code || '').trim().toUpperCase(),
+      id: storeId,
+      store_code: sCode,
       store_name: store.storeName || store.storeCode || '',
       address: store.address || '',
       city: store.city || 'Mumbai',
@@ -1431,7 +1446,8 @@ app.post('/api/cleanings', (req, res) => {
       };
       currentDB.cleanings[index] = updatedRecord;
     } else {
-      const newId = cleaningData.id || Date.now();
+      const cleanKey = `clean_${targetCode}_${targetDate}_${(targetCity || '').replace(/\s+/g, '')}`;
+      const newId = cleaningData.id || cleaningData.syncId || cleanKey;
       updatedRecord = {
         ...cleaningData,
         id: newId,
@@ -1446,7 +1462,7 @@ app.post('/api/cleanings', (req, res) => {
       const storeExists = currentDB.stores.some(s => doesCleaningMatchStoreServer(cleaningData, s));
       if (!storeExists) {
         currentDB.stores.push({
-          id: Date.now() + 1,
+          id: targetCode,
           storeCode: cleaningData.storeCode,
           storeName: cleaningData.storeName,
           address: cleaningData.address || '',
@@ -1748,7 +1764,7 @@ app.post('/api/stores', (req, res) => {
       savedStore = {
         ...storeData,
         storeCode: storeData.storeCode.trim(),
-        id: storeData.id || Date.now(),
+        id: storeData.id || storeData.storeCode.trim().toUpperCase(),
         createdAt: storeData.createdAt || nowIso,
         updatedAt: nowIso
       };

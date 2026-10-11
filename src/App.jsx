@@ -442,9 +442,32 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Derived state directly from serverData (sorted strictly by store number)
-  const cleanings = naturalSortByStoreCode(serverData.cleanings || [], c => c.storeCode);
-  const stores = naturalSortByStoreCode(serverData.stores || [], s => s.storeCode);
+  // Derived state directly from serverData (sorted strictly by store number with zero duplicates)
+  const cleanings = useMemo(() => {
+    const seen = new Set();
+    const raw = serverData.cleanings || [];
+    const deduped = raw.filter(c => {
+      if (!c) return false;
+      const key = `${(c.storeCode || '').trim().toUpperCase()}__${(c.cleaningDate || '').trim()}__${(c.city || '').trim().toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return naturalSortByStoreCode(deduped, c => c.storeCode);
+  }, [serverData.cleanings]);
+
+  const stores = useMemo(() => {
+    const seen = new Set();
+    const raw = serverData.stores || [];
+    const deduped = raw.filter(s => {
+      if (!s) return false;
+      const key = `${(s.storeCode || s.code || '').trim().toUpperCase()}__${(s.city || '').trim().toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return naturalSortByStoreCode(deduped, s => s.storeCode);
+  }, [serverData.stores]);
   const supervisors = serverData.supervisors || [];
   const cleaners = serverData.cleaners || [];
   const issues = serverData.storeIssues || [];
@@ -544,9 +567,14 @@ export default function App() {
 
   // Handlers for Cleanings with Instant 0ms Optimistic UI
   const handleSaveCleaning = async (cleaningData) => {
-    // Instant Optimistic Update
-    const syncId = cleaningData.syncId || (cleaningData.id ? String(cleaningData.id) : `sync_${Date.now()}`);
-    const optimisticRecord = { ...cleaningData, syncId, updatedAt: new Date().toISOString() };
+    const sCode = (cleaningData.storeCode || '').trim().toUpperCase();
+    const sCity = (cleaningData.city || '').trim().toLowerCase();
+    const sDate = (cleaningData.cleaningDate || new Date().toISOString().split('T')[0]).trim();
+    const cleanKey = `clean_${sCode}_${sDate}_${sCity.replace(/\s+/g, '')}`;
+
+    const syncId = cleaningData.syncId || (cleaningData.id ? String(cleaningData.id) : cleanKey);
+    const id = cleaningData.id ? String(cleaningData.id) : syncId;
+    const optimisticRecord = { ...cleaningData, id, syncId, updatedAt: new Date().toISOString() };
     
     // Lock into permanent client vault (Guarantees zero data loss on server redeploys)
     lockRecordInVault('cleaning', optimisticRecord);
@@ -555,7 +583,15 @@ export default function App() {
 
     setServerData(prev => {
       const existing = prev.cleanings || [];
-      const idx = existing.findIndex(c => (c.id && c.id === cleaningData.id) || (c.syncId && c.syncId === syncId));
+      const idx = existing.findIndex(c => {
+        if (!c) return false;
+        if (c.id && String(c.id) === String(id)) return true;
+        if (c.syncId && String(c.syncId) === String(syncId)) return true;
+        if (sCode && sDate && (c.storeCode || '').trim().toUpperCase() === sCode && (c.cleaningDate || '').trim() === sDate) {
+          if (sCity && (c.city || '').trim().toLowerCase() === sCity) return true;
+        }
+        return false;
+      });
       let updated;
       if (idx >= 0) {
         updated = [...existing];
@@ -574,7 +610,7 @@ export default function App() {
     );
 
     try {
-      const result = await api.saveCleaning(cleaningData);
+      const result = await api.saveCleaning(optimisticRecord);
       if (result && result.data) {
         if (result.savedRecord) lockRecordInVault('cleaning', result.savedRecord);
         setServerData(prev => {
@@ -767,18 +803,21 @@ export default function App() {
 
   // Handlers for Store Master Ledger
   const handleSaveStore = async (storeData) => {
-    // Instant Optimistic Update
+    // Instant Optimistic Update with normalized ID
     const code = (storeData.storeCode || '').trim().toUpperCase();
     const city = (storeData.city || '').trim().toLowerCase();
-    lockRecordInVault('store', storeData);
+    const id = storeData.id && !/^\d{13}$/.test(String(storeData.id)) ? String(storeData.id) : code;
+    const normalizedStore = { ...storeData, id, storeCode: code, updatedAt: new Date().toISOString() };
+
+    lockRecordInVault('store', normalizedStore);
     // Instant Push to Supabase Cloud Database
-    syncSingleRecordToSupabase('stores', storeData);
+    syncSingleRecordToSupabase('stores', normalizedStore);
 
     setServerData(prev => {
       const existing = prev.stores || [];
       const idx = existing.findIndex(s => {
         if (!s) return false;
-        if (storeData.id && s.id && String(s.id) === String(storeData.id)) return true;
+        if (s.id && String(s.id) === String(id)) return true;
         const sCode = (s.storeCode || s.code || '').trim().toUpperCase();
         if (sCode !== code) return false;
         if (city) {
@@ -790,19 +829,19 @@ export default function App() {
       let updated;
       if (idx >= 0) {
         updated = [...existing];
-        updated[idx] = { ...updated[idx], ...storeData };
+        updated[idx] = { ...updated[idx], ...normalizedStore };
       } else {
-        updated = [storeData, ...existing];
+        updated = [normalizedStore, ...existing];
       }
       const next = { ...prev, stores: updated };
       saveStateToCache(next);
       return next;
     });
 
-    toast.success(`Store "${storeData.storeName || storeData.storeCode}" master ledger me update ho gaya.`, 'Store Saved');
+    toast.success(`Store "${normalizedStore.storeName || normalizedStore.storeCode}" master ledger me update ho gaya.`, 'Store Saved');
 
     try {
-      const result = await api.saveStore(storeData);
+      const result = await api.saveStore(normalizedStore);
       if (result && result.data) {
         setServerData(prev => {
           const next = { ...prev, ...result.data };

@@ -9,15 +9,36 @@ import { autoHealMissingRecords } from '../services/api';
 
 const VAULT_STORAGE_KEY = 'blinkit_permanent_vault_v2';
 
-// Safe JSON parser
+// Safe JSON parser with strict deduplication
 function readVaultFromStorage() {
   try {
     const raw = localStorage.getItem(VAULT_STORAGE_KEY);
     if (!raw) return { cleanings: [], stores: [], schedules: [] };
     const parsed = JSON.parse(raw);
+    
+    // Deduplicate cleanings by storeCode + cleaningDate + city
+    const seenClean = new Set();
+    const cleanings = (Array.isArray(parsed.cleanings) ? parsed.cleanings : []).filter(c => {
+      if (!c) return false;
+      const key = `${(c.storeCode || '').trim().toUpperCase()}__${(c.cleaningDate || '').trim()}__${(c.city || '').trim().toLowerCase()}`;
+      if (seenClean.has(key)) return false;
+      seenClean.add(key);
+      return true;
+    });
+
+    // Deduplicate stores by storeCode + city
+    const seenStore = new Set();
+    const stores = (Array.isArray(parsed.stores) ? parsed.stores : []).filter(s => {
+      if (!s) return false;
+      const key = `${(s.storeCode || s.code || '').trim().toUpperCase()}__${(s.city || '').trim().toLowerCase()}`;
+      if (seenStore.has(key)) return false;
+      seenStore.add(key);
+      return true;
+    });
+
     return {
-      cleanings: Array.isArray(parsed.cleanings) ? parsed.cleanings : [],
-      stores: Array.isArray(parsed.stores) ? parsed.stores : [],
+      cleanings,
+      stores,
       schedules: Array.isArray(parsed.schedules) ? parsed.schedules : []
     };
   } catch (err) {
@@ -367,6 +388,25 @@ export async function reconcileVaultWithServer(serverData = {}) {
       console.warn('[Self-Healing Vault] Auto-heal sync notice:', err);
     });
   }
+
+  // Strict deduplication defense-in-depth on output
+  const seenClean = new Set();
+  mergedData.cleanings = (mergedData.cleanings || []).filter(c => {
+    if (!c) return false;
+    const key = `${(c.storeCode || '').trim().toUpperCase()}__${(c.cleaningDate || '').trim()}__${(c.city || '').trim().toLowerCase()}`;
+    if (seenClean.has(key)) return false;
+    seenClean.add(key);
+    return true;
+  });
+
+  const seenStore = new Set();
+  mergedData.stores = (mergedData.stores || []).filter(s => {
+    if (!s) return false;
+    const key = `${(s.storeCode || s.code || '').trim().toUpperCase()}__${(s.city || '').trim().toLowerCase()}`;
+    if (seenStore.has(key)) return false;
+    seenStore.add(key);
+    return true;
+  });
 
   return { mergedData, healed: hasMissing };
 }

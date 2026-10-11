@@ -60,15 +60,32 @@ export async function fetchFromSupabaseDirect() {
     const rawSupervisors = supervisorsRes.ok ? await supervisorsRes.json() : [];
     const rawCleaners = cleanersRes.ok ? await cleanersRes.json() : [];
 
-    const cleanings = rawCleanings.map(c => {
-      const item = toCamelCase(c);
-      item.startTime = c.punch_in_time || item.startTime || '';
-      item.endTime = c.punch_out_time || item.endTime || '';
-      item.headcount = c.total_cleaners || item.headcount || 4;
-      return item;
-    });
+    // Deduplicate cleanings by storeCode + cleaningDate + city
+    const seenCleanKeys = new Set();
+    const cleanings = [];
+    for (const raw of rawCleanings) {
+      const c = toCamelCase(raw);
+      c.startTime = raw.punch_in_time || c.startTime || '';
+      c.endTime = raw.punch_out_time || c.endTime || '';
+      c.headcount = raw.total_cleaners || c.headcount || 4;
 
-    const stores = rawStores.map(toCamelCase);
+      const key = `${(c.storeCode || '').trim().toUpperCase()}__${(c.cleaningDate || '').trim()}__${(c.city || '').trim().toLowerCase()}`;
+      if (!key || seenCleanKeys.has(key)) continue;
+      seenCleanKeys.add(key);
+      cleanings.push(c);
+    }
+
+    // Deduplicate stores by storeCode + city
+    const seenStoreKeys = new Set();
+    const stores = [];
+    for (const raw of rawStores) {
+      const s = toCamelCase(raw);
+      const key = `${(s.storeCode || s.code || '').trim().toUpperCase()}__${(s.city || '').trim().toLowerCase()}`;
+      if (!key || seenStoreKeys.has(key)) continue;
+      seenStoreKeys.add(key);
+      stores.push(s);
+    }
+
     const supervisors = rawSupervisors.map(toCamelCase);
     const cleaners = rawCleaners.map(toCamelCase);
 

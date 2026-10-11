@@ -222,17 +222,28 @@ function toCamelCase(obj) {
  */
 export function formatCleaningForSupabase(c) {
   if (!c || typeof c !== 'object') return null;
+  const storeCode = (c.storeCode || '').trim().toUpperCase();
+  const cleaningDate = (c.cleaningDate || new Date().toISOString().split('T')[0]).trim();
+  const city = (c.city || '').trim().toLowerCase();
+  
+  // Deterministic cleaning ID to guarantee zero duplicates across client & server
+  const deterministicKey = `clean_${storeCode}_${cleaningDate}_${city.replace(/\s+/g, '')}`;
+  let cleanId = c.id ? String(c.id).trim() : '';
+  if (!cleanId || /^\d{13}$/.test(cleanId) || /^sync_\d{13}$/.test(cleanId)) {
+    cleanId = deterministicKey;
+  }
+
   return {
-    id: String(c.id || c.syncId || `${c.storeCode}_${c.cleaningDate}`),
-    sync_id: c.syncId ? String(c.syncId) : null,
-    store_code: (c.storeCode || '').trim().toUpperCase(),
+    id: cleanId,
+    sync_id: c.syncId ? String(c.syncId) : cleanId,
+    store_code: storeCode,
     store_name: c.storeName || c.storeCode || '',
     address: c.address || '',
     city: c.city || '',
     google_maps_url: c.googleMapsUrl || '',
     manager_name: c.managerName || '',
     manager_phone: c.managerPhone || '',
-    cleaning_date: c.cleaningDate || new Date().toISOString().split('T')[0],
+    cleaning_date: cleaningDate,
     punch_in_time: c.punchInTime || c.startTime || '',
     punch_out_time: c.punchOutTime || c.endTime || '',
     duration_hours: Number(c.durationHours) || 0,
@@ -272,12 +283,21 @@ export function formatCleaningForSupabase(c) {
  */
 export function formatStoreForSupabase(s) {
   if (!s || typeof s !== 'object') return null;
+  const storeCode = (s.storeCode || s.code || '').trim().toUpperCase();
+  const city = (s.city || '').trim();
+
+  // Standardize ID: if numeric timestamp ID, use storeCode
+  let storeId = s.id ? String(s.id).trim() : '';
+  if (!storeId || /^\d{13}$/.test(storeId)) {
+    storeId = storeCode;
+  }
+
   return {
-    id: String(s.id || s.storeCode),
-    store_code: (s.storeCode || s.code || '').trim().toUpperCase(),
+    id: storeId,
+    store_code: storeCode,
     store_name: s.storeName || s.storeCode || '',
     address: s.address || '',
-    city: s.city || 'Mumbai',
+    city: city || 'Mumbai',
     google_maps_url: s.googleMapsUrl || '',
     manager_name: s.managerName || '',
     manager_phone: s.managerPhone || '',
