@@ -23,9 +23,12 @@ export function getApiUrl(endpoint) {
 import { 
   syncSingleRecordToSupabase, 
   deleteRecordFromSupabase,
+  saveToSupabaseAppSettings,
+  deleteFromSupabaseAppSettings,
   syncSmartCredentials,
   getCloudConfig 
 } from '../utils/cloudSync';
+import { db } from '../db/db';
 
 // Smart Backend Connection Monitor
 // Default to false when hosted on Vercel/localhost to eliminate hanging timeouts on suspended Render
@@ -177,10 +180,15 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
     const chemicalStock = rawChemicals.map(toCamelCase);
     const storeIssues = rawIssues.map(toCamelCase);
     const storeExpenses = rawExpenses.map(toCamelCase);
-    const equipments = rawEquipments.map(toCamelCase);
-
     let appSettings = null;
     let loginLogs = [];
+    let equipmentMovements = [];
+    let toolAllocations = [];
+    let teamDispatches = [];
+    let cleanerAdvances = [];
+    let chemicalLogs = [];
+    let equipmentsMetaMap = {};
+
     if (settingsRes && settingsRes.ok) {
       const sRows = await settingsRes.json();
       if (Array.isArray(sRows)) {
@@ -197,10 +205,32 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
             } catch (e) {}
           } else if (row.key === 'login_logs' && Array.isArray(row.value)) {
             loginLogs = row.value;
+          } else if (row.key === 'equipment_movements' && Array.isArray(row.value)) {
+            equipmentMovements = row.value;
+          } else if (row.key === 'tool_allocations' && Array.isArray(row.value)) {
+            toolAllocations = row.value;
+          } else if (row.key === 'team_dispatches' && Array.isArray(row.value)) {
+            teamDispatches = row.value;
+          } else if (row.key === 'cleaner_advances' && Array.isArray(row.value)) {
+            cleanerAdvances = row.value;
+          } else if (row.key === 'chemical_logs' && Array.isArray(row.value)) {
+            chemicalLogs = row.value;
+          } else if (row.key === 'equipments_meta' && Array.isArray(row.value)) {
+            for (const m of row.value) {
+              if (m && m.id) equipmentsMetaMap[m.id] = m;
+            }
           }
         }
       }
     }
+
+    const equipments = rawEquipments.map(raw => {
+      const eq = toCamelCase(raw);
+      if (equipmentsMetaMap[eq.id]) {
+        return { ...equipmentsMetaMap[eq.id], ...eq };
+      }
+      return eq;
+    });
 
     lastSupabaseFingerprint = currentFingerprint;
     const resultState = {
@@ -214,12 +244,12 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       storeIssues,
       storeExpenses,
       equipments,
-      chemicalLogs: [],
-      cleanerAdvances: [],
+      chemicalLogs,
+      cleanerAdvances,
       loginLogs,
-      equipmentMovements: [],
-      toolAllocations: [],
-      teamDispatches: [],
+      equipmentMovements,
+      toolAllocations,
+      teamDispatches,
       lastUpdated: currentFingerprint
     };
     cachedSupabaseState = resultState;
@@ -283,7 +313,8 @@ export async function fetchServerState(lastKnownUpdated = null) {
 
 export async function saveCleaning(cleaningData) {
   // Always guarantee Supabase has it in real-time
-  syncSingleRecordToSupabase('cleanings', cleaningData);
+  await syncSingleRecordToSupabase('cleanings', cleaningData);
+  try { if (db && db.cleanings) await db.cleanings.put(cleaningData); } catch (e) {}
 
   const res = await callRenderApi('/api/cleanings', {
     method: 'POST',
@@ -313,7 +344,12 @@ export async function updateCleaningPayment(paymentPayload) {
   };
 
   // Push directly to Supabase in parallel
-  syncSingleRecordToSupabase('cleanings', cleanPayload);
+  await syncSingleRecordToSupabase('cleanings', cleanPayload);
+  try {
+    if (db && db.cleanings && cleanPayload.id) {
+      await db.cleanings.update(cleanPayload.id, cleanPayload).catch(() => {});
+    }
+  } catch (e) {}
 
   const res = await callRenderApi('/api/cleanings/payment', {
     method: 'POST',
@@ -368,7 +404,8 @@ export async function deleteCleaning(cleaningOrId) {
   const targetId = typeof cleaningOrId === 'object' && cleaningOrId !== null 
     ? (cleaningOrId.id || cleaningOrId.syncId) 
     : cleaningOrId;
-  deleteRecordFromSupabase('cleanings', targetId);
+  await deleteRecordFromSupabase('cleanings', targetId);
+  try { if (db && db.cleanings) await db.cleanings.delete(targetId); } catch (e) {}
 
   let payload = {};
   if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
@@ -395,7 +432,8 @@ export async function deleteCleaning(cleaningOrId) {
 // -------------------------------------------------------------
 
 export async function saveStore(storeData) {
-  syncSingleRecordToSupabase('stores', storeData);
+  await syncSingleRecordToSupabase('stores', storeData);
+  try { if (db && db.stores) await db.stores.put(storeData); } catch (e) {}
 
   const res = await callRenderApi('/api/stores', {
     method: 'POST',
@@ -407,7 +445,13 @@ export async function saveStore(storeData) {
 
 export async function deleteStore(storeCode, deleteCleanings = false, force = true, id = null, city = null) {
   const sCode = typeof storeCode === 'object' && storeCode !== null ? (storeCode.storeCode || storeCode.code) : storeCode;
-  deleteRecordFromSupabase('stores', sCode, 'store_code');
+  await deleteRecordFromSupabase('stores', sCode, 'store_code');
+  try {
+    if (db && db.stores) {
+      if (id) await db.stores.delete(id);
+      await db.stores.where('storeCode').equalsIgnoreCase(sCode).delete().catch(() => {});
+    }
+  } catch (e) {}
 
   const payload = typeof storeCode === 'object' && storeCode !== null
     ? storeCode
@@ -425,7 +469,8 @@ export async function deleteStore(storeCode, deleteCleanings = false, force = tr
 // -------------------------------------------------------------
 
 export async function saveSupervisor(supData) {
-  syncSingleRecordToSupabase('supervisors', supData);
+  await syncSingleRecordToSupabase('supervisors', supData);
+  try { if (db && db.supervisors) await db.supervisors.put(supData); } catch (e) {}
 
   const res = await callRenderApi('/api/supervisors', {
     method: 'POST',
@@ -437,7 +482,8 @@ export async function saveSupervisor(supData) {
 
 export async function deleteSupervisor(supOrId) {
   const targetId = typeof supOrId === 'object' && supOrId !== null ? (supOrId.id || supOrId.phone) : supOrId;
-  deleteRecordFromSupabase('supervisors', targetId);
+  await deleteRecordFromSupabase('supervisors', targetId);
+  try { if (db && db.supervisors) await db.supervisors.delete(targetId); } catch (e) {}
 
   const payload = typeof supOrId === 'object' && supOrId !== null
     ? { id: supOrId.id, phone: supOrId.phone }
@@ -456,7 +502,8 @@ export async function deleteSupervisor(supOrId) {
 // -------------------------------------------------------------
 
 export async function saveCleaner(clnData) {
-  syncSingleRecordToSupabase('cleaners', clnData);
+  await syncSingleRecordToSupabase('cleaners', clnData);
+  try { if (db && db.cleaners) await db.cleaners.put(clnData); } catch (e) {}
   const res = await callRenderApi('/api/cleaners', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -467,7 +514,8 @@ export async function saveCleaner(clnData) {
 
 export async function deleteCleaner(clnOrId) {
   const targetId = typeof clnOrId === 'object' && clnOrId !== null ? (clnOrId.id || clnOrId.phone) : clnOrId;
-  deleteRecordFromSupabase('cleaners', targetId);
+  await deleteRecordFromSupabase('cleaners', targetId);
+  try { if (db && db.cleaners) await db.cleaners.delete(targetId); } catch (e) {}
 
   const payload = typeof clnOrId === 'object' && clnOrId !== null
     ? { id: clnOrId.id, name: clnOrId.name, phone: clnOrId.phone }
@@ -486,7 +534,8 @@ export async function deleteCleaner(clnOrId) {
 // -------------------------------------------------------------
 
 export async function saveSchedule(schData) {
-  syncSingleRecordToSupabase('cleaning_schedules', schData);
+  await syncSingleRecordToSupabase('cleaning_schedules', schData);
+  try { if (db && db.cleaningSchedules) await db.cleaningSchedules.put(schData); } catch (e) {}
   const res = await callRenderApi('/api/schedules', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -497,7 +546,8 @@ export async function saveSchedule(schData) {
 
 export async function deleteSchedule(schOrId) {
   const targetId = typeof schOrId === 'object' && schOrId !== null ? schOrId.id : schOrId;
-  deleteRecordFromSupabase('cleaning_schedules', targetId);
+  await deleteRecordFromSupabase('cleaning_schedules', targetId);
+  try { if (db && db.cleaningSchedules) await db.cleaningSchedules.delete(targetId); } catch (e) {}
 
   const payload = typeof schOrId === 'object' && schOrId !== null
     ? { id: schOrId.id, storeCode: schOrId.storeCode, scheduledDate: schOrId.scheduledDate }
@@ -516,7 +566,8 @@ export async function deleteSchedule(schOrId) {
 // -------------------------------------------------------------
 
 export async function saveChemicalStock(itemData) {
-  syncSingleRecordToSupabase('chemical_stock', itemData);
+  await syncSingleRecordToSupabase('chemical_stock', itemData);
+  try { if (db && db.chemicalStock) await db.chemicalStock.put(itemData); } catch (e) {}
   const res = await callRenderApi('/api/chemicals/stock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -526,17 +577,21 @@ export async function saveChemicalStock(itemData) {
 }
 
 export async function addChemicalLog(logData) {
+  const normalized = { ...logData, id: logData.id || `clog_${Date.now()}` };
+  await saveToSupabaseAppSettings('chemical_logs', normalized, 'prepend');
+  try { if (db && db.chemicalLogs) await db.chemicalLogs.put(normalized); } catch (e) {}
   const res = await callRenderApi('/api/chemicals/log', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(logData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, log: logData };
+  return res || { success: true, log: normalized };
 }
 
 export async function deleteChemicalStock(idOrItem) {
   const targetId = typeof idOrItem === 'object' && idOrItem !== null ? idOrItem.id : idOrItem;
-  deleteRecordFromSupabase('chemical_stock', targetId);
+  await deleteRecordFromSupabase('chemical_stock', targetId);
+  try { if (db && db.chemicalStock) await db.chemicalStock.delete(targetId); } catch (e) {}
 
   const payload = typeof idOrItem === 'object' && idOrItem !== null
     ? { id: idOrItem.id, itemName: idOrItem.itemName }
@@ -564,15 +619,22 @@ export async function seedStandardChemicals() {
 // -------------------------------------------------------------
 
 export async function saveAdvance(advData) {
+  const normalized = { ...advData, id: advData.id || `adv_${Date.now()}` };
+  await saveToSupabaseAppSettings('cleaner_advances', normalized, 'prepend');
+  try { if (db && db.cleanerAdvances) await db.cleanerAdvances.put(normalized); } catch (e) {}
   const res = await callRenderApi('/api/advances', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(advData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, advance: advData };
+  return res || { success: true, advance: normalized };
 }
 
 export async function deleteAdvance(advOrId) {
+  const targetId = typeof advOrId === 'object' && advOrId !== null ? advOrId.id : advOrId;
+  await deleteFromSupabaseAppSettings('cleaner_advances', targetId);
+  try { if (db && db.cleanerAdvances) await db.cleanerAdvances.delete(targetId); } catch (e) {}
+
   const payload = typeof advOrId === 'object' && advOrId !== null
     ? { id: advOrId.id }
     : { id: advOrId };
@@ -590,7 +652,8 @@ export async function deleteAdvance(advOrId) {
 // -------------------------------------------------------------
 
 export async function saveIssue(issueData) {
-  syncSingleRecordToSupabase('store_issues', issueData);
+  await syncSingleRecordToSupabase('store_issues', issueData);
+  try { if (db && db.storeIssues) await db.storeIssues.put(issueData); } catch (e) {}
   const res = await callRenderApi('/api/issues', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -601,7 +664,8 @@ export async function saveIssue(issueData) {
 
 export async function deleteIssue(issueOrId) {
   const targetId = typeof issueOrId === 'object' && issueOrId !== null ? issueOrId.id : issueOrId;
-  deleteRecordFromSupabase('store_issues', targetId);
+  await deleteRecordFromSupabase('store_issues', targetId);
+  try { if (db && db.storeIssues) await db.storeIssues.delete(targetId); } catch (e) {}
 
   const payload = typeof issueOrId === 'object' && issueOrId !== null
     ? { id: issueOrId.id }
@@ -971,26 +1035,37 @@ export async function autoHealMissingRecords({ cleanings = [], stores = [], sche
 // -------------------------------------------------------------
 
 export async function saveEquipment(equipmentData) {
-  syncSingleRecordToSupabase('equipments', equipmentData);
+  const normalized = { ...equipmentData, id: String(equipmentData.id || `eq_${Date.now()}`) };
+  await syncSingleRecordToSupabase('equipments', normalized);
+  await saveToSupabaseAppSettings('equipments_meta', normalized, 'append');
+  try { if (db && db.equipments) await db.equipments.put(normalized); } catch (e) {}
+
   const res = await callRenderApi('/api/equipments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(equipmentData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, equipment: equipmentData };
+  return res || { success: true, equipment: normalized };
 }
 
 export async function recordEquipmentMovement(movementData) {
+  const normalized = { ...movementData, id: String(movementData.id || `mov_${Date.now()}`) };
+  await saveToSupabaseAppSettings('equipment_movements', normalized, 'prepend');
+  try { if (db && db.equipmentMovements) await db.equipmentMovements.put(normalized); } catch (e) {}
+
   const res = await callRenderApi('/api/equipments/movement', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(movementData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, movement: movementData };
+  return res || { success: true, movement: normalized };
 }
 
 export async function deleteEquipment(id) {
-  deleteRecordFromSupabase('equipments', id);
+  await deleteRecordFromSupabase('equipments', id);
+  await deleteFromSupabaseAppSettings('equipments_meta', id);
+  try { if (db && db.equipments) await db.equipments.delete(id); } catch (e) {}
+
   const res = await callRenderApi('/api/equipments/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1004,24 +1079,35 @@ export async function deleteEquipment(id) {
 // -------------------------------------------------------------
 
 export async function saveToolAllocation(allocationData) {
+  const normalized = { ...allocationData, id: String(allocationData.id || `alloc_${Date.now()}`) };
+  await saveToSupabaseAppSettings('tool_allocations', normalized, 'prepend');
+  try { if (db && db.toolAllocations) await db.toolAllocations.put(normalized); } catch (e) {}
+
   const res = await callRenderApi('/api/tools/allocate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(allocationData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, allocation: allocationData };
+  return res || { success: true, allocation: normalized };
 }
 
 export async function recordToolReturn(returnData) {
+  const normalized = { ...returnData, id: String(returnData.id || `ret_${Date.now()}`) };
+  await saveToSupabaseAppSettings('tool_allocations', normalized, 'append');
+  try { if (db && db.toolAllocations) await db.toolAllocations.put(normalized); } catch (e) {}
+
   const res = await callRenderApi('/api/tools/return', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(returnData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, return: returnData };
+  return res || { success: true, return: normalized };
 }
 
 export async function deleteToolAllocation(id) {
+  await deleteFromSupabaseAppSettings('tool_allocations', id);
+  try { if (db && db.toolAllocations) await db.toolAllocations.delete(id); } catch (e) {}
+
   const res = await callRenderApi('/api/tools/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1035,17 +1121,22 @@ export async function deleteToolAllocation(id) {
 // -------------------------------------------------------------
 
 export async function saveStoreExpense(expenseData) {
-  syncSingleRecordToSupabase('store_expenses', expenseData);
+  const normalized = { ...expenseData, id: String(expenseData.id || `exp_${Date.now()}`) };
+  await syncSingleRecordToSupabase('store_expenses', normalized);
+  try { if (db && db.storeExpenses) await db.storeExpenses.put(normalized); } catch (e) {}
+
   const res = await callRenderApi('/api/expenses', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(expenseData)
+    body: JSON.stringify(normalized)
   });
-  return res || { success: true, expense: expenseData };
+  return res || { success: true, expense: normalized };
 }
 
 export async function deleteStoreExpense(id) {
-  deleteRecordFromSupabase('store_expenses', id);
+  await deleteRecordFromSupabase('store_expenses', id);
+  try { if (db && db.storeExpenses) await db.storeExpenses.delete(id); } catch (e) {}
+
   const res = await callRenderApi('/api/expenses/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1059,31 +1150,28 @@ export async function deleteStoreExpense(id) {
 // -------------------------------------------------------------
 
 export async function saveTeamDispatch(dispatchData) {
-  try {
-    const res = await fetch(getApiUrl('/api/dispatches'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dispatchData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveTeamDispatch error:', err);
-    throw err;
-  }
+  const normalized = { ...dispatchData, id: String(dispatchData.id || `disp_${Date.now()}`) };
+  await saveToSupabaseAppSettings('team_dispatches', normalized, 'prepend');
+  try { if (db && db.teamDispatches) await db.teamDispatches.put(normalized); } catch (e) {}
+
+  const res = await callRenderApi('/api/dispatches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(normalized)
+  });
+  return res || { success: true, dispatch: normalized };
 }
 
 export async function deleteTeamDispatch(id) {
-  try {
-    const res = await fetch(getApiUrl('/api/dispatches/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteTeamDispatch error:', err);
-    throw err;
-  }
+  await deleteFromSupabaseAppSettings('team_dispatches', id);
+  try { if (db && db.teamDispatches) await db.teamDispatches.delete(id); } catch (e) {}
+
+  const res = await callRenderApi('/api/dispatches/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  return res || { success: true };
 }
 
 

@@ -969,6 +969,7 @@ export default function EquipmentExpenseHubModal({
 
     // 2. BACKGROUND ASYNC CALL
     try {
+      await saveEquipment({ ...movingMachine, currentLocationName: moveForm.targetLocationName });
       const res = await recordEquipmentMovement({
         equipmentId: movingMachine.id,
         toLocationName: moveForm.targetLocationName,

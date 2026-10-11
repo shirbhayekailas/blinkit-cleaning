@@ -310,12 +310,138 @@ export function formatStoreForSupabase(s) {
 }
 
 /**
+ * Formats a supervisor record strictly for the Supabase PostgreSQL schema
+ */
+export function formatSupervisorForSupabase(sup) {
+  if (!sup || typeof sup !== 'object') return null;
+  let codes = sup.assignedStoreCodes || sup.assigned_store_codes;
+  if (typeof codes === 'string') {
+    try { codes = JSON.parse(codes); } catch (e) { codes = [codes]; }
+  }
+  return {
+    id: String(sup.id || sup.phone || `sup_${Date.now()}`),
+    name: sup.name || 'Supervisor',
+    phone: String(sup.phone || ''),
+    pin: String(sup.pin || '1234'),
+    assigned_store_codes: Array.isArray(codes) ? codes : [],
+    status: sup.status || 'Active',
+    active: sup.active !== undefined ? Boolean(sup.active) : true,
+    updated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Formats a cleaner record strictly for the Supabase PostgreSQL schema
+ */
+export function formatCleanerForSupabase(cln) {
+  if (!cln || typeof cln !== 'object') return null;
+  return {
+    id: String(cln.id || `cln_${Date.now()}`),
+    name: cln.name || 'Cleaner',
+    phone: String(cln.phone || ''),
+    daily_wage: Number(cln.dailyWage || cln.daily_wage || 500),
+    aadhar_no: String(cln.aadharNo || cln.aadhar_no || ''),
+    upi_id: String(cln.upiId || cln.upi_id || ''),
+    active: cln.active !== undefined ? Boolean(cln.active) : true,
+    updated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Formats a cleaning schedule record strictly for the Supabase PostgreSQL schema
+ */
+export function formatScheduleForSupabase(sch) {
+  if (!sch || typeof sch !== 'object') return null;
+  return {
+    id: String(sch.id || `sch_${Date.now()}`),
+    store_code: (sch.storeCode || sch.store_code || '').trim().toUpperCase(),
+    store_name: sch.storeName || sch.store_name || sch.storeCode || '',
+    scheduled_date: sch.scheduledDate || sch.scheduled_date || new Date().toISOString().split('T')[0],
+    shift: sch.shift || 'Night',
+    supervisor_name: sch.supervisorName || sch.supervisor_name || '',
+    supervisor_id: sch.supervisorId ? String(sch.supervisorId) : null,
+    status: sch.status || 'Scheduled',
+    notes: sch.notes || '',
+    updated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Formats a chemical stock record strictly for the Supabase PostgreSQL schema
+ */
+export function formatChemicalStockForSupabase(chem) {
+  if (!chem || typeof chem !== 'object') return null;
+  return {
+    id: String(chem.id || `chem_${Date.now()}`),
+    item_name: chem.itemName || chem.item_name || chem.name || 'Chemical',
+    category: chem.category || 'Floor Care',
+    unit: chem.unit || 'Liters',
+    total_stock: Number(chem.totalStock || chem.total_stock || chem.stock || chem.currentStock || 0),
+    alert_threshold: Number(chem.alertThreshold || chem.alert_threshold || chem.reorderLevel || 5),
+    updated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Formats a store defect issue strictly for the Supabase PostgreSQL schema
+ */
+export function formatStoreIssueForSupabase(iss) {
+  if (!iss || typeof iss !== 'object') return null;
+  return {
+    id: String(iss.id || `iss_${Date.now()}`),
+    store_code: (iss.storeCode || iss.store_code || '').trim().toUpperCase(),
+    cleaning_id: iss.cleaningId ? String(iss.cleaningId) : null,
+    issue_type: iss.issueType || iss.issue_type || 'General',
+    description: iss.description || iss.desc || '',
+    photo: iss.photo || iss.photoUrl || iss.issuePhoto || '',
+    status: iss.status || 'Open',
+    resolved_at: iss.resolvedAt || iss.resolved_at || null,
+    reported_at: iss.reportedAt || iss.reported_at || iss.createdAt || new Date().toISOString()
+  };
+}
+
+/**
+ * Formats a store expense record strictly for the Supabase PostgreSQL schema
+ */
+export function formatStoreExpenseForSupabase(exp) {
+  if (!exp || typeof exp !== 'object') return null;
+  return {
+    id: String(exp.id || `exp_${Date.now()}`),
+    store_code: (exp.storeCode || exp.store_code || '').trim().toUpperCase(),
+    city: exp.city || 'Pune',
+    category: exp.category || 'Conveyance & Transport',
+    amount: Number(exp.amount) || 0,
+    paid_to: exp.paidTo || exp.paid_to || '',
+    payment_mode: exp.paymentMode || exp.payment_mode || 'UPI',
+    date: exp.date || exp.expense_date || new Date().toISOString().split('T')[0],
+    remarks: exp.remarks || exp.notes || ''
+  };
+}
+
+/**
+ * Formats heavy equipment / machinery record strictly for the Supabase PostgreSQL schema
+ */
+export function formatEquipmentForSupabase(eq) {
+  if (!eq || typeof eq !== 'object') return null;
+  return {
+    id: String(eq.id || `eq_${Date.now()}`),
+    name: eq.name || 'Equipment',
+    category: eq.category || 'Single Disc Scrubber',
+    asset_tag: eq.assetTag || eq.asset_tag || '',
+    current_location_name: eq.currentLocationName || eq.current_location_name || '',
+    status: eq.status || 'Working',
+    condition: eq.condition || 'Good',
+    last_service_date: eq.lastServiceDate || eq.last_service_date || null
+  };
+}
+
+/**
  * Instantly pushes a single created or updated record directly to Supabase Cloud
  */
 export async function syncSingleRecordToSupabase(tableName, record) {
-  if (!record || typeof record !== 'object') return;
+  if (!record || typeof record !== 'object') return null;
   const config = getCloudConfig();
-  if (!config.supabaseUrl || !config.supabaseKey) return;
+  if (!config.supabaseUrl || !config.supabaseKey) return null;
 
   try {
     let payload = null;
@@ -323,24 +449,26 @@ export async function syncSingleRecordToSupabase(tableName, record) {
       payload = formatCleaningForSupabase(record);
     } else if (tableName === 'stores') {
       payload = formatStoreForSupabase(record);
+    } else if (tableName === 'supervisors') {
+      payload = formatSupervisorForSupabase(record);
+    } else if (tableName === 'cleaners') {
+      payload = formatCleanerForSupabase(record);
+    } else if (tableName === 'cleaning_schedules') {
+      payload = formatScheduleForSupabase(record);
+    } else if (tableName === 'chemical_stock') {
+      payload = formatChemicalStockForSupabase(record);
+    } else if (tableName === 'store_issues') {
+      payload = formatStoreIssueForSupabase(record);
+    } else if (tableName === 'store_expenses') {
+      payload = formatStoreExpenseForSupabase(record);
+    } else if (tableName === 'equipments') {
+      payload = formatEquipmentForSupabase(record);
     } else {
       payload = toSnakeCase(record);
       if (!payload.id) payload.id = String(record.id || Date.now());
-      if (tableName === 'cleaning_schedules') {
-        if (!payload.store_name) payload.store_name = record.storeName || record.storeCode || 'Store';
-        if (!payload.scheduled_date) payload.scheduled_date = record.scheduledDate || new Date().toISOString().split('T')[0];
-      } else if (tableName === 'chemical_stock') {
-        if (!payload.item_name) payload.item_name = record.itemName || record.name || 'Chemical';
-      } else if (tableName === 'store_issues') {
-        if (!payload.store_code) payload.store_code = record.storeCode || 'STORE';
-      } else if (tableName === 'equipments') {
-        if (!payload.name) payload.name = record.name || 'Equipment';
-      } else if (tableName === 'cleaners') {
-        if (!payload.name) payload.name = record.name || 'Cleaner';
-      }
     }
 
-    if (!payload) return;
+    if (!payload) return null;
 
     const res = await fetch(`${config.supabaseUrl}/rest/v1/${tableName}?on_conflict=id`, {
       method: 'POST',
@@ -348,7 +476,7 @@ export async function syncSingleRecordToSupabase(tableName, record) {
         'apikey': config.supabaseKey,
         'Authorization': `Bearer ${config.supabaseKey}`,
         'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
+        'Prefer': 'resolution=merge-duplicates,return=representation'
       },
       body: JSON.stringify([payload])
     });
@@ -356,11 +484,112 @@ export async function syncSingleRecordToSupabase(tableName, record) {
     if (!res.ok) {
       const errText = await res.text();
       console.warn(`Supabase push (${tableName}) failed: HTTP ${res.status}`, errText);
+      return { success: false, status: res.status, error: errText };
     } else {
       console.log(`✅ Supabase ${tableName} updated successfully: ${payload.id || payload.store_code}`);
+      const data = await res.json().catch(() => null);
+      return { success: true, payload: (Array.isArray(data) && data[0]) || payload };
     }
   } catch (err) {
     console.warn(`Instant Supabase sync notice (${tableName}):`, err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Saves and syncs rich collections (dispatches, tool allocations, movements, advances, chemical logs) to Supabase Cloud app_settings
+ */
+export async function saveToSupabaseAppSettings(key, item, mode = 'append') {
+  if (!key || !item) return null;
+  const config = getCloudConfig();
+  if (!config.supabaseUrl || !config.supabaseKey) return null;
+
+  try {
+    const headers = {
+      'apikey': config.supabaseKey,
+      'Authorization': `Bearer ${config.supabaseKey}`,
+      'Content-Type': 'application/json'
+    };
+
+    const res = await fetch(`${config.supabaseUrl}/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=*`, { headers });
+    let currentList = [];
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0 && Array.isArray(rows[0].value)) {
+        currentList = rows[0].value;
+      }
+    }
+
+    let nextList;
+    if (Array.isArray(item)) {
+      nextList = item;
+    } else {
+      const itemId = String(item.id || item.syncId || Date.now());
+      const normalizedItem = { ...item, id: itemId };
+      const existingIdx = currentList.findIndex(x => (x && String(x.id || x.syncId)) === itemId);
+      if (existingIdx >= 0) {
+        nextList = [...currentList];
+        nextList[existingIdx] = normalizedItem;
+      } else if (mode === 'prepend') {
+        nextList = [normalizedItem, ...currentList].slice(0, 300);
+      } else {
+        nextList = [...currentList, normalizedItem].slice(-300);
+      }
+    }
+
+    const payload = [{
+      key,
+      value: nextList,
+      updated_at: new Date().toISOString()
+    }];
+
+    await fetch(`${config.supabaseUrl}/rest/v1/app_settings?on_conflict=key`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(payload)
+    });
+    return nextList;
+  } catch (err) {
+    console.warn(`saveToSupabaseAppSettings notice (${key}):`, err);
+    return null;
+  }
+}
+
+/**
+ * Deletes an item from an app_settings collection in Supabase Cloud
+ */
+export async function deleteFromSupabaseAppSettings(key, id) {
+  if (!key || !id) return null;
+  const config = getCloudConfig();
+  if (!config.supabaseUrl || !config.supabaseKey) return null;
+
+  try {
+    const headers = {
+      'apikey': config.supabaseKey,
+      'Authorization': `Bearer ${config.supabaseKey}`,
+      'Content-Type': 'application/json'
+    };
+    const res = await fetch(`${config.supabaseUrl}/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=*`, { headers });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0 || !Array.isArray(rows[0].value)) return null;
+
+    const filtered = rows[0].value.filter(x => x && String(x.id || x.syncId) !== String(id));
+    await fetch(`${config.supabaseUrl}/rest/v1/app_settings?on_conflict=key`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([{ key, value: filtered, updated_at: new Date().toISOString() }])
+    });
+    return filtered;
+  } catch (err) {
+    console.warn(`deleteFromSupabaseAppSettings notice (${key}):`, err);
+    return null;
   }
 }
 
