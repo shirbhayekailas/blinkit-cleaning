@@ -22,10 +22,13 @@ import {
   Check,
   UserCheck,
   HardHat,
-  FlaskConical
+  FlaskConical,
+  ScanLine,
+  QrCode
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
+import QRScannerModal from './QRScannerModal';
 import { addWatermarkToPhoto, compressImage } from '../utils/photoWatermark';
 import { saveCleaner } from '../services/api';
 import { performCloudSync } from '../utils/cloudSync';
@@ -124,6 +127,7 @@ export default function CleaningEntryModal({
   const [isSavingCleaner, setIsSavingCleaner] = useState(false);
   const [matchedStoreAlert, setMatchedStoreAlert] = useState(null);
   const [selectedCityFilter, setSelectedCityFilter] = useState(initialData?.city || 'all');
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   // Compute available unique cities dynamically from registered stores
   const availableCities = useMemo(() => {
@@ -811,15 +815,26 @@ export default function CleaningEntryModal({
                     </span>
                   )}
                 </div>
-                <input
-                  type="text"
-                  required
-                  list="ledger-store-codes-datalist"
-                  placeholder="e.g. BLK-DEL-042"
-                  value={formData.storeCode}
-                  onChange={(e) => handleStoreCodeChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-blinkit-green"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    list="ledger-store-codes-datalist"
+                    placeholder="e.g. BLK-DEL-042"
+                    value={formData.storeCode}
+                    onChange={(e) => handleStoreCodeChange(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-blinkit-green"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsQRScannerOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5 shrink-0"
+                    title="Scan Store Barcode or QR Code"
+                  >
+                    <ScanLine className="w-4 h-4" />
+                    <span>Scan Barcode</span>
+                  </button>
+                </div>
                 <datalist id="ledger-store-codes-datalist">
                   {filteredStoresByCity.map(s => (
                     <option key={s._id || `${s.storeCode}-${s.city}`} value={s.storeCode}>
@@ -2039,6 +2054,13 @@ export default function CleaningEntryModal({
         </form>
 
       </div>
+
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        stores={stores}
+        onStoreScanned={(code) => handleStoreCodeChange(code)}
+      />
     </div>
   );
 }

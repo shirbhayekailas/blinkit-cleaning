@@ -24,7 +24,9 @@ import {
   Plus,
   Share2,
   Smartphone,
-  QrCode
+  QrCode,
+  ScanLine,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SignaturePad from './SignaturePad';
@@ -54,6 +56,7 @@ export default function SupervisorPortal({
 
   const [selectedStoreCode, setSelectedStoreCode] = useState('');
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedStore = stores.find(s => s.storeCode === selectedStoreCode);
 
   // Timer & Shift states
@@ -236,9 +239,11 @@ export default function SupervisorPortal({
   const handleSubmitShift = async (e) => {
     e.preventDefault();
     if (!selectedStoreCode) {
-      toast.warning('Please select a dark store.');
+      toast.warning('Pehle Blinkit Dark Store select ya scan karein!');
       return;
     }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
     const todayStr = new Date().toISOString().split('T')[0];
     const stTime = punchInTime ? punchInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '01:00';
@@ -346,6 +351,8 @@ export default function SupervisorPortal({
       if (onRecordSaved) onRecordSaved();
     } catch (err) {
       toast.error('Error submitting shift: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -399,68 +406,135 @@ export default function SupervisorPortal({
       {/* Main Shift Form */}
       <form onSubmit={handleSubmitShift} className="space-y-5">
 
-        {/* STEP 1: Dark Store Selector */}
-        <div className="p-5 bg-white dark:bg-slate-800/90 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-blinkit-green" />
-              <span>1. Select Blinkit Dark Store (Aapka Assigned Store)</span>
-            </h3>
-            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-              {assignedStores.length} Stores Available
+        {/* STEP 1: Dark Store Selector & Real-Time Barcode/QR Scanner */}
+        <div className="p-4 sm:p-5 bg-white dark:bg-slate-800/90 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-blinkit-green" />
+                <span>1. Select Dark Store (Gate Check-In)</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Gate/shutter par laga barcode scan karein ya list se select karein
+              </p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 shrink-0">
+              {assignedStores.length} Stores
             </span>
           </div>
 
-          <div className="flex gap-2">
-            <select
-              required
-              value={selectedStoreCode}
-              onChange={(e) => setSelectedStoreCode(e.target.value)}
-              className="flex-1 px-3.5 py-2.5 text-sm font-bold rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
-            >
-              <option value="">-- Choose Blinkit Store from Your Assigned List --</option>
-              {assignedStores.map(s => (
-                <option key={s.storeCode} value={s.storeCode}>
-                  {s.storeCode} - {s.storeName} ({s.city || 'Hub'})
-                </option>
-              ))}
-            </select>
+          {/* HERO SCANNER BUTTON (Big, high-contrast, prominent on mobile) */}
+          <button
+            type="button"
+            onClick={() => setIsQRScannerOpen(true)}
+            className="w-full p-4 sm:p-4.5 rounded-2xl bg-gradient-to-r from-blinkit-darkgreen via-blinkit-green to-emerald-500 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold shadow-lg shadow-emerald-700/20 active:scale-[0.98] transition flex items-center justify-between gap-3 border border-emerald-400/50 group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white/20 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition shadow-inner">
+                <ScanLine className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm sm:text-base font-black flex items-center gap-2 flex-wrap">
+                  <span>SCAN STORE BARCODE / QR</span>
+                  <span className="text-[10px] bg-amber-300 text-slate-950 px-2 py-0.5 rounded-md font-black uppercase tracking-wider">
+                    FAST CHECK-IN
+                  </span>
+                </div>
+                <div className="text-[11px] text-emerald-100 font-medium">
+                  Camera se shutter barcode scan karke store auto-fill karein
+                </div>
+              </div>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setIsQRScannerOpen(true)}
-              className="px-4 py-2.5 rounded-2xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 shrink-0"
-              title="Scan Store QR Code to Check In"
-            >
-              <QrCode className="w-4 h-4" />
-              <span className="hidden sm:inline">Scan QR</span>
-            </button>
+            <div className="hidden xs:flex items-center justify-center w-9 h-9 rounded-xl bg-white/20 text-white shrink-0">
+              <Camera className="w-4 h-4" />
+            </div>
+          </button>
+
+          {/* Or Manual Dropdown Selector */}
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+              Ya Store List se Select Karein:
+            </label>
+            <div className="flex gap-2">
+              <select
+                required
+                value={selectedStoreCode}
+                onChange={(e) => setSelectedStoreCode(e.target.value)}
+                className="flex-1 px-3.5 py-2.5 text-xs sm:text-sm font-bold rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green shadow-xs"
+              >
+                <option value="">-- Choose Blinkit Store from Assigned List --</option>
+                {assignedStores.map(s => (
+                  <option key={s.storeCode} value={s.storeCode}>
+                    {s.storeCode} - {s.storeName} ({s.city || 'Hub'})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setIsQRScannerOpen(true)}
+                className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold text-xs border border-slate-300 dark:border-slate-600 transition flex items-center gap-1.5 shrink-0"
+                title="Scan Barcode / QR Code"
+              >
+                <QrCode className="w-4 h-4 text-blinkit-green" />
+                <span className="text-xs">Scan</span>
+              </button>
+            </div>
           </div>
 
+          {/* Active Store Details Card */}
           {selectedStore && (
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850 text-xs space-y-1 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>{selectedStore.address || 'Address not listed'}</span>
-                {selectedStore.googleMapsUrl && (
-                  <a
-                    href={selectedStore.googleMapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 font-bold ml-1 hover:underline inline-flex items-center gap-0.5"
-                  >
-                    <span>Maps</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-              </div>
-              <div className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-xs space-y-2 text-slate-700 dark:text-slate-200 animate-fadeIn">
+              <div className="flex items-center justify-between gap-2 border-b border-emerald-200 dark:border-emerald-900/60 pb-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-400">Manager:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedStore.managerName || 'N/A'}</span>
+                  <span className="font-mono font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white shadow-2xs">
+                    {selectedStore.storeCode}
+                  </span>
+                  <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                    {selectedStore.storeName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQRScannerOpen(true)}
+                  className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1 shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Re-Scan</span>
+                </button>
+              </div>
+
+              <div className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span>{selectedStore.address || 'Address not listed'}</span>
+                  {selectedStore.googleMapsUrl && (
+                    <a
+                      href={selectedStore.googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 font-bold ml-1.5 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <span>📍 Google Maps</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-slate-500">Manager:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {selectedStore.managerName || 'Store Manager'}
+                  </span>
                   {selectedStore.managerPhone && (
-                    <a href={`tel:${selectedStore.managerPhone}`} className="text-emerald-600 font-bold ml-1">
-                      📞 {selectedStore.managerPhone}
+                    <a
+                      href={`tel:${selectedStore.managerPhone}`}
+                      className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold text-[11px] inline-flex items-center gap-1 hover:bg-emerald-200"
+                    >
+                      📞 Call {selectedStore.managerPhone}
                     </a>
                   )}
                 </div>
@@ -469,10 +543,10 @@ export default function SupervisorPortal({
                   type="button"
                   onClick={() => shareStoreLocationWhatsApp(selectedStore)}
                   title="Share Store GMap Location on WhatsApp to Team"
-                  className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition inline-flex items-center gap-1 shrink-0"
+                  className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-2xs transition inline-flex items-center gap-1"
                 >
                   <Share2 className="w-3 h-3" />
-                  <span>Share GMap (WA)</span>
+                  <span>Share Location (WA)</span>
                 </button>
               </div>
             </div>
@@ -963,13 +1037,14 @@ export default function SupervisorPortal({
         </div>
 
         {/* SUBMIT BUTTON */}
-        <div className="pt-2">
+        <div className="pt-2 sticky bottom-4 z-20">
           <button
             type="submit"
-            className="w-full py-4 px-6 rounded-2xl bg-blinkit-green hover:bg-blinkit-darkgreen text-white font-black text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition transform active:scale-[0.99] flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+            className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blinkit-darkgreen via-blinkit-green to-emerald-500 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-base shadow-xl shadow-emerald-700/30 hover:shadow-2xl transition transform active:scale-[0.99] flex items-center justify-center gap-2 border border-emerald-400/50 disabled:opacity-50 cursor-pointer"
           >
             <Sparkles className="w-5 h-5" />
-            <span>SUBMIT COMPLETED CLEANING SHIFT</span>
+            <span>{isSubmitting ? 'SUBMITTING CLEANING SHIFT...' : 'SUBMIT COMPLETED CLEANING SHIFT'}</span>
           </button>
         </div>
 
