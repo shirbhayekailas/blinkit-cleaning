@@ -352,6 +352,30 @@ export async function syncSingleRecordToSupabase(tableName, record) {
   }
 }
 
+/**
+ * Instantly deletes a record directly from Supabase Cloud
+ */
+export async function deleteRecordFromSupabase(tableName, id, field = 'id') {
+  if (!id) return;
+  const config = getCloudConfig();
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+
+  try {
+    const res = await fetch(`${config.supabaseUrl}/rest/v1/${tableName}?${field}=eq.${encodeURIComponent(String(id))}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': config.supabaseKey,
+        'Authorization': `Bearer ${config.supabaseKey}`
+      }
+    });
+    if (res.ok) {
+      console.log(`✅ Supabase ${tableName} deleted: ${id}`);
+    }
+  } catch (err) {
+    console.warn(`Supabase delete notice (${tableName}):`, err);
+  }
+}
+
 export function isCleaningDeleted(c, deletedCleanings = []) {
   if (!c || !deletedCleanings || deletedCleanings.length === 0) return false;
   const cSyncId = c.syncId ? String(c.syncId) : null;

@@ -22,6 +22,7 @@ export function getApiUrl(endpoint) {
 
 import { 
   syncSingleRecordToSupabase, 
+  deleteRecordFromSupabase,
   syncSmartCredentials,
   getCloudConfig 
 } from '../utils/cloudSync';
@@ -273,6 +274,11 @@ export async function restoreDatabaseBackup(backupJson) {
 }
 
 export async function deleteCleaning(cleaningOrId) {
+  const targetId = typeof cleaningOrId === 'object' && cleaningOrId !== null 
+    ? (cleaningOrId.id || cleaningOrId.syncId) 
+    : cleaningOrId;
+  deleteRecordFromSupabase('cleanings', targetId);
+
   try {
     let payload = {};
     if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
@@ -291,11 +297,11 @@ export async function deleteCleaning(cleaningOrId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return await res.json();
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error('deleteCleaning error:', err);
-    throw err;
+    console.warn('deleteCleaning fallback:', err.message);
   }
+  return { success: true };
 }
 
 // -------------------------------------------------------------
@@ -321,6 +327,9 @@ export async function saveStore(storeData) {
 }
 
 export async function deleteStore(storeCode, deleteCleanings = false, force = true, id = null, city = null) {
+  const sCode = typeof storeCode === 'object' && storeCode !== null ? (storeCode.storeCode || storeCode.code) : storeCode;
+  deleteRecordFromSupabase('stores', sCode, 'store_code');
+
   try {
     const payload = typeof storeCode === 'object' && storeCode !== null
       ? storeCode
@@ -330,11 +339,11 @@ export async function deleteStore(storeCode, deleteCleanings = false, force = tr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return await res.json();
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error('deleteStore error:', err);
-    throw err;
+    console.warn('deleteStore fallback:', err.message);
   }
+  return { success: true };
 }
 
 // -------------------------------------------------------------
@@ -342,20 +351,25 @@ export async function deleteStore(storeCode, deleteCleanings = false, force = tr
 // -------------------------------------------------------------
 
 export async function saveSupervisor(supData) {
+  syncSingleRecordToSupabase('supervisors', supData);
+
   try {
     const res = await fetch(getApiUrl('/api/supervisors'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(supData)
     });
-    return await res.json();
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error('saveSupervisor error:', err);
-    throw err;
+    console.warn('saveSupervisor fallback:', err.message);
   }
+  return { success: true, supervisor: supData };
 }
 
 export async function deleteSupervisor(supOrId) {
+  const targetId = typeof supOrId === 'object' && supOrId !== null ? (supOrId.id || supOrId.phone) : supOrId;
+  deleteRecordFromSupabase('supervisors', targetId);
+
   try {
     const payload = typeof supOrId === 'object' && supOrId !== null
       ? { id: supOrId.id, phone: supOrId.phone }
@@ -366,11 +380,11 @@ export async function deleteSupervisor(supOrId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return await res.json();
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error('deleteSupervisor error:', err);
-    throw err;
+    console.warn('deleteSupervisor fallback:', err.message);
   }
+  return { success: true };
 }
 
 // -------------------------------------------------------------
@@ -767,7 +781,11 @@ export async function changePin(role, newPin, userId = null, updatedAt = null) {
         body: JSON.stringify([{ key: 'auth_credentials', value: currentVal, updated_at: updatedIso }])
       });
     } else if (role === 'supervisor' && userId) {
-      await fetch(`${url}/rest/v1/supervisors?id=eq.${encodeURIComponent(userId)}`, {
+      const isPhone = /^\d{10}$/.test(String(userId).trim());
+      const filter = isPhone 
+        ? `phone=eq.${encodeURIComponent(String(userId).trim())}`
+        : `id=eq.${encodeURIComponent(String(userId).trim())}`;
+      await fetch(`${url}/rest/v1/supervisors?${filter}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ pin: newPin, updated_at: updatedIso })
