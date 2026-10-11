@@ -37,36 +37,68 @@ function DashboardStats({
   onOpenReportsCenter
 }) {
   const { t } = useLanguage();
-  const totalEntries = cleanings.length;
-  const totalBilled = cleanings.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-  const totalReceived = cleanings.reduce((sum, c) => sum + (Number(c.amountReceived) || 0), 0);
-  const totalPending = cleanings.reduce((sum, c) => sum + (Number(c.amountPending) || 0), 0);
+  const {
+    totalEntries,
+    totalBilled,
+    totalReceived,
+    totalPending,
+    completedCount,
+    inProgressCount,
+    pendingPaymentCount,
+    overdueCount,
+    dueSoonCount,
+    clusters
+  } = useMemo(() => {
+    let billed = 0;
+    let received = 0;
+    let pending = 0;
+    let completed = 0;
+    let inProg = 0;
+    let pendingPay = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    const citySet = new Set();
 
-  const completedCount = cleanings.filter(c => c.status === 'Completed').length;
-  const inProgressCount = cleanings.filter(c => c.status === 'In-Progress').length;
-  const pendingPaymentCount = cleanings.filter(c => c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial').length;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  // Calculate Overdue and Due Soon counts
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+    for (const c of cleanings) {
+      if (!c) continue;
+      billed += Number(c.amount) || 0;
+      received += Number(c.amountReceived) || 0;
+      pending += Number(c.amountPending) || 0;
 
-  const overdueCount = cleanings.filter(c => {
-    const cycle = c.nextCleaningCycleDays || 30;
-    const d = new Date(c.cleaningDate || new Date());
-    d.setDate(d.getDate() + cycle);
-    return d < today;
-  }).length;
+      if (c.status === 'Completed') completed++;
+      else if (c.status === 'In-Progress') inProg++;
 
-  const dueSoonCount = cleanings.filter(c => {
-    const cycle = c.nextCleaningCycleDays || 30;
-    const d = new Date(c.cleaningDate || new Date());
-    d.setDate(d.getDate() + cycle);
-    const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-    return diff >= 0 && diff <= 7;
-  }).length;
+      if (c.paymentStatus === 'Pending' || c.paymentStatus === 'Partial') pendingPay++;
 
-  // Extract unique clusters/cities
-  const clusters = Array.from(new Set(cleanings.map(c => c.city).filter(Boolean)));
+      const cycle = c.nextCleaningCycleDays || 30;
+      const d = new Date(c.cleaningDate || new Date());
+      d.setDate(d.getDate() + cycle);
+      if (d < today) {
+        overdue++;
+      } else {
+        const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff <= 7) dueSoon++;
+      }
+
+      if (c.city) citySet.add(c.city);
+    }
+
+    return {
+      totalEntries: cleanings.length,
+      totalBilled: billed,
+      totalReceived: received,
+      totalPending: pending,
+      completedCount: completed,
+      inProgressCount: inProg,
+      pendingPaymentCount: pendingPay,
+      overdueCount: overdue,
+      dueSoonCount: dueSoon,
+      clusters: Array.from(citySet)
+    };
+  }, [cleanings]);
 
   // Calculate P&L (Profit & Loss / Munafa)
   const totalLaborCost = cleanings.reduce((sum, c) => sum + (Number(c.laborCost) || 0), 0);

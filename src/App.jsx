@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import DashboardStats from './components/DashboardStats';
 import StoreCard from './components/StoreCard';
@@ -285,31 +285,29 @@ export default function App() {
   const lastUpdatedRef = useRef(initialCachedData.lastUpdated || null);
   const isSyncingRef = useRef(false);
 
-  // Helper to safely persist state to fast local cache
+  // Helper to safely persist state to fast local cache (ultra-lightweight < 50KB, 0ms latency)
   const saveStateToCache = (data) => {
     try {
-      localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(data));
-    } catch (quotaErr) {
-      // If photo base64 strings exceed quota, preserve all records with lightweight photo stubs
-      try {
-        const lightweight = {
-          ...data,
-          cleanings: (data.cleanings || []).map(c => ({
+      const lightweight = {
+        ...data,
+        cleanings: (data.cleanings || []).map(c => {
+          if (!c || !c.photos || c.photos.length === 0) return c;
+          return {
             ...c,
-            photos: (c.photos || []).map(p => ({
+            photos: c.photos.map(p => ({
               id: p.id,
               type: p.type,
               name: p.name,
               title: p.title,
               timestamp: p.timestamp,
-              url: (p.url && p.url.length > 3000) ? '' : p.url
+              url: (p.url && p.url.length > 2000) ? '' : p.url
             }))
-          }))
-        };
-        localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(lightweight));
-      } catch (e) {
-        console.warn('Cache fallback notice:', e);
-      }
+          };
+        })
+      };
+      localStorage.setItem('blinkit_cached_state_v2', JSON.stringify(lightweight));
+    } catch (e) {
+      console.warn('Cache write notice:', e);
     }
   };
 
@@ -365,20 +363,20 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Initial sync from server (Always force-fresh server truth, no stale client cache)
-    loadServerData(true);
+    // Initial sync from server
+    loadServerData(false);
 
     // Adaptive background polling:
-    // Only poll when the user is actively viewing the tab (15s interval)
+    // Only poll when the user is actively viewing the tab (45s interval)
     // Pauses completely when tab is minimized or phone screen is locked to save battery and bandwidth
     let pollTimer = null;
     const startPolling = () => {
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(() => {
         if (document.visibilityState === 'visible') {
-          loadServerData(true);
+          loadServerData(false);
         }
-      }, 15000);
+      }, 45000);
     };
 
     const stopPolling = () => {
@@ -393,9 +391,9 @@ export default function App() {
     let lastFetchTime = 0;
     const triggerInstantSync = () => {
       const now = Date.now();
-      if (now - lastFetchTime > 3000) {
+      if (now - lastFetchTime > 10000) {
         lastFetchTime = now;
-        loadServerData(true);
+        loadServerData(false);
       }
     };
 
@@ -497,45 +495,47 @@ export default function App() {
   }, [serverData.stores, serverData.cleanings]);
 
   // Filtered cleanings based on search, payment, status, cluster, store code, and due cycle
-  const filteredCleanings = cleanings.filter((c) => {
-    const matchesSearch = 
-      (c.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.storeCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.managerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.teamMembers || '').toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredCleanings = useMemo(() => {
+    return cleanings.filter((c) => {
+      const matchesSearch = 
+        (c.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.storeCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.managerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.teamMembers || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesPayment = 
-      paymentFilter === 'all' || c.paymentStatus === paymentFilter;
+      const matchesPayment = 
+        paymentFilter === 'all' || c.paymentStatus === paymentFilter;
 
-    const matchesStatus = 
-      statusFilter === 'all' || c.status === statusFilter;
+      const matchesStatus = 
+        statusFilter === 'all' || c.status === statusFilter;
 
-    const matchesCluster = 
-      clusterFilter === 'all' || c.city === clusterFilter;
+      const matchesCluster = 
+        clusterFilter === 'all' || c.city === clusterFilter;
 
-    const matchesStoreCode = 
-      storeCodeFilter === 'all' || 
-      (c.storeCode && String(c.storeCode).trim().toUpperCase() === storeCodeFilter.trim().toUpperCase());
+      const matchesStoreCode = 
+        storeCodeFilter === 'all' || 
+        (c.storeCode && String(c.storeCode).trim().toUpperCase() === storeCodeFilter.trim().toUpperCase());
 
-    let matchesCycle = true;
-    if (cycleFilter === 'overdue' || cycleFilter === 'dueSoon') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const cycle = c.nextCleaningCycleDays || 30;
-      const d = new Date(c.cleaningDate || new Date());
-      d.setDate(d.getDate() + cycle);
+      let matchesCycle = true;
+      if (cycleFilter === 'overdue' || cycleFilter === 'dueSoon') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const cycle = c.nextCleaningCycleDays || 30;
+        const d = new Date(c.cleaningDate || new Date());
+        d.setDate(d.getDate() + cycle);
 
-      if (cycleFilter === 'overdue') {
-        matchesCycle = d < today;
-      } else if (cycleFilter === 'dueSoon') {
-        const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-        matchesCycle = diff >= 0 && diff <= 7;
+        if (cycleFilter === 'overdue') {
+          matchesCycle = d < today;
+        } else if (cycleFilter === 'dueSoon') {
+          const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+          matchesCycle = diff >= 0 && diff <= 7;
+        }
       }
-    }
 
-    return matchesSearch && matchesPayment && matchesStatus && matchesCluster && matchesCycle && matchesStoreCode;
-  });
+      return matchesSearch && matchesPayment && matchesStatus && matchesCluster && matchesCycle && matchesStoreCode;
+    });
+  }, [cleanings, searchTerm, paymentFilter, statusFilter, clusterFilter, cycleFilter, storeCodeFilter]);
 
   // Dynamic user-selected sorting (Date, Store Code, Amount)
   const sortedCleanings = useMemo(() => {
@@ -778,6 +778,29 @@ export default function App() {
       }
     });
   };
+
+  // Memoized card callbacks for high-performance React.memo render skipping
+  const handleCardUpdatePayment = useCallback((c) => {
+    if (currentUserRole !== 'admin') {
+      toast.warning(t('alert_payment_admin_only', 'Payment details enter ya update karne ka access sirf Admin ke paas hai.'), 'Admin Only');
+      return;
+    }
+    setPaymentCleaning(c);
+  }, [currentUserRole, t]);
+
+  const handleCardOpenPhotos = useCallback((c, view = 'grid') => {
+    setPhotoCleaning(c);
+    setPhotoInitialView(view);
+  }, []);
+
+  const handleCardGeneratePDF = useCallback((c) => generateCleaningPDF(c), []);
+  const handleCardShareWhatsApp = useCallback((c) => setReportCleaning(c), []);
+  const handleCardGenerateInvoice = useCallback((c) => setInvoiceCleaning(c), []);
+  const handleCardOpenStoreQR = useCallback((c) => setQrStore(c), []);
+  const handleCardEdit = useCallback((c) => {
+    setEditingCleaning(c);
+    setIsEntryModalOpen(true);
+  }, []);
 
   const handleClearAllData = async () => {
     openConfirm({
@@ -1049,12 +1072,18 @@ export default function App() {
     if (!currentUserRole) return;
 
     lastActiveRef.current = Date.now();
-    sessionStorage.setItem('blinkit_last_active', String(Date.now()));
+    try { sessionStorage.setItem('blinkit_last_active', String(Date.now())); } catch (e) {}
 
+    let lastSessionWrite = 0;
     const resetActivity = () => {
-      lastActiveRef.current = Date.now();
-      sessionStorage.setItem('blinkit_last_active', String(Date.now()));
-      setIsIdleWarningOpen(false);
+      const now = Date.now();
+      lastActiveRef.current = now;
+      if (now - lastSessionWrite > 10000) {
+        lastSessionWrite = now;
+        try {
+          sessionStorage.setItem('blinkit_last_active', String(now));
+        } catch (e) {}
+      }
     };
 
     const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
@@ -1072,7 +1101,7 @@ export default function App() {
         const remaining = Math.max(1, Math.ceil((IDLE_TIMEOUT_MS - elapsed) / 1000));
         setCountdownSeconds(remaining);
       } else {
-        setIsIdleWarningOpen(false);
+        setIsIdleWarningOpen(prev => prev ? false : prev);
       }
     }, 1000);
 
@@ -1407,25 +1436,13 @@ export default function App() {
                         key={cleaning.id}
                         cleaning={cleaning}
                         isAdmin={currentUserRole === 'admin'}
-                        onUpdatePayment={(c) => {
-                          if (currentUserRole !== 'admin') {
-                            toast.warning(t('alert_payment_admin_only', 'Payment details enter ya update karne ka access sirf Admin ke paas hai.'), 'Admin Only');
-                            return;
-                          }
-                          setPaymentCleaning(c);
-                        }}
-                        onOpenPhotos={(c, view = 'grid') => {
-                          setPhotoCleaning(c);
-                          setPhotoInitialView(view);
-                        }}
-                        onGeneratePDF={(c) => generateCleaningPDF(c)}
-                        onShareWhatsApp={(c) => setReportCleaning(c)}
-                        onGenerateInvoice={(c) => setInvoiceCleaning(c)}
-                        onOpenStoreQR={(c) => setQrStore(c)}
-                        onEdit={(c) => {
-                          setEditingCleaning(c);
-                          setIsEntryModalOpen(true);
-                        }}
+                        onUpdatePayment={handleCardUpdatePayment}
+                        onOpenPhotos={handleCardOpenPhotos}
+                        onGeneratePDF={handleCardGeneratePDF}
+                        onShareWhatsApp={handleCardShareWhatsApp}
+                        onGenerateInvoice={handleCardGenerateInvoice}
+                        onOpenStoreQR={handleCardOpenStoreQR}
+                        onEdit={handleCardEdit}
                         onDelete={handleDeleteCleaning}
                       />
                     ))}

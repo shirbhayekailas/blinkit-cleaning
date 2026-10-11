@@ -80,7 +80,10 @@ function StoreCard({
 
 
   return (
-    <div className="bg-white dark:bg-slate-800/95 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between">
+    <div 
+      className="bg-white dark:bg-slate-800/95 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '360px' }}
+    >
       
       {/* Top Banner / Store Header */}
       <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-700/60 bg-gradient-to-r from-slate-50/70 via-white to-amber-50/20 dark:from-slate-800 dark:via-slate-800/80 dark:to-amber-950/10">

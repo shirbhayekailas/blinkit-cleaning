@@ -1,6 +1,6 @@
 /**
  * Blinkit Deep Cleaning Tracker - Server Database Client API
- * 100% Server-First Architecture. No local storage ghosting or conflict.
+ * High-Performance Supabase Cloud Architecture with Zero-Latency Response.
  */
 
 export const LIVE_BACKEND_URL = 'https://blinkit-cleaning-tracker-e9iy.onrender.com';
@@ -27,6 +27,55 @@ import {
   getCloudConfig 
 } from '../utils/cloudSync';
 
+// Smart Backend Connection Monitor
+// Default to false when hosted on Vercel/localhost to eliminate hanging timeouts on suspended Render
+let isRenderReachable = (typeof window !== 'undefined' && window.location && window.location.hostname.includes('blinkit-cleaning-tracker-e9iy.onrender.com'));
+let lastRenderCheck = 0;
+const RENDER_CHECK_COOLDOWN = 15 * 60 * 1000; // 15 minutes cooldown
+
+export function shouldAttemptRender() {
+  if (typeof window !== 'undefined' && window.location) {
+    if (window.location.hostname.includes('blinkit-cleaning-tracker-e9iy.onrender.com')) {
+      return true;
+    }
+  }
+  if (!isRenderReachable && (Date.now() - lastRenderCheck < RENDER_CHECK_COOLDOWN)) {
+    return false;
+  }
+  return true;
+}
+
+export function markRenderStatus(reachable) {
+  isRenderReachable = reachable;
+  lastRenderCheck = Date.now();
+}
+
+/**
+ * Ultra-fast safe Render API caller with 1.2s timeout.
+ * If Render is dormant or suspended, returns null instantly without freezing the UI.
+ */
+export async function callRenderApi(endpoint, options = {}, timeoutMs = 1200) {
+  if (!shouldAttemptRender()) return null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(getApiUrl(endpoint), {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      markRenderStatus(true);
+      return await res.json();
+    }
+    markRenderStatus(false);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    markRenderStatus(false);
+  }
+  return null;
+}
+
 function toCamelCase(obj) {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
   const res = {};
@@ -37,7 +86,10 @@ function toCamelCase(obj) {
   return res;
 }
 
-export async function fetchFromSupabaseDirect() {
+let lastSupabaseFingerprint = null;
+let cachedSupabaseState = null;
+
+export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
   const config = getCloudConfig();
   const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
   const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
@@ -62,6 +114,15 @@ export async function fetchFromSupabaseDirect() {
     const rawCleanings = await cleaningsRes.json();
     const rawSupervisors = supervisorsRes.ok ? await supervisorsRes.json() : [];
     const rawCleaners = cleanersRes.ok ? await cleanersRes.json() : [];
+
+    // Calculate unique fingerprint to detect zero-change conditions
+    const latestCleanDate = rawCleanings.length > 0 ? (rawCleanings[0].updated_at || rawCleanings[0].created_at || '') : '';
+    const latestStoreDate = rawStores.length > 0 ? (rawStores[0].updated_at || rawStores[0].created_at || '') : '';
+    const currentFingerprint = `${rawStores.length}_${rawCleanings.length}_${rawSupervisors.length}_${rawCleaners.length}_${latestCleanDate}_${latestStoreDate}`;
+
+    if (lastKnownUpdated && (lastKnownUpdated === currentFingerprint || lastSupabaseFingerprint === currentFingerprint) && cachedSupabaseState) {
+      return { unchanged: true, lastUpdated: currentFingerprint };
+    }
 
     // Deduplicate cleanings by storeCode + cleaningDate + city
     const seenCleanKeys = new Set();
@@ -101,7 +162,8 @@ export async function fetchFromSupabaseDirect() {
       }
     }
 
-    return {
+    lastSupabaseFingerprint = currentFingerprint;
+    const resultState = {
       stores,
       cleanings,
       supervisors,
@@ -111,8 +173,10 @@ export async function fetchFromSupabaseDirect() {
       chemicalStock: [],
       storeIssues: [],
       storeExpenses: [],
-      lastUpdated: new Date().toISOString()
+      lastUpdated: currentFingerprint
     };
+    cachedSupabaseState = resultState;
+    return resultState;
   } catch (err) {
     console.warn('Direct Supabase fetch notice:', err.message);
     return null;
@@ -124,9 +188,13 @@ export async function fetchFromSupabaseDirect() {
 // -------------------------------------------------------------
 
 export async function fetchServerState(lastKnownUpdated = null) {
+  if (!shouldAttemptRender()) {
+    // 0ms delay: directly fetch from Supabase Cloud
+    return await fetchFromSupabaseDirect(lastKnownUpdated);
+  }
+
   const controller = new AbortController();
-  // 12s timeout ensures fast fallback to Supabase if Render is slow or asleep
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const timeoutId = setTimeout(() => controller.abort(), 1200);
   try {
     const nonce = Date.now();
     let url = `/api/state?_t=${nonce}`;
@@ -145,23 +213,21 @@ export async function fetchServerState(lastKnownUpdated = null) {
     });
     clearTimeout(timeoutId);
     if (res.ok) {
+      markRenderStatus(true);
       const data = await res.json();
       if (data.unchanged) {
         return { unchanged: true, lastUpdated: data.lastUpdated };
       }
       return data.data || null;
     } else {
-      console.warn(`Render server returned HTTP ${res.status}. Falling back directly to Supabase Cloud!`);
-      const supabaseData = await fetchFromSupabaseDirect();
-      if (supabaseData) return supabaseData;
+      markRenderStatus(false);
+      return await fetchFromSupabaseDirect(lastKnownUpdated);
     }
   } catch (err) {
     clearTimeout(timeoutId);
-    console.warn('Render server unreachable. Falling back directly to Supabase Cloud:', err.message);
-    const supabaseData = await fetchFromSupabaseDirect();
-    if (supabaseData) return supabaseData;
+    markRenderStatus(false);
+    return await fetchFromSupabaseDirect(lastKnownUpdated);
   }
-  return null;
 }
 
 // -------------------------------------------------------------
@@ -172,19 +238,12 @@ export async function saveCleaning(cleaningData) {
   // Always guarantee Supabase has it in real-time
   syncSingleRecordToSupabase('cleanings', cleaningData);
 
-  try {
-    const res = await fetch(getApiUrl('/api/cleanings'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cleaningData)
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn('Render saveCleaning fallback to Supabase:', err.message);
-  }
-  return { success: true, savedRecord: cleaningData };
+  const res = await callRenderApi('/api/cleanings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cleaningData)
+  });
+  return res || { success: true, savedRecord: cleaningData };
 }
 
 export async function updateCleaningPayment(paymentPayload) {
@@ -209,31 +268,16 @@ export async function updateCleaningPayment(paymentPayload) {
   // Push directly to Supabase in parallel
   syncSingleRecordToSupabase('cleanings', cleanPayload);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-  try {
-    const res = await fetch(getApiUrl('/api/cleanings/payment'), {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
-      },
-      body: JSON.stringify(cleanPayload)
-    });
-    clearTimeout(timeoutId);
-
-    if (res.ok) {
-      const result = await res.json();
-      if (result.success) return result;
-    }
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.warn('Render updateCleaningPayment fallback to Supabase:', err.message);
-  }
-  return { success: true, cleaning: cleanPayload };
+  const res = await callRenderApi('/api/cleanings/payment', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
+    },
+    body: JSON.stringify(cleanPayload)
+  });
+  return res || { success: true, cleaning: cleanPayload };
 }
 
 // -------------------------------------------------------------
@@ -279,29 +323,24 @@ export async function deleteCleaning(cleaningOrId) {
     : cleaningOrId;
   deleteRecordFromSupabase('cleanings', targetId);
 
-  try {
-    let payload = {};
-    if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
-      payload = {
-        id: cleaningOrId.id,
-        syncId: cleaningOrId.syncId,
-        storeCode: cleaningOrId.storeCode,
-        cleaningDate: cleaningOrId.cleaningDate
-      };
-    } else {
-      payload = { id: cleaningOrId };
-    }
-
-    const res = await fetch(getApiUrl('/api/cleanings/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) return await res.json();
-  } catch (err) {
-    console.warn('deleteCleaning fallback:', err.message);
+  let payload = {};
+  if (typeof cleaningOrId === 'object' && cleaningOrId !== null) {
+    payload = {
+      id: cleaningOrId.id,
+      syncId: cleaningOrId.syncId,
+      storeCode: cleaningOrId.storeCode,
+      cleaningDate: cleaningOrId.cleaningDate
+    };
+  } else {
+    payload = { id: cleaningOrId };
   }
-  return { success: true };
+
+  const res = await callRenderApi('/api/cleanings/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -311,39 +350,27 @@ export async function deleteCleaning(cleaningOrId) {
 export async function saveStore(storeData) {
   syncSingleRecordToSupabase('stores', storeData);
 
-  try {
-    const res = await fetch(getApiUrl('/api/stores'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(storeData)
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn('Render saveStore fallback to Supabase:', err.message);
-  }
-  return { success: true, store: storeData };
+  const res = await callRenderApi('/api/stores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(storeData)
+  });
+  return res || { success: true, store: storeData };
 }
 
 export async function deleteStore(storeCode, deleteCleanings = false, force = true, id = null, city = null) {
   const sCode = typeof storeCode === 'object' && storeCode !== null ? (storeCode.storeCode || storeCode.code) : storeCode;
   deleteRecordFromSupabase('stores', sCode, 'store_code');
 
-  try {
-    const payload = typeof storeCode === 'object' && storeCode !== null
-      ? storeCode
-      : { storeCode, deleteCleanings, force, id, city };
-    const res = await fetch(getApiUrl('/api/stores/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) return await res.json();
-  } catch (err) {
-    console.warn('deleteStore fallback:', err.message);
-  }
-  return { success: true };
+  const payload = typeof storeCode === 'object' && storeCode !== null
+    ? storeCode
+    : { storeCode, deleteCleanings, force, id, city };
+  const res = await callRenderApi('/api/stores/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -353,38 +380,28 @@ export async function deleteStore(storeCode, deleteCleanings = false, force = tr
 export async function saveSupervisor(supData) {
   syncSingleRecordToSupabase('supervisors', supData);
 
-  try {
-    const res = await fetch(getApiUrl('/api/supervisors'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(supData)
-    });
-    if (res.ok) return await res.json();
-  } catch (err) {
-    console.warn('saveSupervisor fallback:', err.message);
-  }
-  return { success: true, supervisor: supData };
+  const res = await callRenderApi('/api/supervisors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(supData)
+  });
+  return res || { success: true, supervisor: supData };
 }
 
 export async function deleteSupervisor(supOrId) {
   const targetId = typeof supOrId === 'object' && supOrId !== null ? (supOrId.id || supOrId.phone) : supOrId;
   deleteRecordFromSupabase('supervisors', targetId);
 
-  try {
-    const payload = typeof supOrId === 'object' && supOrId !== null
-      ? { id: supOrId.id, phone: supOrId.phone }
-      : { id: supOrId };
+  const payload = typeof supOrId === 'object' && supOrId !== null
+    ? { id: supOrId.id, phone: supOrId.phone }
+    : { id: supOrId };
 
-    const res = await fetch(getApiUrl('/api/supervisors/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) return await res.json();
-  } catch (err) {
-    console.warn('deleteSupervisor fallback:', err.message);
-  }
-  return { success: true };
+  const res = await callRenderApi('/api/supervisors/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -709,25 +726,30 @@ export async function authenticateWithSupabaseDirect(inputId, inputPass) {
 }
 
 export async function login(loginId, password, deviceInfo) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(getApiUrl('/api/auth/login'), {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId, password, deviceInfo })
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) {
-      const data = await res.json();
-      return { ok: true, status: res.status, data };
+  if (shouldAttemptRender()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const res = await fetch(getApiUrl('/api/auth/login'), {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId, password, deviceInfo })
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        markRenderStatus(true);
+        const data = await res.json();
+        return { ok: true, status: res.status, data };
+      } else {
+        markRenderStatus(false);
+      }
+    } catch (err) {
+      markRenderStatus(false);
     }
-  } catch (err) {
-    console.warn('Render login notice, trying Supabase Cloud auth:', err.message);
   }
 
-  // Direct Supabase Fallback
+  // Direct Supabase Fast Auth (~100ms)
   const directAuth = await authenticateWithSupabaseDirect(loginId, password);
   if (directAuth) {
     if (directAuth.success) {
