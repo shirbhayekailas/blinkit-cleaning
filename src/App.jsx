@@ -1204,7 +1204,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5 sm:space-y-6 flex-1 w-full max-w-full overflow-x-hidden min-w-0 pb-28 md:pb-8">
+      <main className={`max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5 sm:space-y-6 flex-1 w-full max-w-full overflow-x-hidden min-w-0 ${currentUserRole === 'supervisor' ? 'pb-12 md:pb-8' : 'pb-28 md:pb-8'}`}>
         
         {/* If Supervisor is logged in, show dedicated field portal */}
         {currentUserRole === 'supervisor' ? (

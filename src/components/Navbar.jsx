@@ -443,129 +443,135 @@ export default function Navbar({
             </div>
 
             {/* Mobile Native Segmented Control (100% width, 50%/50% split) */}
-            <div className="sm:hidden grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-2xl gap-1">
-              <button
-                onClick={() => setActiveTab('cleanings')}
-                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
-                  activeTab === 'cleanings'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400'
-                }`}
-              >
-                <span>🧹 {t('tab_cleanings', 'Cleanings')}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                  activeTab === 'cleanings' ? 'bg-blinkit-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                }`}>
-                  {cleaningCount}
-                </span>
-              </button>
+            {currentUserRole !== 'supervisor' && (
+              <div className="sm:hidden grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-2xl gap-1">
+                <button
+                  onClick={() => setActiveTab('cleanings')}
+                  className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+                    activeTab === 'cleanings'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  <span>🧹 {t('tab_cleanings', 'Cleanings')}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    activeTab === 'cleanings' ? 'bg-blinkit-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {cleaningCount}
+                  </span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('ledger')}
-                className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
-                  activeTab === 'ledger'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400'
-                }`}
-              >
-                <span>🏬 {t('tab_stores', 'Store Ledger')}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                  activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                }`}>
-                  {storeCount}
-                </span>
-              </button>
-            </div>
+                <button
+                  onClick={() => setActiveTab('ledger')}
+                  className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 ${
+                    activeTab === 'ledger'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  <span>🏬 {t('tab_stores', 'Store Ledger')}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    activeTab === 'ledger' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {storeCount}
+                  </span>
+                </button>
+              </div>
+            )}
 
 
           </div>
 
           {/* Mobile Search Bar */}
-          <div className="pb-2.5 pt-0.5 md:hidden">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search store name, BLK code, city..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border-none text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-blinkit-green"
-              />
+          {currentUserRole !== 'supervisor' && (
+            <div className="pb-2.5 pt-0.5 md:hidden">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search store name, BLK code, city..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border-none text-slate-800 dark:text-slate-100 focus:ring-1 focus:ring-blinkit-green"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       </header>
 
 
-      {/* FIXED MOBILE NATIVE BOTTOM NAVIGATION BAR (Visible strictly on mobile < md) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 shadow-xl px-2 py-1.5 pb-safe flex items-center justify-around">
-        
-        {/* Tab 1: Cleanings */}
-        <button
-          onClick={() => setActiveTab('cleanings')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
-            activeTab === 'cleanings' ? 'text-blinkit-green font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'
-          }`}
-        >
-          <Sparkles className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">{t('tab_cleanings', 'Cleanings')}</span>
-        </button>
-
-        {/* Tab 2: Store Ledger */}
-        <button
-          onClick={() => setActiveTab('ledger')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
-            activeTab === 'ledger' ? 'text-amber-500 font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'
-          }`}
-        >
-          <Building2 className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">{t('tab_stores', 'Stores')}</span>
-        </button>
-
-        {/* Center Floating + New Action Button */}
-        <div className="flex-1 flex justify-center -mt-5">
-          <button
-            onClick={onOpenNewEntry}
-            className="w-12 h-12 rounded-full bg-gradient-to-tr from-blinkit-darkgreen via-blinkit-green to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white dark:border-slate-900 active:scale-95 transition transform"
-            title={t('btn_new_cleaning', 'Create New Cleaning Entry')}
-          >
-            <Plus className="w-6 h-6 stroke-[3]" />
-          </button>
-        </div>
-
-        {/* Tab 4: Schedule / Night Route */}
-        {isOpsStaff ? (
-          <button
-            onClick={onOpenSchedule}
-            className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-indigo-600 transition"
-          >
-            <Calendar className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px]">{t('tab_schedules', 'Schedule')}</span>
-          </button>
-        ) : (
+      {/* FIXED MOBILE NATIVE BOTTOM NAVIGATION BAR (Visible strictly on mobile < md for non-supervisor roles) */}
+      {currentUserRole !== 'supervisor' && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 shadow-xl px-2 py-1.5 pb-safe flex items-center justify-around">
+          
+          {/* Tab 1: Cleanings */}
           <button
             onClick={() => setActiveTab('cleanings')}
-            className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium"
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+              activeTab === 'cleanings' ? 'text-blinkit-green font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
           >
-            <Layers className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px]">Inspect</span>
+            <Sparkles className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">{t('tab_cleanings', 'Cleanings')}</span>
           </button>
-        )}
 
-        {/* Tab 5: More Features / Drawer Toggle */}
-        <button
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-white transition relative"
-        >
-          <Menu className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Hub</span>
-          {issuesCount > 0 && (
-            <span className="absolute top-0.5 right-4 w-2 h-2 bg-rose-500 rounded-full" />
+          {/* Tab 2: Store Ledger */}
+          <button
+            onClick={() => setActiveTab('ledger')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+              activeTab === 'ledger' ? 'text-amber-500 font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
+          >
+            <Building2 className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">{t('tab_stores', 'Stores')}</span>
+          </button>
+
+          {/* Center Floating + New Action Button */}
+          <div className="flex-1 flex justify-center -mt-5">
+            <button
+              onClick={onOpenNewEntry}
+              className="w-12 h-12 rounded-full bg-gradient-to-tr from-blinkit-darkgreen via-blinkit-green to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white dark:border-slate-900 active:scale-95 transition transform"
+              title={t('btn_new_cleaning', 'Create New Cleaning Entry')}
+            >
+              <Plus className="w-6 h-6 stroke-[3]" />
+            </button>
+          </div>
+
+          {/* Tab 4: Schedule / Night Route */}
+          {isOpsStaff ? (
+            <button
+              onClick={onOpenSchedule}
+              className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-indigo-600 transition"
+            >
+              <Calendar className="w-5 h-5 mb-0.5" />
+              <span className="text-[10px]">{t('tab_schedules', 'Schedule')}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveTab('cleanings')}
+              className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium"
+            >
+              <Layers className="w-5 h-5 mb-0.5" />
+              <span className="text-[10px]">Inspect</span>
+            </button>
           )}
-        </button>
 
-      </nav>
+          {/* Tab 5: More Features / Drawer Toggle */}
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-white transition relative"
+          >
+            <Menu className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">Hub</span>
+            {issuesCount > 0 && (
+              <span className="absolute top-0.5 right-4 w-2 h-2 bg-rose-500 rounded-full" />
+            )}
+          </button>
+
+        </nav>
+      )}
 
 
       {/* MOBILE OPERATIONS ACTION SHEET DRAWER MODAL */}

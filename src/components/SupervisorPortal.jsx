@@ -360,46 +360,52 @@ export default function SupervisorPortal({
     <div className="max-w-4xl mx-auto space-y-5 pb-12">
       
       {/* Supervisor Top Identity Bar */}
-      <div className="p-4 rounded-3xl bg-slate-900 text-white shadow-lg flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-lg">
-            👷
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-extrabold text-sm sm:text-base">
-                {supervisor.name}
-              </h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                SITE SUPERVISOR
-              </span>
+      <div className="p-3.5 sm:p-4 rounded-3xl bg-slate-900 text-white shadow-lg border border-slate-800/80 overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
+          
+          {/* Supervisor Profile & Contact */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-base sm:text-lg shrink-0 shadow-md">
+              👷
             </div>
-            <p className="text-xs text-slate-400">
-              📞 {supervisor.phone} &bull; Blinkit Field Operations
-            </p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h2 className="font-black text-xs sm:text-sm md:text-base text-white truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">
+                  {supervisor.name}
+                </h2>
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                  SITE SUPERVISOR
+                </span>
+              </div>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate mt-0.5">
+                📞 {supervisor.phone} &bull; Field Operations
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
-            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-            title="Install Mobile App"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Install App</span>
-          </button>
+          {/* Action Buttons: Never overflow */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-bold transition flex items-center gap-1 border border-slate-700 shadow-xs shrink-0"
+              title="Install Mobile App"
+            >
+              <Smartphone className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline text-white text-xs">App</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onLogout}
-            className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
-            title="Logout from Supervisor Session"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-black transition flex items-center gap-1 shadow-sm active:scale-95 shrink-0 cursor-pointer"
+              title="Logout from Supervisor Session"
+            >
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-xs">Logout</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
