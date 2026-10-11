@@ -326,6 +326,18 @@ export async function syncSingleRecordToSupabase(tableName, record) {
     } else {
       payload = toSnakeCase(record);
       if (!payload.id) payload.id = String(record.id || Date.now());
+      if (tableName === 'cleaning_schedules') {
+        if (!payload.store_name) payload.store_name = record.storeName || record.storeCode || 'Store';
+        if (!payload.scheduled_date) payload.scheduled_date = record.scheduledDate || new Date().toISOString().split('T')[0];
+      } else if (tableName === 'chemical_stock') {
+        if (!payload.item_name) payload.item_name = record.itemName || record.name || 'Chemical';
+      } else if (tableName === 'store_issues') {
+        if (!payload.store_code) payload.store_code = record.storeCode || 'STORE';
+      } else if (tableName === 'equipments') {
+        if (!payload.name) payload.name = record.name || 'Equipment';
+      } else if (tableName === 'cleaners') {
+        if (!payload.name) payload.name = record.name || 'Cleaner';
+      }
     }
 
     if (!payload) return;

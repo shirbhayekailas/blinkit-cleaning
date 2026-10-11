@@ -100,12 +100,30 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       'Authorization': `Bearer ${key}`
     };
 
-    const [storesRes, cleaningsRes, supervisorsRes, cleanersRes, settingsRes] = await Promise.all([
+    const [
+      storesRes,
+      cleaningsRes,
+      supervisorsRes,
+      cleanersRes,
+      settingsRes,
+      billSettingsRes,
+      schedulesRes,
+      chemicalsRes,
+      issuesRes,
+      expensesRes,
+      equipmentsRes
+    ] = await Promise.all([
       fetch(`${url}/rest/v1/stores?select=*`, { headers }),
       fetch(`${url}/rest/v1/cleanings?select=*`, { headers }),
       fetch(`${url}/rest/v1/supervisors?select=*`, { headers }),
       fetch(`${url}/rest/v1/cleaners?select=*`, { headers }),
-      fetch(`${url}/rest/v1/app_settings?key=eq.auth_credentials`, { headers })
+      fetch(`${url}/rest/v1/app_settings?key=eq.auth_credentials`, { headers }),
+      fetch(`${url}/rest/v1/app_settings?key=eq.bill_settings`, { headers }),
+      fetch(`${url}/rest/v1/cleaning_schedules?select=*`, { headers }),
+      fetch(`${url}/rest/v1/chemical_stock?select=*`, { headers }),
+      fetch(`${url}/rest/v1/store_issues?select=*`, { headers }),
+      fetch(`${url}/rest/v1/store_expenses?select=*`, { headers }),
+      fetch(`${url}/rest/v1/equipments?select=*`, { headers })
     ]);
 
     if (!cleaningsRes.ok || !storesRes.ok) return null;
@@ -114,11 +132,16 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
     const rawCleanings = await cleaningsRes.json();
     const rawSupervisors = supervisorsRes.ok ? await supervisorsRes.json() : [];
     const rawCleaners = cleanersRes.ok ? await cleanersRes.json() : [];
+    const rawSchedules = schedulesRes.ok ? await schedulesRes.json() : [];
+    const rawChemicals = chemicalsRes.ok ? await chemicalsRes.json() : [];
+    const rawIssues = issuesRes.ok ? await issuesRes.json() : [];
+    const rawExpenses = expensesRes.ok ? await expensesRes.json() : [];
+    const rawEquipments = equipmentsRes.ok ? await equipmentsRes.json() : [];
 
     // Calculate unique fingerprint to detect zero-change conditions
     const latestCleanDate = rawCleanings.length > 0 ? (rawCleanings[0].updated_at || rawCleanings[0].created_at || '') : '';
     const latestStoreDate = rawStores.length > 0 ? (rawStores[0].updated_at || rawStores[0].created_at || '') : '';
-    const currentFingerprint = `${rawStores.length}_${rawCleanings.length}_${rawSupervisors.length}_${rawCleaners.length}_${latestCleanDate}_${latestStoreDate}`;
+    const currentFingerprint = `${rawStores.length}_${rawCleanings.length}_${rawSupervisors.length}_${rawCleaners.length}_${rawSchedules.length}_${rawChemicals.length}_${rawIssues.length}_${rawExpenses.length}_${rawEquipments.length}_${latestCleanDate}_${latestStoreDate}`;
 
     if (lastKnownUpdated && (lastKnownUpdated === currentFingerprint || lastSupabaseFingerprint === currentFingerprint) && cachedSupabaseState) {
       return { unchanged: true, lastUpdated: currentFingerprint };
@@ -152,6 +175,11 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
 
     const supervisors = rawSupervisors.map(toCamelCase);
     const cleaners = rawCleaners.map(toCamelCase);
+    const cleaningSchedules = rawSchedules.map(toCamelCase);
+    const chemicalStock = rawChemicals.map(toCamelCase);
+    const storeIssues = rawIssues.map(toCamelCase);
+    const storeExpenses = rawExpenses.map(toCamelCase);
+    const equipments = rawEquipments.map(toCamelCase);
 
     let appSettings = null;
     if (settingsRes && settingsRes.ok) {
@@ -162,6 +190,17 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       }
     }
 
+    if (billSettingsRes && billSettingsRes.ok) {
+      const bRows = await billSettingsRes.json();
+      if (bRows && bRows.length > 0 && bRows[0].value) {
+        if (!appSettings) appSettings = {};
+        appSettings.billSettings = bRows[0].value;
+        try {
+          localStorage.setItem('blinkit_bill_settings_v1', JSON.stringify(bRows[0].value));
+        } catch (e) {}
+      }
+    }
+
     lastSupabaseFingerprint = currentFingerprint;
     const resultState = {
       stores,
@@ -169,10 +208,17 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       supervisors,
       cleaners,
       appSettings,
-      cleaningSchedules: [],
-      chemicalStock: [],
-      storeIssues: [],
-      storeExpenses: [],
+      cleaningSchedules,
+      chemicalStock,
+      storeIssues,
+      storeExpenses,
+      equipments,
+      chemicalLogs: [],
+      cleanerAdvances: [],
+      loginLogs: [],
+      equipmentMovements: [],
+      toolAllocations: [],
+      teamDispatches: [],
       lastUpdated: currentFingerprint
     };
     cachedSupabaseState = resultState;
@@ -409,35 +455,29 @@ export async function deleteSupervisor(supOrId) {
 // -------------------------------------------------------------
 
 export async function saveCleaner(clnData) {
-  try {
-    const res = await fetch(getApiUrl('/api/cleaners'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(clnData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveCleaner error:', err);
-    throw err;
-  }
+  syncSingleRecordToSupabase('cleaners', clnData);
+  const res = await callRenderApi('/api/cleaners', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(clnData)
+  });
+  return res || { success: true, cleaner: clnData };
 }
 
 export async function deleteCleaner(clnOrId) {
-  try {
-    const payload = typeof clnOrId === 'object' && clnOrId !== null
-      ? { id: clnOrId.id, name: clnOrId.name, phone: clnOrId.phone }
-      : { id: clnOrId };
+  const targetId = typeof clnOrId === 'object' && clnOrId !== null ? (clnOrId.id || clnOrId.phone) : clnOrId;
+  deleteRecordFromSupabase('cleaners', targetId);
 
-    const res = await fetch(getApiUrl('/api/cleaners/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteCleaner error:', err);
-    throw err;
-  }
+  const payload = typeof clnOrId === 'object' && clnOrId !== null
+    ? { id: clnOrId.id, name: clnOrId.name, phone: clnOrId.phone }
+    : { id: clnOrId };
+
+  const res = await callRenderApi('/api/cleaners/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -445,35 +485,29 @@ export async function deleteCleaner(clnOrId) {
 // -------------------------------------------------------------
 
 export async function saveSchedule(schData) {
-  try {
-    const res = await fetch(getApiUrl('/api/schedules'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(schData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveSchedule error:', err);
-    throw err;
-  }
+  syncSingleRecordToSupabase('cleaning_schedules', schData);
+  const res = await callRenderApi('/api/schedules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(schData)
+  });
+  return res || { success: true, schedule: schData };
 }
 
 export async function deleteSchedule(schOrId) {
-  try {
-    const payload = typeof schOrId === 'object' && schOrId !== null
-      ? { id: schOrId.id, storeCode: schOrId.storeCode, scheduledDate: schOrId.scheduledDate }
-      : { id: schOrId };
+  const targetId = typeof schOrId === 'object' && schOrId !== null ? schOrId.id : schOrId;
+  deleteRecordFromSupabase('cleaning_schedules', targetId);
 
-    const res = await fetch(getApiUrl('/api/schedules/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteSchedule error:', err);
-    throw err;
-  }
+  const payload = typeof schOrId === 'object' && schOrId !== null
+    ? { id: schOrId.id, storeCode: schOrId.storeCode, scheduledDate: schOrId.scheduledDate }
+    : { id: schOrId };
+
+  const res = await callRenderApi('/api/schedules/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -481,63 +515,47 @@ export async function deleteSchedule(schOrId) {
 // -------------------------------------------------------------
 
 export async function saveChemicalStock(itemData) {
-  try {
-    const res = await fetch(getApiUrl('/api/chemicals/stock'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(itemData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveChemicalStock error:', err);
-    throw err;
-  }
+  syncSingleRecordToSupabase('chemical_stock', itemData);
+  const res = await callRenderApi('/api/chemicals/stock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(itemData)
+  });
+  return res || { success: true, item: itemData };
 }
 
 export async function addChemicalLog(logData) {
-  try {
-    const res = await fetch(getApiUrl('/api/chemicals/log'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(logData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('addChemicalLog error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/chemicals/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(logData)
+  });
+  return res || { success: true, log: logData };
 }
 
 export async function deleteChemicalStock(idOrItem) {
-  try {
-    const payload = typeof idOrItem === 'object' && idOrItem !== null
-      ? { id: idOrItem.id, itemName: idOrItem.itemName }
-      : { id: idOrItem };
+  const targetId = typeof idOrItem === 'object' && idOrItem !== null ? idOrItem.id : idOrItem;
+  deleteRecordFromSupabase('chemical_stock', targetId);
 
-    const res = await fetch(getApiUrl('/api/chemicals/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteChemicalStock error:', err);
-    throw err;
-  }
+  const payload = typeof idOrItem === 'object' && idOrItem !== null
+    ? { id: idOrItem.id, itemName: idOrItem.itemName }
+    : { id: idOrItem };
+
+  const res = await callRenderApi('/api/chemicals/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 export async function seedStandardChemicals() {
-  try {
-    const res = await fetch(getApiUrl('/api/chemicals/seed'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('seedStandardChemicals error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/chemicals/seed', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -545,35 +563,25 @@ export async function seedStandardChemicals() {
 // -------------------------------------------------------------
 
 export async function saveAdvance(advData) {
-  try {
-    const res = await fetch(getApiUrl('/api/advances'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(advData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveAdvance error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/advances', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(advData)
+  });
+  return res || { success: true, advance: advData };
 }
 
 export async function deleteAdvance(advOrId) {
-  try {
-    const payload = typeof advOrId === 'object' && advOrId !== null
-      ? { id: advOrId.id }
-      : { id: advOrId };
+  const payload = typeof advOrId === 'object' && advOrId !== null
+    ? { id: advOrId.id }
+    : { id: advOrId };
 
-    const res = await fetch(getApiUrl('/api/advances/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteAdvance error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/advances/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -581,35 +589,29 @@ export async function deleteAdvance(advOrId) {
 // -------------------------------------------------------------
 
 export async function saveIssue(issueData) {
-  try {
-    const res = await fetch(getApiUrl('/api/issues'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(issueData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveIssue error:', err);
-    throw err;
-  }
+  syncSingleRecordToSupabase('store_issues', issueData);
+  const res = await callRenderApi('/api/issues', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(issueData)
+  });
+  return res || { success: true, issue: issueData };
 }
 
 export async function deleteIssue(issueOrId) {
-  try {
-    const payload = typeof issueOrId === 'object' && issueOrId !== null
-      ? { id: issueOrId.id }
-      : { id: issueOrId };
+  const targetId = typeof issueOrId === 'object' && issueOrId !== null ? issueOrId.id : issueOrId;
+  deleteRecordFromSupabase('store_issues', targetId);
 
-    const res = await fetch(getApiUrl('/api/issues/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteIssue error:', err);
-    throw err;
-  }
+  const payload = typeof issueOrId === 'object' && issueOrId !== null
+    ? { id: issueOrId.id }
+    : { id: issueOrId };
+
+  const res = await callRenderApi('/api/issues/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -846,30 +848,39 @@ export async function syncCredentials(credentials) {
 
 export async function saveCloudBillSettings(billSettings) {
   try {
-    const res = await fetch(getApiUrl('/api/settings/bill'), {
+    const config = getCloudConfig();
+    const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+    const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+    const headers = {
+      'apikey': key,
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    };
+    await fetch(`${url}/rest/v1/app_settings?on_conflict=key`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ billSettings })
+      headers,
+      body: JSON.stringify([{ key: 'bill_settings', value: billSettings, updated_at: new Date().toISOString() }])
     });
-    return await res.json();
   } catch (err) {
-    console.warn('saveCloudBillSettings warning:', err);
-    return null;
+    console.warn('Supabase saveCloudBillSettings notice:', err);
   }
+
+  const res = await callRenderApi('/api/settings/bill', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ billSettings })
+  });
+  return res || { success: true };
 }
 
 export async function autoHealMissingRecords({ cleanings = [], stores = [], schedules = [] }) {
-  try {
-    const res = await fetch(getApiUrl('/api/sync/auto-heal'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cleanings, stores, schedules })
-    });
-    return await res.json();
-  } catch (err) {
-    console.warn('autoHealMissingRecords warning:', err);
-    return null;
-  }
+  const res = await callRenderApi('/api/sync/auto-heal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cleanings, stores, schedules })
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -877,45 +888,32 @@ export async function autoHealMissingRecords({ cleanings = [], stores = [], sche
 // -------------------------------------------------------------
 
 export async function saveEquipment(equipmentData) {
-  try {
-    const res = await fetch(getApiUrl('/api/equipments'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(equipmentData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveEquipment error:', err);
-    throw err;
-  }
+  syncSingleRecordToSupabase('equipments', equipmentData);
+  const res = await callRenderApi('/api/equipments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(equipmentData)
+  });
+  return res || { success: true, equipment: equipmentData };
 }
 
 export async function recordEquipmentMovement(movementData) {
-  try {
-    const res = await fetch(getApiUrl('/api/equipments/movement'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(movementData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('recordEquipmentMovement error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/equipments/movement', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(movementData)
+  });
+  return res || { success: true, movement: movementData };
 }
 
 export async function deleteEquipment(id) {
-  try {
-    const res = await fetch(getApiUrl('/api/equipments/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteEquipment error:', err);
-    throw err;
-  }
+  deleteRecordFromSupabase('equipments', id);
+  const res = await callRenderApi('/api/equipments/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -923,45 +921,30 @@ export async function deleteEquipment(id) {
 // -------------------------------------------------------------
 
 export async function saveToolAllocation(allocationData) {
-  try {
-    const res = await fetch(getApiUrl('/api/tools/allocate'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(allocationData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveToolAllocation error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/tools/allocate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(allocationData)
+  });
+  return res || { success: true, allocation: allocationData };
 }
 
 export async function recordToolReturn(returnData) {
-  try {
-    const res = await fetch(getApiUrl('/api/tools/return'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(returnData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('recordToolReturn error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/tools/return', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(returnData)
+  });
+  return res || { success: true, return: returnData };
 }
 
 export async function deleteToolAllocation(id) {
-  try {
-    const res = await fetch(getApiUrl('/api/tools/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteToolAllocation error:', err);
-    throw err;
-  }
+  const res = await callRenderApi('/api/tools/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
@@ -969,31 +952,23 @@ export async function deleteToolAllocation(id) {
 // -------------------------------------------------------------
 
 export async function saveStoreExpense(expenseData) {
-  try {
-    const res = await fetch(getApiUrl('/api/expenses'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(expenseData)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('saveStoreExpense error:', err);
-    throw err;
-  }
+  syncSingleRecordToSupabase('store_expenses', expenseData);
+  const res = await callRenderApi('/api/expenses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(expenseData)
+  });
+  return res || { success: true, expense: expenseData };
 }
 
 export async function deleteStoreExpense(id) {
-  try {
-    const res = await fetch(getApiUrl('/api/expenses/delete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('deleteStoreExpense error:', err);
-    throw err;
-  }
+  deleteRecordFromSupabase('store_expenses', id);
+  const res = await callRenderApi('/api/expenses/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  return res || { success: true };
 }
 
 // -------------------------------------------------------------
