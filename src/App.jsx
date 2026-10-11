@@ -312,7 +312,7 @@ export default function App() {
   };
 
   // Fast function to fetch full state directly from server (Zero-overhead conditional sync)
-  const loadServerData = async (force = false) => {
+  const loadServerData = async (force = true) => {
     if (isSyncingRef.current && !force) return;
     isSyncingRef.current = true;
     try {
@@ -366,8 +366,28 @@ export default function App() {
     // Initial sync from server
     loadServerData(false);
 
+    // Instant Supabase mutation listener (fires immediately whenever any modal saves to Supabase)
+    const handleSupabaseMutation = (e) => {
+      if (e.detail && e.detail.fresh) {
+        const fresh = e.detail.fresh;
+        lastUpdatedRef.current = fresh.lastUpdated || null;
+        setServerData(prev => {
+          const next = { ...prev, ...fresh };
+          saveStateToCache(next);
+          return next;
+        });
+        if (fresh.appSettings) {
+          syncSmartCredentials(fresh.appSettings);
+        }
+        setIsDataLoaded(true);
+      } else {
+        loadServerData(true);
+      }
+    };
+    window.addEventListener('supabase-data-mutated', handleSupabaseMutation);
+
     // Adaptive background polling:
-    // Only poll when the user is actively viewing the tab (45s interval)
+    // Polls every 4 seconds when the user is actively viewing the tab (4s interval)
     // Pauses completely when tab is minimized or phone screen is locked to save battery and bandwidth
     let pollTimer = null;
     const startPolling = () => {
@@ -376,7 +396,7 @@ export default function App() {
         if (document.visibilityState === 'visible') {
           loadServerData(false);
         }
-      }, 45000);
+      }, 4000);
     };
 
     const stopPolling = () => {
@@ -391,9 +411,9 @@ export default function App() {
     let lastFetchTime = 0;
     const triggerInstantSync = () => {
       const now = Date.now();
-      if (now - lastFetchTime > 10000) {
+      if (now - lastFetchTime > 2000) {
         lastFetchTime = now;
-        loadServerData(false);
+        loadServerData(true);
       }
     };
 
@@ -418,6 +438,7 @@ export default function App() {
 
     return () => {
       stopPolling();
+      window.removeEventListener('supabase-data-mutated', handleSupabaseMutation);
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', triggerInstantSync);
       window.removeEventListener('pageshow', triggerInstantSync);
