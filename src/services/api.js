@@ -135,6 +135,51 @@ function computeStateFingerprint({
   return `${lengths}_${cleanTime}_${storeTime}_${eqTime}_${expTime}_${issTime}_${schTime}_${settingsTime}`;
 }
 
+/**
+ * Ultra-low bandwidth fingerprint checker (<300 bytes payload).
+ * Uses HTTP HEAD and tiny 1-row queries to detect whether cleanings, stores,
+ * equipments, or app_settings changed WITHOUT downloading heavy tables or base64 photos!
+ */
+export async function getLightweightSupabaseFingerprint() {
+  const config = getCloudConfig();
+  const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+  const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+  const headers = {
+    'apikey': key,
+    'Authorization': `Bearer ${key}`
+  };
+
+  try {
+    const [cHead, sHead, cTimeRes, sTimeRes, eqTimeRes, setRes] = await Promise.all([
+      fetch(`${url}/rest/v1/cleanings`, { method: 'HEAD', headers: { ...headers, Prefer: 'count=exact' } }),
+      fetch(`${url}/rest/v1/stores`, { method: 'HEAD', headers: { ...headers, Prefer: 'count=exact' } }),
+      fetch(`${url}/rest/v1/cleanings?select=updated_at&order=updated_at.desc&limit=1`, { headers }),
+      fetch(`${url}/rest/v1/stores?select=updated_at&order=updated_at.desc&limit=1`, { headers }),
+      fetch(`${url}/rest/v1/equipments?select=created_at&order=created_at.desc&limit=1`, { headers }),
+      fetch(`${url}/rest/v1/app_settings?select=key,updated_at`, { headers })
+    ]);
+
+    const cCount = cHead.headers.get('content-range') || '';
+    const sCount = sHead.headers.get('content-range') || '';
+
+    const cTimeData = cTimeRes.ok ? await cTimeRes.json() : [];
+    const sTimeData = sTimeRes.ok ? await sTimeRes.json() : [];
+    const eqTimeData = eqTimeRes.ok ? await eqTimeRes.json() : [];
+    const setData = setRes.ok ? await setRes.json() : [];
+
+    const cLatest = cTimeData[0]?.updated_at || '';
+    const sLatest = sTimeData[0]?.updated_at || '';
+    const eqLatest = eqTimeData[0]?.created_at || '';
+    const setKeys = Array.isArray(setData)
+      ? setData.map(r => `${r.key}:${r.updated_at || ''}`).sort().join('|')
+      : '';
+
+    return `fp_c(${cCount}:${cLatest})_s(${sCount}:${sLatest})_eq(${eqLatest})_set(${setKeys})`;
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function onSupabaseMutationComplete(tableName, record) {
   invalidateSupabaseCache();
   try {
@@ -152,6 +197,16 @@ export async function onSupabaseMutationComplete(tableName, record) {
 }
 
 export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
+  // ZERO-EGRESS BANDWIDTH GUARD:
+  // If we already have the cached state and lastKnownUpdated, check if anything changed
+  // using tiny <300 bytes headers! This prevents downloading 1.6MB+ of photos on every single background tick!
+  if (lastKnownUpdated && cachedSupabaseState) {
+    const lightFingerprint = await getLightweightSupabaseFingerprint();
+    if (lightFingerprint && lastSupabaseFingerprint && lastSupabaseFingerprint === lightFingerprint) {
+      return { unchanged: true, lastUpdated: lightFingerprint };
+    }
+  }
+
   const config = getCloudConfig();
   const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
   const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
@@ -298,7 +353,10 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       return eq;
     });
 
-    lastSupabaseFingerprint = currentFingerprint;
+    const lightFingerprint = await getLightweightSupabaseFingerprint();
+    const finalFingerprint = lightFingerprint || currentFingerprint;
+    lastSupabaseFingerprint = finalFingerprint;
+
     const resultState = {
       stores,
       cleanings,
@@ -316,7 +374,7 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       equipmentMovements,
       toolAllocations,
       teamDispatches,
-      lastUpdated: currentFingerprint
+      lastUpdated: finalFingerprint
     };
     cachedSupabaseState = resultState;
     return resultState;

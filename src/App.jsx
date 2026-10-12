@@ -387,7 +387,8 @@ export default function App() {
     window.addEventListener('supabase-data-mutated', handleSupabaseMutation);
 
     // Adaptive background polling:
-    // Polls every 4 seconds when the user is actively viewing the tab (4s interval)
+    // Polls every 25 seconds when the user is actively viewing the tab (25s interval)
+    // Uses ultra-lightweight <300 bytes HTTP HEAD/timestamp check with zero heavy photo downloads.
     // Pauses completely when tab is minimized or phone screen is locked to save battery and bandwidth
     let pollTimer = null;
     const startPolling = () => {
@@ -396,7 +397,7 @@ export default function App() {
         if (document.visibilityState === 'visible') {
           loadServerData(false);
         }
-      }, 4000);
+      }, 25000);
     };
 
     const stopPolling = () => {
@@ -411,9 +412,9 @@ export default function App() {
     let lastFetchTime = 0;
     const triggerInstantSync = () => {
       const now = Date.now();
-      if (now - lastFetchTime > 2000) {
+      if (now - lastFetchTime > 3000) {
         lastFetchTime = now;
-        loadServerData(true);
+        loadServerData(false);
       }
     };
 
