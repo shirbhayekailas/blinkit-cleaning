@@ -9,19 +9,17 @@ import {
   Share2, 
   Search, 
   ChevronRight, 
-  ArrowRight, 
   Clock, 
   Compass, 
-  Layers, 
-  Plus, 
   Car,
   Building2,
   Phone,
   MessageSquare,
   Sparkles,
+  Layers,
   Map as MapIcon,
-  CheckCircle2,
-  AlertCircle
+  List,
+  Columns
 } from 'lucide-react';
 import { 
   resolveStoreCoordinates, 
@@ -44,9 +42,12 @@ export default function StoreMapModal({
 }) {
   if (!isOpen) return null;
 
-  // Active view tab: 'map' | 'proximity' | 'route'
+  // Active modal tabs: 'map' | 'proximity' | 'route'
   const [activeTab, setActiveTab] = useState('map');
-  const [mobileViewMode, setMobileViewMode] = useState('split'); // 'map' | 'list'
+  
+  // Mobile-specific layout mode for 'map' tab: 'split' | 'map' | 'list'
+  const [mobileTab, setMobileTab] = useState('split');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [cityFilter, setCityFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -251,11 +252,18 @@ export default function StoreMapModal({
     }
   };
 
-  // Initialize Map
+  // -------------------------------------------------------------
+  // LEAFLET MAP INITIALIZATION & RESIZE GUARDS
+  // -------------------------------------------------------------
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    // Guard: Prevent double initialization crash
     if (!mapInstanceRef.current) {
+      if (mapContainerRef.current._leaflet_id) {
+        delete mapContainerRef.current._leaflet_id;
+      }
+
       const initialLat = originStore?.coordinates?.latitude || 19.0434;
       const initialLon = originStore?.coordinates?.longitude || 73.0691;
 
@@ -279,7 +287,25 @@ export default function StoreMapModal({
       markersLayerRef.current = L.layerGroup().addTo(map);
     }
 
+    // Explicit Invalidation Resizing: Guarantees map tiles render on all viewports
+    const forceResize = () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    };
+
+    forceResize();
+    const t1 = setTimeout(forceResize, 80);
+    const t2 = setTimeout(forceResize, 250);
+    const t3 = setTimeout(forceResize, 600);
+
+    window.addEventListener('resize', forceResize);
+
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('resize', forceResize);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -288,6 +314,18 @@ export default function StoreMapModal({
       }
     };
   }, []);
+
+  // Invalidate size on tab or mobile view change
+  useEffect(() => {
+    const trigger = () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    };
+    trigger();
+    const timer = setTimeout(trigger, 120);
+    return () => clearTimeout(timer);
+  }, [activeTab, mobileTab]);
 
   // Switch Google Maps Layer on mapType state change
   useEffect(() => {
@@ -353,7 +391,7 @@ export default function StoreMapModal({
 
       if (isOrigin) {
         pinColor = '#4f46e5'; // Deep Indigo for origin
-        ringColor = 'rgba(79, 70, 229, 0.65)';
+        ringColor = 'rgba(79, 70, 229, 0.7)';
       }
 
       // Custom Google Maps Style Marker
@@ -518,57 +556,48 @@ export default function StoreMapModal({
     }
   }, [filteredStores, originStoreCode, routeStoreCodes, routeStores]);
 
-  // Invalidate map size on tab switch
-  useEffect(() => {
-    if (activeTab === 'map' && mapInstanceRef.current) {
-      setTimeout(() => {
-        mapInstanceRef.current.invalidateSize();
-      }, 150);
-    }
-  }, [activeTab]);
-
   return (
     <div 
-      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-1 sm:p-3 md:p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-1 sm:p-2 md:p-4 animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[94vh] shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[95vh] max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
         
         {/* Top Header & Tab Navigation */}
-        <div className="px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-3">
+        <div className="px-3 sm:px-6 py-2.5 sm:py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-indigo-600/20">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-indigo-600/20 shrink-0">
               <Compass className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  Dark Stores Google Radar &amp; Shift Route Planner
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-tight">
+                  Dark Stores Google Radar &amp; Routes
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
-                  <span>Google Maps Engine</span>
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  Google Maps
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Live Google Maps radar, nearest store proximity ranking &amp; multi-stop navigation
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                Visual status radar, nearest store proximity matrix &amp; multi-stop driving routes
               </p>
             </div>
           </div>
 
           {/* Mode Tabs */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700">
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700">
             <button
               onClick={() => setActiveTab('map')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeTab === 'map'
                   ? 'bg-white dark:bg-slate-750 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>🗺️ Google Map &amp; Nearest</span>
+              <span>🗺️ Google Map</span>
               <span className="px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
                 {filteredStores.length}
               </span>
@@ -576,13 +605,13 @@ export default function StoreMapModal({
 
             <button
               onClick={() => setActiveTab('proximity')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeTab === 'proximity'
                   ? 'bg-white dark:bg-slate-750 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>📍 Proximity Matrix Grid</span>
+              <span>📍 Proximity Grid</span>
               <span className="px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
                 {proximityMatrix.length}
               </span>
@@ -590,13 +619,13 @@ export default function StoreMapModal({
 
             <button
               onClick={() => setActiveTab('route')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeTab === 'route'
                   ? 'bg-white dark:bg-slate-750 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>🚗 Shift Route ({routeStores.length})</span>
+              <span>🚗 Route ({routeStores.length})</span>
               {routeStores.length > 0 && (
                 <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
               )}
@@ -605,18 +634,18 @@ export default function StoreMapModal({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Global Filter Bar */}
-        <div className="px-4 sm:px-6 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-3 sm:px-6 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
           
           <div className="flex flex-wrap items-center gap-2 flex-1">
             {/* Search */}
-            <div className="relative min-w-[180px] max-w-xs flex-1">
+            <div className="relative min-w-[140px] sm:min-w-[180px] max-w-xs flex-1">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -653,7 +682,7 @@ export default function StoreMapModal({
           </div>
 
           {/* Status Pin Legend */}
-          <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
+          <div className="hidden lg:flex items-center gap-3 text-[11px] font-bold text-slate-500">
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-xs" />
               <span>🔴 Overdue</span>
@@ -674,17 +703,60 @@ export default function StoreMapModal({
 
         </div>
 
+        {/* Mobile View Toggle Bar (Only shown on mobile when on Map tab) */}
+        {activeTab === 'map' && (
+          <div className="md:hidden px-3 py-1.5 bg-slate-100 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
+            <span className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300">
+              Mobile Display:
+            </span>
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => setMobileTab('split')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition flex items-center gap-1 ${
+                  mobileTab === 'split' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <Columns className="w-3 h-3" />
+                <span>Split</span>
+              </button>
+              <button
+                onClick={() => setMobileTab('map')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition flex items-center gap-1 ${
+                  mobileTab === 'map' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <MapIcon className="w-3 h-3" />
+                <span>Map Only</span>
+              </button>
+              <button
+                onClick={() => setMobileTab('list')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition flex items-center gap-1 ${
+                  mobileTab === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <List className="w-3 h-3" />
+                <span>Nearest List ({filteredProximityList.length})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Content Body: Split Layout */}
-        <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 flex overflow-hidden relative min-h-0 min-w-0">
           
           {/* TAB 1: SPLIT GOOGLE MAPS + NEAREST STORES LIST VIEW */}
-          <div className={`w-full h-full flex flex-col md:flex-row relative ${activeTab === 'map' ? 'flex' : 'hidden'}`}>
+          <div className={`w-full h-full flex flex-col md:flex-row relative min-h-0 min-w-0 ${activeTab === 'map' ? 'flex' : 'hidden'}`}>
             
             {/* LEFT SIDEBAR: Selected Store Profile & Proximity-Ranked Stores */}
-            <div className="w-full md:w-96 lg:w-[420px] flex flex-col h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shrink-0 z-10 shadow-lg md:shadow-none">
+            <div className={`
+              ${mobileTab === 'map' ? 'hidden md:flex' : ''}
+              ${mobileTab === 'list' ? 'flex h-full w-full' : ''}
+              ${mobileTab === 'split' ? 'flex h-[52%] md:h-full w-full' : ''}
+              md:w-96 lg:w-[420px] flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shrink-0 z-10 min-h-0
+            `}>
               
               {/* Origin Hub Card & Store Switcher */}
-              <div className="p-3.5 bg-gradient-to-br from-indigo-900/90 via-slate-900 to-indigo-950 text-white shrink-0 space-y-2.5 border-b border-indigo-950">
+              <div className="p-3 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white shrink-0 space-y-2 border-b border-indigo-950">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300">
                     Selected Origin Hub:
@@ -698,7 +770,7 @@ export default function StoreMapModal({
                 <select
                   value={originStoreCode}
                   onChange={(e) => setOriginStoreCode(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800/90 border border-indigo-400/40 text-xs font-bold text-white focus:ring-2 focus:ring-indigo-400 shadow-inner"
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-800/90 border border-indigo-400/40 text-xs font-bold text-white focus:ring-2 focus:ring-indigo-400 shadow-inner"
                 >
                   {enrichedStores.map(st => (
                     <option key={st.storeCode || st.code} value={(st.storeCode || st.code).trim().toUpperCase()}>
@@ -768,11 +840,11 @@ export default function StoreMapModal({
               </div>
 
               {/* Nearest Stores Section Header */}
-              <div className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div className="px-3.5 py-2 bg-slate-100 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
                 <div>
                   <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1">
                     <span>📍 Nearest Dark Stores</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">({filteredProximityList.length})</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">({filteredProximityList.length})</span>
                   </h4>
                   <p className="text-[10px] text-slate-500">
                     Ranked strictly from shortest to longest distance
@@ -789,7 +861,7 @@ export default function StoreMapModal({
               </div>
 
               {/* Proximity Ranked Stores Cards List */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+              <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-2 min-h-0">
                 {filteredProximityList.length === 0 ? (
                   <div className="text-center py-8 text-xs text-slate-400">
                     No matching stores found for current filters.
@@ -897,11 +969,20 @@ export default function StoreMapModal({
             </div>
 
             {/* RIGHT AREA: Full Google Map with Layer Switcher */}
-            <div className="flex-1 h-full relative">
-              <div ref={mapContainerRef} className="w-full h-full z-0" />
+            <div className={`
+              ${mobileTab === 'list' ? 'hidden md:flex' : ''}
+              ${mobileTab === 'map' ? 'flex h-full w-full' : ''}
+              ${mobileTab === 'split' ? 'flex h-[48%] md:h-full w-full' : ''}
+              flex-1 relative min-h-[220px] md:min-h-0 min-w-0 overflow-hidden
+            `}>
+              <div 
+                ref={mapContainerRef} 
+                className="w-full h-full z-0" 
+                style={{ width: '100%', height: '100%', minHeight: '100%', position: 'absolute', inset: 0 }}
+              />
 
               {/* Floating Google Maps Controls (Top-Right) */}
-              <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center gap-2">
+              <div className="absolute top-3 right-3 z-10 flex flex-wrap items-center gap-2">
                 {/* Google Maps Layer Mode Switcher */}
                 <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex items-center gap-1 text-xs font-bold">
                   <button
@@ -912,7 +993,7 @@ export default function StoreMapModal({
                         : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <span>🗺️ Roadmap</span>
+                    <span>🗺️ Road</span>
                   </button>
                   <button
                     onClick={() => setMapType('satellite')}
@@ -944,20 +1025,21 @@ export default function StoreMapModal({
                   className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs font-extrabold text-blue-600 dark:text-blue-400 hover:bg-blue-50 flex items-center gap-1.5"
                 >
                   <Navigation className="w-3.5 h-3.5" />
-                  <span>Open in Google Maps App ↗</span>
+                  <span className="hidden sm:inline">Open in Google Maps App ↗</span>
+                  <span className="sm:hidden">GMap ↗</span>
                 </a>
               </div>
 
               {/* Active Route Pill (Bottom-Left on Map) */}
               {routeStores.length > 0 && (
-                <div className="absolute bottom-6 left-6 z-10 bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 text-xs">
+                <div className="absolute bottom-4 left-4 z-10 bg-slate-900/90 backdrop-blur-md text-white p-2.5 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs">
                   <div>
-                    <span className="text-[10px] text-indigo-300 font-bold block uppercase">Night Route Active</span>
+                    <span className="text-[9px] text-indigo-300 font-bold block uppercase">Route</span>
                     <span className="font-extrabold">{routeStores.length} Stops (~{routeStats.totalKm} km)</span>
                   </div>
                   <button
                     onClick={() => setActiveTab('route')}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-sm flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] shadow-sm flex items-center gap-1"
                   >
                     <Car className="w-3 h-3" />
                     <span>View Route</span>
@@ -969,7 +1051,7 @@ export default function StoreMapModal({
           </div>
 
           {/* TAB 2: NEAREST STORES FINDER (PROXIMITY DISTANCE MATRIX GRID VIEW) */}
-          <div className={`w-full h-full overflow-y-auto p-5 ${activeTab === 'proximity' ? 'block' : 'hidden'}`}>
+          <div className={`w-full h-full overflow-y-auto p-4 sm:p-5 ${activeTab === 'proximity' ? 'block' : 'hidden'}`}>
             <div className="max-w-4xl mx-auto space-y-6">
               
               {/* Origin Store Banner */}
@@ -1126,7 +1208,7 @@ export default function StoreMapModal({
           </div>
 
           {/* TAB 3: MULTI-STOP NIGHT SHIFT ROUTE PLANNER */}
-          <div className={`w-full h-full overflow-y-auto p-5 ${activeTab === 'route' ? 'block' : 'hidden'}`}>
+          <div className={`w-full h-full overflow-y-auto p-4 sm:p-5 ${activeTab === 'route' ? 'block' : 'hidden'}`}>
             <div className="max-w-3xl mx-auto space-y-6">
               
               {/* Route Summary Hero Card */}
