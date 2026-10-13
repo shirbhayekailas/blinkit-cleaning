@@ -8,28 +8,27 @@ import {
   ExternalLink, 
   Share2, 
   Search, 
-  Filter, 
-  Sparkles, 
   ChevronRight, 
   ArrowRight, 
-  Trash2, 
-  MoveUp, 
-  MoveDown, 
-  CheckCircle2, 
-  AlertCircle, 
   Clock, 
   Compass, 
   Layers, 
   Plus, 
   Car,
   Building2,
-  Phone
+  Phone,
+  MessageSquare,
+  Sparkles,
+  Map as MapIcon,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { 
   resolveStoreCoordinates, 
   getStoreCleaningStatus, 
   getNearbyStoresMatrix, 
   generateMultiStopGoogleMapsUrl,
+  generateGoogleMapsNavUrl,
   calculateDistance,
   estimateDrivingTime
 } from '../utils/distance';
@@ -47,9 +46,13 @@ export default function StoreMapModal({
 
   // Active view tab: 'map' | 'proximity' | 'route'
   const [activeTab, setActiveTab] = useState('map');
+  const [mobileViewMode, setMobileViewMode] = useState('split'); // 'map' | 'list'
   const [searchTerm, setSearchTerm] = useState('');
   const [cityFilter, setCityFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Google Maps layer type: 'roadmap' | 'satellite' | 'terrain'
+  const [mapType, setMapType] = useState('roadmap');
 
   // Selected Origin store for Nearest Proximity Finder
   const [originStoreCode, setOriginStoreCode] = useState(() => {
@@ -58,6 +61,16 @@ export default function StoreMapModal({
     }
     return (stores[0]?.storeCode || stores[0]?.code || '').trim().toUpperCase();
   });
+
+  // Sync originStoreCode whenever initialSelectedStore prop changes
+  useEffect(() => {
+    if (initialSelectedStore) {
+      const code = (initialSelectedStore.storeCode || initialSelectedStore.code || '').trim().toUpperCase();
+      if (code) {
+        setOriginStoreCode(code);
+      }
+    }
+  }, [initialSelectedStore]);
 
   // Multi-stop Route Builder state
   const [routeStoreCodes, setRouteStoreCodes] = useState(() => {
@@ -68,9 +81,10 @@ export default function StoreMapModal({
     return [];
   });
 
-  // Map reference & instance
+  // Map references
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const tileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const routePolylineRef = useRef(null);
 
@@ -119,11 +133,17 @@ export default function StoreMapModal({
     return enrichedStores.find(st => (st.storeCode || st.code || '').trim().toUpperCase() === originStoreCode) || enrichedStores[0];
   }, [enrichedStores, originStoreCode]);
 
-  // Proximity Matrix from Origin Store
+  // Proximity Matrix from Origin Store (strictly ranked by distance ascending)
   const proximityMatrix = useMemo(() => {
     if (!originStore) return [];
     return getNearbyStoresMatrix(originStore, enrichedStores, cleanings);
   }, [originStore, enrichedStores, cleanings]);
+
+  // Filtered proximity list based on current status filter
+  const filteredProximityList = useMemo(() => {
+    if (statusFilter === 'ALL') return proximityMatrix;
+    return proximityMatrix.filter(st => st.statusInfo.status === statusFilter);
+  }, [proximityMatrix, statusFilter]);
 
   // Route stores objects
   const routeStores = useMemo(() => {
@@ -217,39 +237,88 @@ export default function StoreMapModal({
   };
 
   // -------------------------------------------------------------
-  // LEAFLET MAP INITIALIZATION & PIN RENDERING
+  // DIRECT GOOGLE MAPS TILE CONFIGURATION
   // -------------------------------------------------------------
+  const getGoogleMapsTileUrl = (type) => {
+    switch (type) {
+      case 'satellite':
+        return 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'; // Google Hybrid Satellite
+      case 'terrain':
+        return 'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}'; // Google Terrain
+      case 'roadmap':
+      default:
+        return 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'; // Google Maps Default Roadmap
+    }
+  };
+
+  // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      // Default center: Navi Mumbai / Mumbai hub
+      const initialLat = originStore?.coordinates?.latitude || 19.0434;
+      const initialLon = originStore?.coordinates?.longitude || 73.0691;
+
       const map = L.map(mapContainerRef.current, {
-        center: [19.0434, 73.0691],
-        zoom: 11,
-        zoomControl: true
+        center: [initialLat, initialLon],
+        zoom: 12,
+        zoomControl: false
       });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Google Maps Tile Layer
+      const tile = L.tileLayer(getGoogleMapsTileUrl(mapType), {
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps',
+        maxZoom: 21
       }).addTo(map);
 
+      tileLayerRef.current = tile;
       mapInstanceRef.current = map;
       markersLayerRef.current = L.layerGroup().addTo(map);
     }
 
     return () => {
-      // Cleanup on unmount
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
         markersLayerRef.current = null;
+        tileLayerRef.current = null;
       }
     };
   }, []);
 
-  // Update map markers whenever stores, filters, or route changes
+  // Switch Google Maps Layer on mapType state change
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+
+    const newTile = L.tileLayer(getGoogleMapsTileUrl(mapType), {
+      subdomains: ['0', '1', '2', '3'],
+      attribution: '&copy; Google Maps',
+      maxZoom: 21
+    }).addTo(map);
+
+    tileLayerRef.current = newTile;
+  }, [mapType]);
+
+  // Smoothly Fly / Pan Google Map to Origin Store when origin changes
+  useEffect(() => {
+    if (mapInstanceRef.current && originStore?.coordinates?.latitude && originStore?.coordinates?.longitude) {
+      mapInstanceRef.current.flyTo(
+        [originStore.coordinates.latitude, originStore.coordinates.longitude],
+        13,
+        { animate: true, duration: 0.6 }
+      );
+    }
+  }, [originStoreCode, originStore]);
+
+  // Update Map Markers & Route Polyline
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !markersLayerRef.current) return;
@@ -260,8 +329,6 @@ export default function StoreMapModal({
       routePolylineRef.current = null;
     }
 
-    const boundsPoints = [];
-
     // Render store marker pins
     filteredStores.forEach(st => {
       if (!st.coordinates || !st.coordinates.latitude || !st.coordinates.longitude) return;
@@ -270,51 +337,47 @@ export default function StoreMapModal({
       const isOrigin = originStoreCode === code;
       const routeIndex = routeStoreCodes.indexOf(code);
       const isRouteStop = routeIndex !== -1;
-
       const status = st.statusInfo.status; // 'overdue' | 'dueSoon' | 'cleaned'
-      boundsPoints.push([st.coordinates.latitude, st.coordinates.longitude]);
 
       // Pin Color styling
       let pinColor = '#10b981'; // Green
-      let badgeText = 'Clean';
-      let ringColor = 'rgba(16, 185, 129, 0.4)';
+      let ringColor = 'rgba(16, 185, 129, 0.45)';
 
       if (status === 'overdue') {
         pinColor = '#ef4444'; // Red
-        badgeText = 'Overdue';
-        ringColor = 'rgba(239, 68, 68, 0.45)';
+        ringColor = 'rgba(239, 68, 68, 0.5)';
       } else if (status === 'dueSoon') {
-        pinColor = '#f59e0b'; // Amber / Yellow
-        badgeText = 'Due';
-        ringColor = 'rgba(245, 158, 11, 0.45)';
+        pinColor = '#f59e0b'; // Amber
+        ringColor = 'rgba(245, 158, 11, 0.5)';
       }
 
       if (isOrigin) {
-        pinColor = '#6366f1'; // Indigo for origin
-        ringColor = 'rgba(99, 102, 241, 0.6)';
+        pinColor = '#4f46e5'; // Deep Indigo for origin
+        ringColor = 'rgba(79, 70, 229, 0.65)';
       }
 
-      // Custom Leaflet HTML Pin Icon
+      // Custom Google Maps Style Marker
       const customHtml = `
         <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
           <div style="
-            width: ${isRouteStop || isOrigin ? '36px' : '30px'};
-            height: ${isRouteStop || isOrigin ? '36px' : '30px'};
+            width: ${isOrigin ? '38px' : isRouteStop ? '34px' : '28px'};
+            height: ${isOrigin ? '38px' : isRouteStop ? '34px' : '28px'};
             border-radius: 50%;
             background: ${pinColor};
-            box-shadow: 0 0 0 4px ${ringColor}, 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 0 0 ${isOrigin ? '5px' : '3px'} ${ringColor}, 0 4px 10px rgba(0,0,0,0.35);
             display: flex;
             align-items: center;
             justify-content: center;
             color: #ffffff;
             font-weight: 900;
-            font-size: ${isRouteStop ? '14px' : '10px'};
+            font-size: ${isOrigin ? '15px' : isRouteStop ? '13px' : '10px'};
             border: 2px solid #ffffff;
+            transition: transform 0.2s;
           ">
-            ${isRouteStop ? `#${routeIndex + 1}` : (isOrigin ? '★' : (code.length > 3 ? code.slice(0, 3) : code))}
+            ${isOrigin ? '★' : isRouteStop ? `#${routeIndex + 1}` : (code.length > 3 ? code.slice(0, 3) : code)}
           </div>
           <div style="
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(15, 23, 42, 0.92);
             color: #ffffff;
             font-size: 9px;
             font-weight: 800;
@@ -322,8 +385,8 @@ export default function StoreMapModal({
             border-radius: 6px;
             margin-top: 2px;
             white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.2);
           ">
             ${code}
           </div>
@@ -331,17 +394,20 @@ export default function StoreMapModal({
       `;
 
       const icon = L.divIcon({
-        className: 'custom-leaflet-marker',
+        className: 'custom-google-marker',
         html: customHtml,
-        iconSize: [40, 50],
-        iconAnchor: [20, 25]
+        iconSize: [42, 52],
+        iconAnchor: [21, 26]
       });
 
       const marker = L.marker([st.coordinates.latitude, st.coordinates.longitude], { icon });
 
+      // Direct turn-by-turn navigation URL to this store
+      const directGMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${st.coordinates.latitude},${st.coordinates.longitude}&travelmode=driving`;
+
       // Rich Interactive Popup Content
       const popupHtml = `
-        <div style="font-family: inherit; font-size: 12px; line-height: 1.4; min-width: 200px; padding: 4px;">
+        <div style="font-family: inherit; font-size: 12px; line-height: 1.4; min-width: 220px; padding: 4px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-weight: 900; color: #0f172a; font-size: 13px;">${code}</span>
             <span style="
@@ -352,10 +418,9 @@ export default function StoreMapModal({
             </span>
           </div>
 
-          <div style="font-weight: 700; color: #334155; margin-bottom: 2px;">${st.storeName || code}</div>
-          <div style="color: #64748b; font-size: 11px; margin-bottom: 6px;">${st.address || st.city || 'Dark Store Location'}</div>
-
-          ${st.zone ? `<div style="font-size: 10px; color: #6366f1; font-weight: 700; margin-bottom: 6px;">📍 Cluster: ${st.zone}</div>` : ''}
+          <div style="font-weight: 700; color: #1e293b; margin-bottom: 2px;">${st.storeName || code}</div>
+          <div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">${st.address || st.city}</div>
+          ${st.zone ? `<div style="font-size: 10px; color: #4f46e5; font-weight: 700; margin-bottom: 6px;">📍 Cluster: ${st.zone}</div>` : ''}
 
           ${st.managerPhone ? `
             <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #475569; margin-bottom: 8px;">
@@ -364,55 +429,56 @@ export default function StoreMapModal({
             </div>
           ` : ''}
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0;">
             <button 
-              id="btn-origin-${code}" 
+              id="btn-select-origin-${code}" 
               style="
                 padding: 6px 8px; font-size: 10px; font-weight: 800; border-radius: 8px;
-                background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; cursor: pointer;
+                background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; cursor: pointer;
               "
             >
-              📍 Set As Origin
+              ★ Select as Hub
             </button>
             <button 
               id="btn-route-${code}" 
               style="
                 padding: 6px 8px; font-size: 10px; font-weight: 800; border-radius: 8px;
-                background: ${isRouteStop ? '#ef4444' : '#6366f1'}; color: #ffffff; border: none; cursor: pointer;
+                background: ${isRouteStop ? '#ef4444' : '#4f46e5'}; color: #ffffff; border: none; cursor: pointer;
               "
             >
               ${isRouteStop ? '✕ Remove Stop' : '➕ Add to Route'}
             </button>
           </div>
 
-          ${st.googleMapsUrl ? `
-            <a 
-              href="${st.googleMapsUrl}" 
-              target="_blank" 
-              style="
-                display: block; text-align: center; margin-top: 6px; font-size: 10px;
-                font-weight: 700; color: #2563eb; text-decoration: none;
-              "
-            >
-              Launch in Google Maps ↗
-            </a>
-          ` : ''}
+          <a 
+            href="${directGMapUrl}" 
+            target="_blank" 
+            style="
+              display: block; text-align: center; margin-top: 6px; padding: 4px; border-radius: 6px;
+              font-size: 10px; font-weight: 700; color: #2563eb; background: #eff6ff; text-decoration: none; border: 1px solid #bfdbfe;
+            "
+          >
+            🚗 Navigate in Google Maps ↗
+          </a>
         </div>
       `;
 
       marker.bindPopup(popupHtml);
 
-      // Attach popup open listeners for buttons
+      // Clicking marker immediately selects this store as Origin Hub
+      marker.on('click', () => {
+        setOriginStoreCode(code);
+      });
+
       marker.on('popupopen', () => {
         setTimeout(() => {
-          const originBtn = document.getElementById(`btn-origin-${code}`);
+          const originBtn = document.getElementById(`btn-select-origin-${code}`);
           const routeBtn = document.getElementById(`btn-route-${code}`);
 
           if (originBtn) {
             originBtn.onclick = () => {
               setOriginStoreCode(code);
-              toast.info(`Set ${code} as Origin for Proximity Finder!`);
-              setActiveTab('proximity');
+              toast.info(`Selected ${code} as Center Hub!`);
               marker.closePopup();
             };
           }
@@ -434,7 +500,7 @@ export default function StoreMapModal({
       markersLayerRef.current.addLayer(marker);
     });
 
-    // Draw multi-stop route polyline connecting route stores
+    // Draw multi-stop route polyline
     if (routeStores.length >= 2) {
       const latlngs = routeStores
         .filter(st => st.coordinates && st.coordinates.latitude && st.coordinates.longitude)
@@ -442,44 +508,36 @@ export default function StoreMapModal({
 
       if (latlngs.length >= 2) {
         routePolylineRef.current = L.polyline(latlngs, {
-          color: '#6366f1',
-          weight: 4,
-          opacity: 0.85,
+          color: '#4f46e5',
+          weight: 5,
+          opacity: 0.9,
           dashArray: '8, 8',
           lineCap: 'round'
         }).addTo(map);
       }
     }
-
-    // Auto fit map view to bounds
-    if (boundsPoints.length > 0) {
-      try {
-        const bounds = L.latLngBounds(boundsPoints);
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-      } catch (e) {}
-    }
   }, [filteredStores, originStoreCode, routeStoreCodes, routeStores]);
 
-  // Recenter map on active tab change
+  // Invalidate map size on tab switch
   useEffect(() => {
     if (activeTab === 'map' && mapInstanceRef.current) {
       setTimeout(() => {
         mapInstanceRef.current.invalidateSize();
-      }, 100);
+      }, 150);
     }
   }, [activeTab]);
 
   return (
     <div 
-      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-1 sm:p-3 md:p-4 animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-6xl h-[92vh] shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[94vh] shadow-2xl flex flex-col overflow-hidden">
         
         {/* Top Header & Tab Navigation */}
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-3">
           
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-indigo-600/20">
@@ -488,14 +546,14 @@ export default function StoreMapModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  Dark Stores Radar &amp; Shift Route Planner
+                  Dark Stores Google Radar &amp; Shift Route Planner
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                  GPS Proximity Engine
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                  <span>Google Maps Engine</span>
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Visual status radar, nearest store proximity matrix &amp; multi-stop driving routes
+                Live Google Maps radar, nearest store proximity ranking &amp; multi-stop navigation
               </p>
             </div>
           </div>
@@ -510,7 +568,7 @@ export default function StoreMapModal({
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>🗺️ Interactive Map</span>
+              <span>🗺️ Google Map &amp; Nearest</span>
               <span className="px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
                 {filteredStores.length}
               </span>
@@ -524,7 +582,7 @@ export default function StoreMapModal({
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>📍 Nearest Stores Matrix</span>
+              <span>📍 Proximity Matrix Grid</span>
               <span className="px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
                 {proximityMatrix.length}
               </span>
@@ -553,8 +611,8 @@ export default function StoreMapModal({
           </button>
         </div>
 
-        {/* Global Filter Bar for Map & Radar */}
-        <div className="px-5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
+        {/* Global Filter Bar */}
+        <div className="px-4 sm:px-6 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
           
           <div className="flex flex-wrap items-center gap-2 flex-1">
             {/* Search */}
@@ -598,22 +656,20 @@ export default function StoreMapModal({
           <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-xs" />
-              <span>Overdue</span>
+              <span>🔴 Overdue</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-xs" />
-              <span>Due Soon</span>
+              <span>🟡 Due Soon</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
-              <span>Cleaned</span>
+              <span>🟢 Cleaned</span>
             </div>
-            {routeStores.length > 0 && (
-              <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-extrabold pl-2 border-l border-slate-200 dark:border-slate-700">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                <span>Route: {routeStats.totalKm} km</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-extrabold pl-2 border-l border-slate-200 dark:border-slate-700">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+              <span>★ Origin Hub</span>
+            </div>
           </div>
 
         </div>
@@ -621,54 +677,298 @@ export default function StoreMapModal({
         {/* Content Body: Split Layout */}
         <div className="flex-1 flex overflow-hidden relative">
           
-          {/* TAB 1: FULL INTERACTIVE MAP WITH FLOATING PROXIMITY DRAWER */}
-          <div className={`w-full h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
-            <div ref={mapContainerRef} className="w-full h-full z-0" />
+          {/* TAB 1: SPLIT GOOGLE MAPS + NEAREST STORES LIST VIEW */}
+          <div className={`w-full h-full flex flex-col md:flex-row relative ${activeTab === 'map' ? 'flex' : 'hidden'}`}>
+            
+            {/* LEFT SIDEBAR: Selected Store Profile & Proximity-Ranked Stores */}
+            <div className="w-full md:w-96 lg:w-[420px] flex flex-col h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shrink-0 z-10 shadow-lg md:shadow-none">
+              
+              {/* Origin Hub Card & Store Switcher */}
+              <div className="p-3.5 bg-gradient-to-br from-indigo-900/90 via-slate-900 to-indigo-950 text-white shrink-0 space-y-2.5 border-b border-indigo-950">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300">
+                    Selected Origin Hub:
+                  </span>
+                  <span className="text-[11px] font-bold text-indigo-200">
+                    {originStore?.city}
+                  </span>
+                </div>
 
-            {/* Floating Quick Action Overlay on Map */}
-            <div className="absolute top-4 left-4 z-10 max-w-sm w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3.5 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-500">Selected Hub / Origin:</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-black">
-                  {originStore?.storeCode} ({originStore?.city})
-                </span>
+                {/* Instant Store Selector Dropdown */}
+                <select
+                  value={originStoreCode}
+                  onChange={(e) => setOriginStoreCode(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800/90 border border-indigo-400/40 text-xs font-bold text-white focus:ring-2 focus:ring-indigo-400 shadow-inner"
+                >
+                  {enrichedStores.map(st => (
+                    <option key={st.storeCode || st.code} value={(st.storeCode || st.code).trim().toUpperCase()}>
+                      {st.storeCode} - {st.storeName} ({st.city})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Origin Details Mini Banner */}
+                {originStore && (
+                  <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-xs border border-white/10 space-y-1.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-black text-white text-sm leading-tight flex items-center gap-1.5">
+                          <span className="text-amber-400">★</span>
+                          <span>{originStore.storeCode} - {originStore.storeName}</span>
+                        </h4>
+                        <p className="text-[11px] text-indigo-200 line-clamp-1 mt-0.5">
+                          📍 {originStore.address || originStore.city}
+                        </p>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                        originStore.statusInfo.status === 'overdue'
+                          ? 'bg-rose-500/80 text-white'
+                          : originStore.statusInfo.status === 'dueSoon'
+                          ? 'bg-amber-500/80 text-white'
+                          : 'bg-emerald-500/80 text-white'
+                      }`}>
+                        {originStore.statusInfo.label}
+                      </span>
+                    </div>
+
+                    {originStore.zone && (
+                      <div className="text-[10px] font-bold text-indigo-300">
+                        Area Cluster: {originStore.zone}
+                      </div>
+                    )}
+
+                    <div className="pt-1 flex items-center justify-between text-[11px] border-t border-white/10">
+                      {originStore.managerPhone ? (
+                        <div className="flex items-center gap-2">
+                          <a 
+                            href={`tel:${originStore.managerPhone}`}
+                            className="text-emerald-300 hover:underline flex items-center gap-1 font-bold"
+                          >
+                            <Phone className="w-3 h-3" />
+                            <span>{originStore.managerPhone}</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-[10px]">No phone attached</span>
+                      )}
+
+                      <a
+                        href={originStore.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(originStore.address || originStore.storeName)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-300 hover:text-white font-bold flex items-center gap-1 hover:underline text-[11px]"
+                      >
+                        <span>Maps Link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <select
-                value={originStoreCode}
-                onChange={(e) => setOriginStoreCode(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
-              >
-                {enrichedStores.map(st => (
-                  <option key={st.storeCode || st.code} value={(st.storeCode || st.code).trim().toUpperCase()}>
-                    {st.storeCode} - {st.storeName} ({st.city})
-                  </option>
-                ))}
-              </select>
+              {/* Nearest Stores Section Header */}
+              <div className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+                <div>
+                  <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1">
+                    <span>📍 Nearest Dark Stores</span>
+                    <span className="text-indigo-600 dark:text-indigo-400">({filteredProximityList.length})</span>
+                  </h4>
+                  <p className="text-[10px] text-slate-500">
+                    Ranked strictly from shortest to longest distance
+                  </p>
+                </div>
 
-              <div className="pt-1 flex items-center justify-between text-[11px]">
                 <button
                   onClick={() => setActiveTab('proximity')}
-                  className="font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                  className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5"
                 >
-                  <span>View Nearest Stores Matrix</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <span>Grid View</span>
+                  <ChevronRight className="w-3 h-3" />
                 </button>
+              </div>
 
-                {routeStores.length > 0 && (
-                  <button
-                    onClick={() => setActiveTab('route')}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-extrabold shadow-sm flex items-center gap-1"
-                  >
-                    <Car className="w-3 h-3" />
-                    <span>View Route ({routeStores.length})</span>
-                  </button>
+              {/* Proximity Ranked Stores Cards List */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                {filteredProximityList.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-slate-400">
+                    No matching stores found for current filters.
+                  </div>
+                ) : (
+                  filteredProximityList.map((target, idx) => {
+                    const code = target.storeCode || target.code;
+                    const inRoute = routeStoreCodes.includes(code);
+                    const status = target.statusInfo.status;
+                    const navGMapUrl = generateGoogleMapsNavUrl(originStore, target);
+
+                    return (
+                      <div
+                        key={code}
+                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-xs space-y-2 group"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-md bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                              #{idx + 1}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h5 className="text-xs font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition">
+                                  {code}
+                                </h5>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold border ${
+                                  status === 'overdue'
+                                    ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/60 dark:border-rose-900/60'
+                                    : status === 'dueSoon'
+                                    ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/60 dark:border-amber-900/60'
+                                    : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/60 dark:border-emerald-900/60'
+                                }`}>
+                                  {target.statusInfo.label}
+                                </span>
+                              </div>
+                              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 line-clamp-1">
+                                {target.storeName || code}
+                              </p>
+                              <p className="text-[10px] text-slate-500 line-clamp-1">
+                                📍 {target.address || target.city} {target.zone ? `(${target.zone})` : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Distance & Drive Time */}
+                          <div className="text-right shrink-0">
+                            <div className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                              {target.distanceKm} km
+                            </div>
+                            <div className="text-[9px] font-bold text-slate-500">
+                              ⏱️ {target.drivingTime.text}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons: Navigate / Set As Origin / Add Route */}
+                        <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-1.5 text-[11px]">
+                          <button
+                            onClick={() => {
+                              setOriginStoreCode(code);
+                              toast.info(`Switched origin hub to ${code}`);
+                            }}
+                            className="px-2 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-700 font-bold transition flex items-center gap-1"
+                            title="Set this store as Origin to recalculate nearest stores from here"
+                          >
+                            <span>★ Set Origin</span>
+                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <a
+                              href={navGMapUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 font-bold transition flex items-center gap-1 border border-blue-200 dark:border-blue-900"
+                              title="Launch turn-by-turn Google Maps driving navigation"
+                            >
+                              <Navigation className="w-3 h-3 text-blue-600" />
+                              <span>Navigate</span>
+                            </a>
+
+                            <button
+                              onClick={() => {
+                                if (inRoute) {
+                                  setRouteStoreCodes(prev => prev.filter(c => c !== code));
+                                } else {
+                                  handleAddToRoute(code);
+                                }
+                              }}
+                              className={`px-2 py-1 rounded-lg font-extrabold text-[11px] transition flex items-center gap-1 ${
+                                inRoute
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                              }`}
+                            >
+                              {inRoute ? '✕ Remove' : '+ Route'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
+
+            {/* RIGHT AREA: Full Google Map with Layer Switcher */}
+            <div className="flex-1 h-full relative">
+              <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+              {/* Floating Google Maps Controls (Top-Right) */}
+              <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center gap-2">
+                {/* Google Maps Layer Mode Switcher */}
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex items-center gap-1 text-xs font-bold">
+                  <button
+                    onClick={() => setMapType('roadmap')}
+                    className={`px-2.5 py-1 rounded-xl transition flex items-center gap-1 ${
+                      mapType === 'roadmap'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>🗺️ Roadmap</span>
+                  </button>
+                  <button
+                    onClick={() => setMapType('satellite')}
+                    className={`px-2.5 py-1 rounded-xl transition flex items-center gap-1 ${
+                      mapType === 'satellite'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>🛰️ Satellite</span>
+                  </button>
+                  <button
+                    onClick={() => setMapType('terrain')}
+                    className={`px-2.5 py-1 rounded-xl transition flex items-center gap-1 ${
+                      mapType === 'terrain'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>🏔️ Terrain</span>
+                  </button>
+                </div>
+
+                {/* Direct Google Maps Web App Link */}
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${originStore?.coordinates?.latitude || 19.0434},${originStore?.coordinates?.longitude || 73.0691}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs font-extrabold text-blue-600 dark:text-blue-400 hover:bg-blue-50 flex items-center gap-1.5"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>Open in Google Maps App ↗</span>
+                </a>
+              </div>
+
+              {/* Active Route Pill (Bottom-Left on Map) */}
+              {routeStores.length > 0 && (
+                <div className="absolute bottom-6 left-6 z-10 bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-indigo-300 font-bold block uppercase">Night Route Active</span>
+                    <span className="font-extrabold">{routeStores.length} Stops (~{routeStats.totalKm} km)</span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('route')}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-sm flex items-center gap-1"
+                  >
+                    <Car className="w-3 h-3" />
+                    <span>View Route</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
 
-          {/* TAB 2: NEAREST STORES FINDER (PROXIMITY DISTANCE MATRIX) */}
+          {/* TAB 2: NEAREST STORES FINDER (PROXIMITY DISTANCE MATRIX GRID VIEW) */}
           <div className={`w-full h-full overflow-y-auto p-5 ${activeTab === 'proximity' ? 'block' : 'hidden'}`}>
             <div className="max-w-4xl mx-auto space-y-6">
               
@@ -718,15 +1018,16 @@ export default function StoreMapModal({
                     </h4>
                   </div>
                   <span className="text-xs font-bold text-slate-500">
-                    Showing {proximityMatrix.length} dark stores sorted by shortest distance
+                    Showing {filteredProximityList.length} dark stores sorted strictly by shortest distance
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {proximityMatrix.map((target, idx) => {
+                  {filteredProximityList.map((target, idx) => {
                     const code = target.storeCode || target.code;
                     const inRoute = routeStoreCodes.includes(code);
                     const status = target.statusInfo.status;
+                    const navGMapUrl = generateGoogleMapsNavUrl(originStore, target);
 
                     return (
                       <div
@@ -786,17 +1087,16 @@ export default function StoreMapModal({
                           </button>
 
                           <div className="flex items-center gap-2">
-                            {target.googleMapsUrl && (
-                              <a
-                                href={target.googleMapsUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600"
-                                title="Open in Google Maps"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                            <a
+                              href={navGMapUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 font-bold transition flex items-center gap-1 border border-blue-200 dark:border-blue-900 text-xs"
+                              title="Open turn-by-turn Google Maps driving navigation"
+                            >
+                              <Navigation className="w-3 h-3 text-blue-600" />
+                              <span>Navigate</span>
+                            </a>
 
                             <button
                               onClick={() => {
@@ -903,14 +1203,14 @@ export default function StoreMapModal({
                         No stores in tonight's route yet
                       </h4>
                       <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                        Select dark stores from the <strong>Interactive Map</strong> or <strong>Nearest Stores Matrix</strong> to plan optimal machinery &amp; van routing.
+                        Select dark stores from the <strong>Google Map</strong> or <strong>Nearest Stores List</strong> to plan optimal machinery &amp; van routing.
                       </p>
                     </div>
                     <button
                       onClick={() => setActiveTab('map')}
                       className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md"
                     >
-                      Open Map to Pick Stores
+                      Open Google Map to Pick Stores
                     </button>
                   </div>
                 ) : (
@@ -956,62 +1256,56 @@ export default function StoreMapModal({
                                     {st.statusInfo.label}
                                   </span>
                                 </div>
-
                                 <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                  {st.storeName || code}
+                                  {st.storeName}
                                 </p>
-
                                 <p className="text-[11px] text-slate-500">
-                                  📍 {st.address || st.city} {st.zone ? `• Zone: ${st.zone}` : ''}
+                                  📍 {st.address || st.city} {st.zone ? `(${st.zone})` : ''}
                                 </p>
-
                                 {st.managerPhone && (
-                                  <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 pt-0.5">
-                                    <span>Manager: <strong>{st.managerName || 'Manager'}</strong></span>
-                                    <span>&bull;</span>
-                                    <a href={`tel:${st.managerPhone}`} className="text-emerald-600 font-bold hover:underline">
-                                      📞 {st.managerPhone}
-                                    </a>
-                                  </div>
+                                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                                    <Phone className="w-3 h-3 text-emerald-600" />
+                                    <span>Manager: {st.managerName || 'Assigned'} ({st.managerPhone})</span>
+                                  </p>
                                 )}
                               </div>
                             </div>
 
-                            {/* Reorder and Delete controls */}
-                            <div className="flex items-center gap-1">
+                            {/* Reorder and Delete Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
                               <button
-                                disabled={idx === 0}
                                 onClick={() => handleMoveRouteStop(idx, 'up')}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 disabled:opacity-20 transition"
+                                disabled={idx === 0}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-20"
                                 title="Move Earlier"
                               >
-                                <MoveUp className="w-4 h-4" />
+                                ↑
                               </button>
                               <button
-                                disabled={idx === routeStores.length - 1}
                                 onClick={() => handleMoveRouteStop(idx, 'down')}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 disabled:opacity-20 transition"
+                                disabled={idx === routeStores.length - 1}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-20"
                                 title="Move Later"
                               >
-                                <MoveDown className="w-4 h-4" />
+                                ↓
                               </button>
                               <button
                                 onClick={() => handleRemoveFromRoute(idx)}
-                                className="p-1.5 rounded-lg text-rose-400 hover:text-rose-600 transition"
-                                title="Remove from Route"
+                                className="p-1.5 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                title="Remove Stop"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
 
-                          {/* Transit Connector between stops */}
+                          {/* Transit Segment between stops */}
                           {legDistance !== null && (
-                            <div className="flex items-center gap-2 pl-7 py-0.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                              <div className="w-0.5 h-5 bg-indigo-300 dark:bg-indigo-800 ml-3.5" />
-                              <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                            <div className="flex items-center gap-2 pl-7 py-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold">
+                              <div className="w-0.5 h-6 bg-indigo-300 dark:bg-indigo-700 mx-auto" />
+                              <div className="bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5">
                                 <Car className="w-3 h-3" />
-                                <span>~{legDistance} km transit ({estimateDrivingTime(legDistance).text})</span>
+                                <span>~{legDistance} km Transit ({estimateDrivingTime(legDistance).text})</span>
                               </div>
                             </div>
                           )}
