@@ -287,17 +287,6 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
       cleanings.push(c);
     }
 
-    // Deduplicate stores by storeCode + city
-    const seenStoreKeys = new Set();
-    const stores = [];
-    for (const raw of rawStores) {
-      const s = toCamelCase(raw);
-      const key = `${(s.storeCode || s.code || '').trim().toUpperCase()}__${(s.city || '').trim().toLowerCase()}`;
-      if (!key || seenStoreKeys.has(key)) continue;
-      seenStoreKeys.add(key);
-      stores.push(s);
-    }
-
     const supervisors = rawSupervisors.map(toCamelCase);
     const cleaners = rawCleaners.map(toCamelCase);
     const cleaningSchedules = rawSchedules.map(toCamelCase);
@@ -312,6 +301,7 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
     let cleanerAdvances = [];
     let chemicalLogs = [];
     let equipmentsMetaMap = {};
+    let storeGeoMap = {};
 
     if (Array.isArray(sRows)) {
       for (const row of sRows) {
@@ -341,8 +331,27 @@ export async function fetchFromSupabaseDirect(lastKnownUpdated = null) {
           for (const m of row.value) {
             if (m && m.id) equipmentsMetaMap[m.id] = m;
           }
+        } else if (row.key === 'store_geo_metadata' && row.value && typeof row.value === 'object') {
+          storeGeoMap = row.value;
         }
       }
+    }
+
+    // Deduplicate stores by storeCode + city & merge GPS coordinates / Zone
+    const seenStoreKeys = new Set();
+    const stores = [];
+    for (const raw of rawStores) {
+      const s = toCamelCase(raw);
+      const code = (s.storeCode || s.code || '').trim().toUpperCase();
+      if (storeGeoMap[code]) {
+        s.latitude = s.latitude !== undefined && s.latitude !== null ? s.latitude : storeGeoMap[code].latitude;
+        s.longitude = s.longitude !== undefined && s.longitude !== null ? s.longitude : storeGeoMap[code].longitude;
+        s.zone = s.zone || storeGeoMap[code].zone;
+      }
+      const key = `${code}__${(s.city || '').trim().toLowerCase()}`;
+      if (!key || seenStoreKeys.has(key)) continue;
+      seenStoreKeys.add(key);
+      stores.push(s);
     }
 
     const equipments = rawEquipments.map(raw => {
@@ -552,7 +561,58 @@ export async function deleteCleaning(cleaningOrId) {
 // STORES MASTER LEDGER
 // -------------------------------------------------------------
 
+export async function saveStoreGeoMetadata(storeCode, geoData) {
+  if (!storeCode || !geoData) return;
+  const config = getCloudConfig();
+  const url = config.supabaseUrl || 'https://eymcwmwpercvdwcciqaq.supabase.co';
+  const key = config.supabaseKey || 'sb_publishable_OfiB_MJr4DTHPx5_2vXtVg_DfuQqKm_';
+  const headers = {
+    'apikey': key,
+    'Authorization': `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'resolution=merge-duplicates'
+  };
+
+  try {
+    const getRes = await fetch(`${url}/rest/v1/app_settings?key=eq.store_geo_metadata&select=*`, { headers });
+    let currentMap = {};
+    if (getRes.ok) {
+      const rows = await getRes.json();
+      if (rows && rows[0] && rows[0].value) {
+        currentMap = rows[0].value;
+      }
+    }
+
+    currentMap[storeCode.toUpperCase()] = {
+      ...(currentMap[storeCode.toUpperCase()] || {}),
+      ...geoData,
+      updatedAt: new Date().toISOString()
+    };
+
+    await fetch(`${url}/rest/v1/app_settings`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        key: 'store_geo_metadata',
+        value: currentMap,
+        updated_at: new Date().toISOString()
+      })
+    });
+  } catch (err) {
+    console.warn('saveStoreGeoMetadata notice:', err);
+  }
+}
+
 export async function saveStore(storeData) {
+  const sCode = (storeData.storeCode || storeData.code || '').trim().toUpperCase();
+  if (sCode && (storeData.latitude !== undefined || storeData.longitude !== undefined || storeData.zone)) {
+    saveStoreGeoMetadata(sCode, {
+      latitude: storeData.latitude,
+      longitude: storeData.longitude,
+      zone: storeData.zone
+    }).catch(() => {});
+  }
+
   await syncSingleRecordToSupabase('stores', storeData);
   try { if (db && db.stores) await db.stores.put(storeData); } catch (e) {}
 

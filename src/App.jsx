@@ -26,6 +26,7 @@ import InstallAppBanner from './components/InstallAppBanner';
 import CloudSyncModal from './components/CloudSyncModal';
 import MorningSummaryModal from './components/MorningSummaryModal';
 import NightRouteModal from './components/NightRouteModal';
+import StoreMapModal from './components/StoreMapModal';
 import StoreQRModal from './components/StoreQRModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import UserAccessModal from './components/UserAccessModal';
@@ -159,6 +160,8 @@ export default function App() {
   const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
   const [isMorningSummaryOpen, setIsMorningSummaryOpen] = useState(false);
   const [isNightRouteOpen, setIsNightRouteOpen] = useState(false);
+  const [isStoreMapOpen, setIsStoreMapOpen] = useState(false);
+  const [mapStoreFocus, setMapStoreFocus] = useState(null);
   const [qrStore, setQrStore] = useState(null);
 
   // Security & Password Management States
@@ -1212,6 +1215,7 @@ export default function App() {
         onOpenCloudSync={() => setIsCloudSyncOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
+        onOpenStoreMap={() => setIsStoreMapOpen(true)}
         onOpenUserAccess={() => setIsUserAccessOpen(true)}
         onOpenLoginLogs={() => setIsLoginLogsOpen(true)}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
@@ -1464,6 +1468,10 @@ export default function App() {
                         onShareWhatsApp={handleCardShareWhatsApp}
                         onGenerateInvoice={handleCardGenerateInvoice}
                         onOpenStoreQR={handleCardOpenStoreQR}
+                        onOpenStoreMap={(c) => {
+                          setMapStoreFocus(c);
+                          setIsStoreMapOpen(true);
+                        }}
                         onEdit={handleCardEdit}
                         onDelete={handleDeleteCleaning}
                       />
@@ -1745,6 +1753,19 @@ export default function App() {
         onClose={() => setIsNightRouteOpen(false)}
         schedules={schedules}
         stores={stores}
+        onOpenStoreMap={() => setIsStoreMapOpen(true)}
+      />
+
+      <StoreMapModal
+        isOpen={isStoreMapOpen}
+        onClose={() => {
+          setIsStoreMapOpen(false);
+          setMapStoreFocus(null);
+        }}
+        stores={stores}
+        cleanings={cleanings}
+        initialSelectedStore={mapStoreFocus}
+        onOpenStoreHistory={(s) => setHistoryStore(s)}
       />
 
       <StoreQRModal
@@ -1824,6 +1845,7 @@ export default function App() {
         onOpenIssues={() => setIsIssueModalOpen(true)}
         onOpenConsolidatedInvoice={() => setIsConsolidatedInvoiceOpen(true)}
         onOpenBillSettings={() => setIsBillSettingsOpen(true)}
+        onOpenStoreMap={() => setIsStoreMapOpen(true)}
         onOpenNightRoute={() => setIsNightRouteOpen(true)}
         onOpenMorningSummary={() => setIsMorningSummaryOpen(true)}
         onOpenReportsCenter={() => setIsReportsCenterOpen(true)}

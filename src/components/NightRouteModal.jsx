@@ -2,7 +2,7 @@ import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { X, MapPin, Navigation, ExternalLink, Clock, Building2, Phone, Sparkles } from 'lucide-react';
 
-export default function NightRouteModal({ isOpen, onClose, schedules = [], stores = [] }) {
+export default function NightRouteModal({ isOpen, onClose, schedules = [], stores = [], onOpenStoreMap = null }) {
   const { t } = useLanguage();
   if (!isOpen) return null;
 
@@ -69,16 +69,31 @@ export default function NightRouteModal({ isOpen, onClose, schedules = [], store
         </div>
 
         {/* Big Navigation Trigger Button */}
-        <a
-          href={googleMapsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2"
-        >
-          <Navigation className="w-4 h-4" />
-          <span>Launch Google Maps Route ({routeStores.length} Stops)</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        <div className="space-y-2">
+          <a
+            href={googleMapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2"
+          >
+            <Navigation className="w-4 h-4" />
+            <span>Launch Google Maps Route ({routeStores.length} Stops)</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+
+          {onOpenStoreMap && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenStoreMap();
+              }}
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition border border-slate-200 dark:border-slate-700"
+            >
+              <span>🗺️ Open Interactive Radar Map &amp; Proximity Planner</span>
+            </button>
+          )}
+        </div>
 
         {/* Route Stops Sequence */}
         <div className="space-y-3">

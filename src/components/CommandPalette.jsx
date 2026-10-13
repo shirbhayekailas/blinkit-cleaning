@@ -20,6 +20,7 @@ import {
   FileText,
   Sliders,
   Truck,
+  Compass,
   X
 } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export default function CommandPalette({
   onOpenIssues,
   onOpenConsolidatedInvoice,
   onOpenBillSettings,
+  onOpenStoreMap,
   onOpenNightRoute,
   onOpenMorningSummary,
   onOpenReportsCenter,
@@ -148,6 +150,15 @@ export default function CommandPalette({
       subtitle: 'Edit Billed By (Your Company) & Bill To (Client Company)',
       shortcut: 'B',
       run: onOpenBillSettings
+    },
+    {
+      id: 'action-store-radar',
+      category: 'Operations',
+      icon: <Compass className="w-4 h-4 text-indigo-500" />,
+      title: 'Dark Stores Radar & Route Planner (Map)',
+      subtitle: 'Visual status pins (Overdue/Due/Cleaned), nearest stores & multi-stop routes',
+      shortcut: 'M',
+      run: onOpenStoreMap || onOpenNightRoute
     },
     {
       id: 'action-route',

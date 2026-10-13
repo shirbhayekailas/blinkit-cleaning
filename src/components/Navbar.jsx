@@ -32,7 +32,8 @@ import {
   Globe,
   Sliders,
   Receipt,
-  Truck
+  Truck,
+  Compass
 } from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 import { useLanguage } from '../context/LanguageContext';
@@ -69,6 +70,7 @@ export default function Navbar({
   onOpenKhata,
   onOpenSchedule,
   onOpenEquipmentHub,
+  onOpenStoreMap,
   onOpenCloudSync,
   onOpenMorningSummary,
   onOpenNightRoute,
@@ -304,6 +306,15 @@ export default function Navbar({
               {/* Desktop Operations Management Tools Ribbon */}
               {isOpsStaff && (
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={onOpenStoreMap}
+                    title="Interactive Dark Store Radar, Pins & Multi-Stop Route Planner"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition shadow-2xs"
+                  >
+                    <Compass className="w-3.5 h-3.5 text-blue-500" />
+                    <span>{t('tab_store_map', 'Store Radar & Routes')}</span>
+                  </button>
+
                   <button
                     onClick={onOpenSchedule}
                     title="Tonight's Shift & Cleaning Schedule Planner"
@@ -700,6 +711,18 @@ export default function Navbar({
                     </div>
                     <div className="text-xs font-bold text-amber-950 dark:text-amber-200">{t('btn_morning_summary', 'Morning Summary')}</div>
                     <div className="text-[10px] text-amber-600 dark:text-amber-400">6 AM Flash WA</div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerMobileAction(onOpenStoreMap)}
+                    className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800 text-left transition"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Compass className="w-5 h-5 text-indigo-600" />
+                      <ChevronRight className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div className="text-xs font-bold text-indigo-950 dark:text-indigo-200">{t('btn_store_map', 'Store Radar & Map')}</div>
+                    <div className="text-[10px] text-indigo-600 dark:text-indigo-400">GPS &amp; Multi-Stop Route</div>
                   </button>
 
                   <button

@@ -40,7 +40,8 @@ export default function StoreLedgerView({
   onDeleteStore,
   onViewStoreHistory,
   onLogCleaningForStore,
-  onOpenReportsCenter
+  onOpenReportsCenter,
+  onOpenStoreMap = null
 }) {
   const { t } = useLanguage();
   const [storeSortBy, setStoreSortBy] = useState('storeCodeAsc');
@@ -218,6 +219,16 @@ export default function StoreLedgerView({
               title="Open Reports Center for Ledger & Audits"
             >
               <span>📊 Reports</span>
+            </button>
+          )}
+
+          {onOpenStoreMap && (
+            <button
+              onClick={() => onOpenStoreMap()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition shrink-0 active:scale-95"
+              title="Open Dark Stores Radar Map, Pins & Route Planner"
+            >
+              <span>🗺️ Radar Map</span>
             </button>
           )}
 
@@ -500,6 +511,17 @@ export default function StoreLedgerView({
                       <span>PDF (.pdf)</span>
                     </button>
                   </div>
+
+                  {onOpenStoreMap && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenStoreMap(store)}
+                      className="w-full py-1.5 px-2 rounded-lg bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 text-[11px] font-bold transition flex items-center justify-center gap-1 shadow-2xs"
+                    >
+                      <MapPin className="w-3 h-3 text-indigo-500" />
+                      <span>View on Radar Map &amp; Proximity</span>
+                    </button>
+                  )}
                 </div>
 
               </div>

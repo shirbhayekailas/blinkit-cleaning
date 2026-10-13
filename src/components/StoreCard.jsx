@@ -22,7 +22,8 @@ import {
   Columns,
   Award,
   QrCode,
-  FlaskConical
+  FlaskConical,
+  Navigation
 } from 'lucide-react';
 import { 
   formatPaymentReminderWhatsApp, 
@@ -41,6 +42,7 @@ function StoreCard({
   onShareWhatsApp,
   onGenerateInvoice,
   onOpenStoreQR,
+  onOpenStoreMap,
   onEdit,
   onDelete,
   isAdmin = true
@@ -181,14 +183,26 @@ function StoreCard({
               </a>
             )}
           </div>
-          <button
-            onClick={() => shareStoreLocationWhatsApp(cleaning)}
-            title="Share Store GMap Location on WhatsApp"
-            className="shrink-0 text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold inline-flex items-center gap-1 transition shadow-2xs"
-          >
-            <Share2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-            <span>GMap WA</span>
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {onOpenStoreMap && (
+              <button
+                onClick={() => onOpenStoreMap(cleaning)}
+                title="View on Radar Map & Find Nearby Stores"
+                className="text-indigo-700 dark:text-indigo-300 hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800 text-[11px] font-bold inline-flex items-center gap-1 transition shadow-2xs"
+              >
+                <Navigation className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                <span>Radar</span>
+              </button>
+            )}
+            <button
+              onClick={() => shareStoreLocationWhatsApp(cleaning)}
+              title="Share Store GMap Location on WhatsApp"
+              className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold inline-flex items-center gap-1 transition shadow-2xs"
+            >
+              <Share2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>GMap WA</span>
+            </button>
+          </div>
         </div>
 
         {/* Store Manager Contact */}

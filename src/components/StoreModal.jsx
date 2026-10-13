@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { toast } from './Toast';
+import { extractCoordinatesFromGoogleUrl } from '../utils/distance';
 
 export default function StoreModal({
   isOpen,
@@ -24,6 +25,9 @@ export default function StoreModal({
     storeName: '',
     address: '',
     city: '',
+    zone: '',
+    latitude: '',
+    longitude: '',
     googleMapsUrl: '',
     managerName: '',
     managerPhone: ''
@@ -31,13 +35,27 @@ export default function StoreModal({
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData({
+        storeCode: initialData.storeCode || 'BLK-',
+        storeName: initialData.storeName || '',
+        address: initialData.address || '',
+        city: initialData.city || '',
+        zone: initialData.zone || '',
+        latitude: initialData.latitude !== undefined && initialData.latitude !== null ? initialData.latitude : '',
+        longitude: initialData.longitude !== undefined && initialData.longitude !== null ? initialData.longitude : '',
+        googleMapsUrl: initialData.googleMapsUrl || '',
+        managerName: initialData.managerName || '',
+        managerPhone: initialData.managerPhone || ''
+      });
     } else {
       setFormData({
         storeCode: 'BLK-',
         storeName: '',
         address: '',
         city: '',
+        zone: '',
+        latitude: '',
+        longitude: '',
         googleMapsUrl: '',
         managerName: '',
         managerPhone: ''
@@ -139,11 +157,12 @@ export default function StoreModal({
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                City / Zone
+                City *
               </label>
               <input
                 type="text"
-                placeholder="e.g. Mumbai, Pune, Delhi NCR, etc."
+                required
+                placeholder="e.g. Mumbai, Pune, Delhi NCR"
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green"
@@ -151,16 +170,44 @@ export default function StoreModal({
             </div>
           </div>
 
+          {/* Area Cluster / Zone Tagging */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Google Maps Location Link
+              Area Cluster / Zone Tag
             </label>
+            <input
+              type="text"
+              placeholder="e.g. Navi Mumbai - Kamothe, Thane - Naupada, Gurgaon - Phase 2"
+              value={formData.zone || ''}
+              onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blinkit-green font-medium"
+            />
+          </div>
+
+          {/* Google Maps Link with Auto-Extract */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Google Maps Location Link
+              </label>
+              <span className="text-[11px] text-slate-400">Pasting link auto-extracts GPS</span>
+            </div>
             <div className="relative">
               <input
                 type="url"
                 placeholder="https://maps.google.com/?q=..."
                 value={formData.googleMapsUrl}
-                onChange={(e) => setFormData({ ...formData, googleMapsUrl: e.target.value })}
+                onChange={(e) => {
+                  const url = e.target.value;
+                  const newForm = { ...formData, googleMapsUrl: url };
+                  const coords = extractCoordinatesFromGoogleUrl(url);
+                  if (coords) {
+                    newForm.latitude = coords.latitude;
+                    newForm.longitude = coords.longitude;
+                    toast.success(`GPS coordinates extracted: ${coords.latitude}, ${coords.longitude}`);
+                  }
+                  setFormData(newForm);
+                }}
                 className="w-full px-3 py-2 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-blinkit-green"
               />
               {formData.googleMapsUrl && (
@@ -174,6 +221,76 @@ export default function StoreModal({
                 </a>
               )}
             </div>
+          </div>
+
+          {/* GPS Coordinates & Live Auto-Capture */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                <span>Exact GPS Coordinates (Map & Route Planner)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!navigator.geolocation) {
+                    toast.warning('Browser geolocation is not supported on this device.');
+                    return;
+                  }
+                  toast.info('Fetching live GPS coordinates from device...');
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      const lat = Math.round(pos.coords.latitude * 1000000) / 1000000;
+                      const lon = Math.round(pos.coords.longitude * 1000000) / 1000000;
+                      setFormData(prev => ({ ...prev, latitude: lat, longitude: lon }));
+                      toast.success(`Live GPS Locked: ${lat}, ${lon}`);
+                    },
+                    (err) => {
+                      toast.error(`GPS Error: ${err.message}. Please allow location permission.`);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                  );
+                }}
+                className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-400 font-extrabold text-[11px] border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 transition"
+              >
+                <span>📍 Auto-Capture GPS</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Latitude
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 19.0186"
+                  value={formData.latitude !== undefined && formData.latitude !== null ? formData.latitude : ''}
+                  onChange={(e) => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : '' })}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                  Longitude
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 73.0934"
+                  value={formData.longitude !== undefined && formData.longitude !== null ? formData.longitude : ''}
+                  onChange={(e) => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : '' })}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono font-semibold"
+                />
+              </div>
+            </div>
+
+            {Boolean(formData.latitude && formData.longitude) && (
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                <span>✓ GPS Location verified &amp; ready for Proximity Routing</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
