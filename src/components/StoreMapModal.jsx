@@ -32,6 +32,23 @@ import {
 } from '../utils/distance';
 import { toast } from './Toast';
 
+// Guard helper: Strictly validates if given latitude and longitude are finite valid numbers
+export const isValidLatLng = (lat, lon) => {
+  if (lat === null || lat === undefined || lon === null || lon === undefined) return false;
+  const nLat = Number(lat);
+  const nLon = Number(lon);
+  return (
+    !isNaN(nLat) &&
+    !isNaN(nLon) &&
+    isFinite(nLat) &&
+    isFinite(nLon) &&
+    nLat >= -90 &&
+    nLat <= 90 &&
+    nLon >= -180 &&
+    nLon <= 180
+  );
+};
+
 export default function StoreMapModal({
   isOpen,
   onClose,
@@ -302,8 +319,12 @@ export default function StoreMapModal({
         delete mapContainerRef.current._leaflet_id;
       }
 
-      const initialLat = originStore?.coordinates?.latitude || 19.0434;
-      const initialLon = originStore?.coordinates?.longitude || 73.0691;
+      let initialLat = 19.0434;
+      let initialLon = 73.0691;
+      if (isValidLatLng(originStore?.coordinates?.latitude, originStore?.coordinates?.longitude)) {
+        initialLat = Number(originStore.coordinates.latitude);
+        initialLon = Number(originStore.coordinates.longitude);
+      }
 
       const map = L.map(mapContainerRef.current, {
         center: [initialLat, initialLon],
@@ -328,7 +349,11 @@ export default function StoreMapModal({
     // Explicit Invalidation Resizing: Guarantees map tiles render on all viewports
     const forceResize = () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
+        try {
+          mapInstanceRef.current.invalidateSize();
+        } catch (e) {
+          // ignore
+        }
       }
     };
 
@@ -356,8 +381,20 @@ export default function StoreMapModal({
   // Invalidate size on tab or mobile view change
   useEffect(() => {
     const trigger = () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
+      const map = mapInstanceRef.current;
+      if (!map) return;
+      try {
+        map.invalidateSize();
+        const size = map.getSize();
+        if (size && size.x > 0 && size.y > 0) {
+          const lat = originStore?.coordinates?.latitude;
+          const lon = originStore?.coordinates?.longitude;
+          if (isValidLatLng(lat, lon)) {
+            map.setView([Number(lat), Number(lon)], 13);
+          }
+        }
+      } catch (err) {
+        console.warn('Map resize error:', err);
       }
     };
     trigger();
@@ -369,7 +406,7 @@ export default function StoreMapModal({
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [activeTab, mobileTab]);
+  }, [activeTab, mobileTab, originStore]);
 
   // Switch Google Maps Layer on mapType state change
   useEffect(() => {
@@ -391,12 +428,32 @@ export default function StoreMapModal({
 
   // Smoothly Fly / Pan Google Map to Origin Store when origin changes
   useEffect(() => {
-    if (mapInstanceRef.current && originStore?.coordinates?.latitude && originStore?.coordinates?.longitude) {
-      mapInstanceRef.current.flyTo(
-        [originStore.coordinates.latitude, originStore.coordinates.longitude],
-        13,
-        { animate: true, duration: 0.6 }
-      );
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const lat = originStore?.coordinates?.latitude;
+    const lon = originStore?.coordinates?.longitude;
+    if (!isValidLatLng(lat, lon)) return;
+
+    const targetCoords = [Number(lat), Number(lon)];
+
+    try {
+      const size = map.getSize();
+      // On mobile when container is hidden (display: none), size.x and size.y are 0.
+      // Calling flyTo when size is 0 causes 0/0 = NaN in Leaflet pixel calculations,
+      // throwing "Invalid LatLng object: (NaN, NaN)".
+      if (!size || size.x === 0 || size.y === 0) {
+        map.setView(targetCoords, 13);
+        return;
+      }
+      map.flyTo(targetCoords, 13, { animate: true, duration: 0.6 });
+    } catch (err) {
+      console.warn('Map view update warning:', err);
+      try {
+        map.setView(targetCoords, 13);
+      } catch (e) {
+        // ignore
+      }
     }
   }, [originStoreKey, originStore]);
 
@@ -413,13 +470,18 @@ export default function StoreMapModal({
 
     // Render store marker pins
     filteredStores.forEach(st => {
-      if (!st.coordinates || !st.coordinates.latitude || !st.coordinates.longitude) return;
+      const lat = st.coordinates?.latitude;
+      const lon = st.coordinates?.longitude;
+      if (!isValidLatLng(lat, lon)) return;
+
+      const numLat = Number(lat);
+      const numLon = Number(lon);
 
       const code = (st.storeCode || st.code || '').trim().toUpperCase();
       const isOrigin = originStoreCode === code;
       const routeIndex = routeStoreCodes.indexOf(code);
       const isRouteStop = routeIndex !== -1;
-      const status = st.statusInfo.status; // 'overdue' | 'dueSoon' | 'cleaned'
+      const status = st.statusInfo?.status; // 'overdue' | 'dueSoon' | 'cleaned'
 
       // Pin Color styling
       let pinColor = '#10b981'; // Green
@@ -475,129 +537,137 @@ export default function StoreMapModal({
         </div>
       `;
 
-      const icon = L.divIcon({
-        className: 'custom-google-marker',
-        html: customHtml,
-        iconSize: [42, 52],
-        iconAnchor: [21, 26]
-      });
+      try {
+        const icon = L.divIcon({
+          className: 'custom-google-marker',
+          html: customHtml,
+          iconSize: [42, 52],
+          iconAnchor: [21, 26]
+        });
 
-      const marker = L.marker([st.coordinates.latitude, st.coordinates.longitude], { icon });
+        const marker = L.marker([numLat, numLon], { icon });
 
-      // Direct turn-by-turn navigation URL to this store
-      const directGMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${st.coordinates.latitude},${st.coordinates.longitude}&travelmode=driving`;
+        // Direct turn-by-turn navigation URL to this store
+        const directGMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${numLat},${numLon}&travelmode=driving`;
 
-      // Rich Interactive Popup Content
-      const popupHtml = `
-        <div style="font-family: inherit; font-size: 12px; line-height: 1.4; min-width: 220px; padding: 4px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-            <span style="font-weight: 900; color: #0f172a; font-size: 13px;">${code}</span>
-            <span style="
-              font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px;
-              background: ${pinColor}22; color: ${pinColor}; border: 1px solid ${pinColor}55;
-            ">
-              ${st.statusInfo.label}
-            </span>
-          </div>
-
-          <div style="font-weight: 700; color: #1e293b; margin-bottom: 2px;">${st.storeName || code}</div>
-          <div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">${st.address || st.city}</div>
-          ${st.zone ? `<div style="font-size: 10px; color: #4f46e5; font-weight: 700; margin-bottom: 6px;">📍 Cluster: ${st.zone}</div>` : ''}
-
-          ${st.managerPhone ? `
-            <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #475569; margin-bottom: 8px;">
-              <span>📞 ${st.managerName || 'Manager'}:</span>
-              <a href="tel:${st.managerPhone}" style="color: #059669; font-weight: 700; text-decoration: none;">${st.managerPhone}</a>
+        // Rich Interactive Popup Content
+        const popupHtml = `
+          <div style="font-family: inherit; font-size: 12px; line-height: 1.4; min-width: 220px; padding: 4px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-weight: 900; color: #0f172a; font-size: 13px;">${code}</span>
+              <span style="
+                font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px;
+                background: ${pinColor}22; color: ${pinColor}; border: 1px solid ${pinColor}55;
+              ">
+                ${st.statusInfo?.label || ''}
+              </span>
             </div>
-          ` : ''}
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0;">
-            <button 
-              id="btn-select-origin-${code}" 
+            <div style="font-weight: 700; color: #1e293b; margin-bottom: 2px;">${st.storeName || code}</div>
+            <div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">${st.address || st.city}</div>
+            ${st.zone ? `<div style="font-size: 10px; color: #4f46e5; font-weight: 700; margin-bottom: 6px;">📍 Cluster: ${st.zone}</div>` : ''}
+
+            ${st.managerPhone ? `
+              <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #475569; margin-bottom: 8px;">
+                <span>📞 ${st.managerName || 'Manager'}:</span>
+                <a href="tel:${st.managerPhone}" style="color: #059669; font-weight: 700; text-decoration: none;">${st.managerPhone}</a>
+              </div>
+            ` : ''}
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0;">
+              <button 
+                id="btn-select-origin-${code}" 
+                style="
+                  padding: 6px 8px; font-size: 10px; font-weight: 800; border-radius: 8px;
+                  background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; cursor: pointer;
+                "
+              >
+                ★ Select as Hub
+              </button>
+              <button 
+                id="btn-route-${code}" 
+                style="
+                  padding: 6px 8px; font-size: 10px; font-weight: 800; border-radius: 8px;
+                  background: ${isRouteStop ? '#ef4444' : '#4f46e5'}; color: #ffffff; border: none; cursor: pointer;
+                "
+              >
+                ${isRouteStop ? '✕ Remove Stop' : '➕ Add to Route'}
+              </button>
+            </div>
+
+            <a 
+              href="${directGMapUrl}" 
+              target="_blank" 
               style="
-                padding: 6px 8px; font-size: 10px; font-weight: 800; border-radius: 8px;
-                background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; cursor: pointer;
+                display: block; text-align: center; margin-top: 6px; padding: 4px; border-radius: 6px;
+                font-size: 10px; font-weight: 700; color: #2563eb; background: #eff6ff; text-decoration: none; border: 1px solid #bfdbfe;
               "
             >
-              ★ Select as Hub
-            </button>
-            <button 
-              id="btn-route-${code}" 
-              style="
-                padding: 6px 8px; font-size: 10px; font-weight: 800; border-radius: 8px;
-                background: ${isRouteStop ? '#ef4444' : '#4f46e5'}; color: #ffffff; border: none; cursor: pointer;
-              "
-            >
-              ${isRouteStop ? '✕ Remove Stop' : '➕ Add to Route'}
-            </button>
+              🚗 Navigate in Google Maps ↗
+            </a>
           </div>
+        `;
 
-          <a 
-            href="${directGMapUrl}" 
-            target="_blank" 
-            style="
-              display: block; text-align: center; margin-top: 6px; padding: 4px; border-radius: 6px;
-              font-size: 10px; font-weight: 700; color: #2563eb; background: #eff6ff; text-decoration: none; border: 1px solid #bfdbfe;
-            "
-          >
-            🚗 Navigate in Google Maps ↗
-          </a>
-        </div>
-      `;
+        marker.bindPopup(popupHtml);
 
-      marker.bindPopup(popupHtml);
+        // Clicking marker immediately selects this store as Origin Hub
+        marker.on('click', () => {
+          const storeKey = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
+          setOriginStoreKey(storeKey);
+        });
 
-      // Clicking marker immediately selects this store as Origin Hub
-      marker.on('click', () => {
-        const storeKey = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
-        setOriginStoreKey(storeKey);
-      });
+        marker.on('popupopen', () => {
+          setTimeout(() => {
+            const originBtn = document.getElementById(`btn-select-origin-${code}`);
+            const routeBtn = document.getElementById(`btn-route-${code}`);
 
-      marker.on('popupopen', () => {
-        setTimeout(() => {
-          const originBtn = document.getElementById(`btn-select-origin-${code}`);
-          const routeBtn = document.getElementById(`btn-route-${code}`);
+            if (originBtn) {
+              originBtn.onclick = () => {
+                const storeKey = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
+                setOriginStoreKey(storeKey);
+                toast.info(`Selected ${code} as Center Hub!`);
+                marker.closePopup();
+              };
+            }
 
-          if (originBtn) {
-            originBtn.onclick = () => {
-              const storeKey = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
-              setOriginStoreKey(storeKey);
-              toast.info(`Selected ${code} as Center Hub!`);
-              marker.closePopup();
-            };
-          }
+            if (routeBtn) {
+              routeBtn.onclick = () => {
+                if (isRouteStop) {
+                  setRouteStoreCodes(prev => prev.filter(c => c !== code));
+                  toast.info(`Removed ${code} from route.`);
+                } else {
+                  handleAddToRoute(code);
+                }
+                marker.closePopup();
+              };
+            }
+          }, 50);
+        });
 
-          if (routeBtn) {
-            routeBtn.onclick = () => {
-              if (isRouteStop) {
-                setRouteStoreCodes(prev => prev.filter(c => c !== code));
-                toast.info(`Removed ${code} from route.`);
-              } else {
-                handleAddToRoute(code);
-              }
-              marker.closePopup();
-            };
-          }
-        }, 50);
-      });
-
-      markersLayerRef.current.addLayer(marker);
+        markersLayerRef.current.addLayer(marker);
+      } catch (err) {
+        console.warn('Failed to add marker for store:', code, err);
+      }
     });
 
     // Draw multi-stop route polyline
     if (routeStores.length >= 2) {
-      const latlngs = routeStores
-        .filter(st => st.coordinates && st.coordinates.latitude && st.coordinates.longitude)
-        .map(st => [st.coordinates.latitude, st.coordinates.longitude]);
+      try {
+        const latlngs = routeStores
+          .filter(st => isValidLatLng(st.coordinates?.latitude, st.coordinates?.longitude))
+          .map(st => [Number(st.coordinates.latitude), Number(st.coordinates.longitude)]);
 
-      if (latlngs.length >= 2) {
-        routePolylineRef.current = L.polyline(latlngs, {
-          color: '#4f46e5',
-          weight: 5,
-          opacity: 0.9,
-          dashArray: '8, 8',
-          lineCap: 'round'
-        }).addTo(map);
+        if (latlngs.length >= 2) {
+          routePolylineRef.current = L.polyline(latlngs, {
+            color: '#4f46e5',
+            weight: 5,
+            opacity: 0.9,
+            dashArray: '8, 8',
+            lineCap: 'round'
+          }).addTo(map);
+        }
+      } catch (err) {
+        console.warn('Failed to draw route polyline:', err);
       }
     }
   }, [filteredStores, originStoreCode, routeStoreCodes, routeStores]);
