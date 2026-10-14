@@ -62,18 +62,33 @@ export function estimateDrivingTime(distanceKm) {
 }
 
 /**
- * Extracts latitude and longitude from Google Maps URL if present
+ * Extracts latitude and longitude from Google Maps URL or raw coordinate strings
  * Supports:
+ * - Raw: "19.0760, 72.8777" or "19.0760,72.8777"
  * - https://www.google.com/maps?q=19.0760,72.8777
  * - https://www.google.com/maps/@19.0760,72.8777,15z
  * - https://maps.google.com/?ll=19.0760,72.8777
+ * - Embed & Place: !3d19.0760!4d72.8777
+ * - Directions: daddr=19.0760,72.8777 or destination=19.0760,72.8777
  */
 export function extractCoordinatesFromGoogleUrl(url) {
   if (!url || typeof url !== 'string') return null;
 
   try {
-    // 1. Matches @19.0760,72.8777
-    const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    const decoded = decodeURIComponent(url).trim();
+
+    // 1. Raw coordinates entered directly: "19.0760, 72.8777" or "19.0760,72.8777"
+    const rawMatch = decoded.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
+    if (rawMatch) {
+      const lat = parseFloat(rawMatch[1]);
+      const lon = parseFloat(rawMatch[2]);
+      if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return { latitude: lat, longitude: lon };
+      }
+    }
+
+    // 2. Matches @19.0760,72.8777
+    const atMatch = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (atMatch) {
       return {
         latitude: parseFloat(atMatch[1]),
@@ -81,8 +96,17 @@ export function extractCoordinatesFromGoogleUrl(url) {
       };
     }
 
-    // 2. Matches q=19.0760,72.8777 or query=19.0760,72.8777
-    const qMatch = url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    // 3. Matches !3d19.0760!4d72.8777 (Google Maps Place data embed or redirect)
+    const placeMatch = decoded.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (placeMatch) {
+      return {
+        latitude: parseFloat(placeMatch[1]),
+        longitude: parseFloat(placeMatch[2])
+      };
+    }
+
+    // 4. Matches q=19.0760,72.8777, query=..., ll=..., daddr=..., saddr=..., destination=...
+    const qMatch = decoded.match(/[?&](?:q|query|ll|daddr|saddr|destination)=(-?\d+\.\d+),(-?\d+\.\d+)/i);
     if (qMatch) {
       return {
         latitude: parseFloat(qMatch[1]),
@@ -90,16 +114,49 @@ export function extractCoordinatesFromGoogleUrl(url) {
       };
     }
 
-    // 3. Matches !3d19.0760!4d72.8777 (Google Maps Place data embed)
-    const placeMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-    if (placeMatch) {
-      return {
-        latitude: parseFloat(placeMatch[1]),
-        longitude: parseFloat(placeMatch[2])
-      };
+    // 5. Degree Minute Second format: e.g. 19°01'07.0"N 73°05'36.2"E
+    const dmsMatch = decoded.match(/(\d+)°(\d+)'([\d.]+)"([NSEW])[,\s]+(\d+)°(\d+)'([\d.]+)"([NSEW])/i);
+    if (dmsMatch) {
+      const latDeg = parseFloat(dmsMatch[1]) + parseFloat(dmsMatch[2]) / 60 + parseFloat(dmsMatch[3]) / 3600;
+      const lat = dmsMatch[4].toUpperCase() === 'S' ? -latDeg : latDeg;
+      const lonDeg = parseFloat(dmsMatch[5]) + parseFloat(dmsMatch[6]) / 60 + parseFloat(dmsMatch[7]) / 3600;
+      const lon = dmsMatch[8].toUpperCase() === 'W' ? -lonDeg : lonDeg;
+      return { latitude: Math.round(lat * 1000000) / 1000000, longitude: Math.round(lon * 1000000) / 1000000 };
     }
   } catch (e) {
     console.warn('Coordinates extraction failed for url:', url, e);
+  }
+
+  return null;
+}
+
+/**
+ * Asynchronously resolves any Google Maps link (including short links like maps.app.goo.gl)
+ * and extracts verified latitude and longitude.
+ */
+export async function resolveAndExtractGoogleCoordinates(url) {
+  if (!url || typeof url !== 'string') return null;
+
+  // 1. Instant client-side check
+  const direct = extractCoordinatesFromGoogleUrl(url);
+  if (direct) return direct;
+
+  // 2. Short link resolution (maps.app.goo.gl or goo.gl/maps)
+  const trimmed = url.trim();
+  if (trimmed.includes('maps.app.goo.gl') || trimmed.includes('goo.gl/maps')) {
+    try {
+      // First try unshorten.me service
+      const res = await fetch(`https://unshorten.me/json/${encodeURIComponent(trimmed)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.resolved_url) {
+          const coords = extractCoordinatesFromGoogleUrl(data.resolved_url);
+          if (coords) return coords;
+        }
+      }
+    } catch (e) {
+      console.warn('Short link unshortener fallback notice:', e);
+    }
   }
 
   return null;

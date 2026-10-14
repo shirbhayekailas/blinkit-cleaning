@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { toast } from './Toast';
-import { extractCoordinatesFromGoogleUrl } from '../utils/distance';
+import { extractCoordinatesFromGoogleUrl, resolveAndExtractGoogleCoordinates } from '../utils/distance';
 
 export default function StoreModal({
   isOpen,
@@ -20,6 +20,7 @@ export default function StoreModal({
   initialData = null
 }) {
   const { t } = useLanguage();
+  const [isResolvingGps, setIsResolvingGps] = useState(false);
   const [formData, setFormData] = useState({
     storeCode: 'BLK-',
     storeName: '',
@@ -190,36 +191,61 @@ export default function StoreModal({
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
                 Google Maps Location Link
               </label>
-              <span className="text-[11px] text-slate-400">Pasting link auto-extracts GPS</span>
+              <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                {isResolvingGps ? '⏳ Resolving GPS from link...' : 'Pasting link auto-extracts GPS'}
+              </span>
             </div>
             <div className="relative">
               <input
-                type="url"
-                placeholder="https://maps.google.com/?q=..."
+                type="text"
+                placeholder="https://maps.app.goo.gl/... or https://maps.google.com/?q=..."
                 value={formData.googleMapsUrl}
-                onChange={(e) => {
+                onChange={async (e) => {
                   const url = e.target.value;
-                  const newForm = { ...formData, googleMapsUrl: url };
-                  const coords = extractCoordinatesFromGoogleUrl(url);
-                  if (coords) {
-                    newForm.latitude = coords.latitude;
-                    newForm.longitude = coords.longitude;
-                    toast.success(`GPS coordinates extracted: ${coords.latitude}, ${coords.longitude}`);
+                  setFormData(prev => ({ ...prev, googleMapsUrl: url }));
+
+                  // 1. Instant sync extraction for standard URLs & coordinates
+                  const directCoords = extractCoordinatesFromGoogleUrl(url);
+                  if (directCoords) {
+                    setFormData(prev => ({ ...prev, latitude: directCoords.latitude, longitude: directCoords.longitude }));
+                    toast.success(`GPS coordinates extracted: ${directCoords.latitude}, ${directCoords.longitude}`);
+                    return;
                   }
-                  setFormData(newForm);
+
+                  // 2. Async unshorten if it's a mobile share link (maps.app.goo.gl)
+                  if (url.includes('maps.app.goo.gl') || url.includes('goo.gl/maps')) {
+                    setIsResolvingGps(true);
+                    try {
+                      const resolved = await resolveAndExtractGoogleCoordinates(url);
+                      if (resolved) {
+                        setFormData(prev => ({ ...prev, latitude: resolved.latitude, longitude: resolved.longitude }));
+                        toast.success(`GPS locked from Google Maps link: ${resolved.latitude}, ${resolved.longitude}`);
+                      }
+                    } catch (err) {
+                      console.warn(err);
+                    } finally {
+                      setIsResolvingGps(false);
+                    }
+                  }
                 }}
-                className="w-full px-3 py-2 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-blinkit-green"
+                className="w-full px-3 py-2 pr-16 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-blinkit-green"
               />
-              {formData.googleMapsUrl && (
-                <a
-                  href={formData.googleMapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                {isResolvingGps && (
+                  <span className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                )}
+                {formData.googleMapsUrl && (
+                  <a
+                    href={formData.googleMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:text-blue-700 p-1"
+                    title="Open link in Google Maps"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
