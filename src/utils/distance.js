@@ -482,11 +482,21 @@ export function getNearbyStoresMatrix(originStore, allStores = [], cleanings = [
   if (!originCoords) return [];
 
   const originCode = (originStore.storeCode || originStore.code || '').trim().toUpperCase();
+  const originId = originStore.id ? String(originStore.id) : null;
+  const originCity = (originStore.city || '').trim().toLowerCase();
 
   return allStores
     .filter(st => {
+      // Exclude exact origin store by ID if available, otherwise by code + city
+      if (originId && st.id) {
+        return String(st.id) !== originId;
+      }
       const c = (st.storeCode || st.code || '').trim().toUpperCase();
-      return c && c !== originCode;
+      const sCity = (st.city || '').trim().toLowerCase();
+      if (c === originCode && (!sCity || !originCity || sCity === originCity)) {
+        return false;
+      }
+      return Boolean(c);
     })
     .map(targetStore => {
       const targetCoords = resolveStoreCoordinates(targetStore);
@@ -510,8 +520,8 @@ export function getNearbyStoresMatrix(originStore, allStores = [], cleanings = [
         statusInfo
       };
     })
-    .filter(item => item.distanceKm !== null)
-    .sort((a, b) => (a.distanceKm || 9999) - (b.distanceKm || 9999));
+    .filter(item => item.distanceKm !== null && !isNaN(item.distanceKm))
+    .sort((a, b) => (Number(a.distanceKm) || 0) - (Number(b.distanceKm) || 0));
 }
 
 /**

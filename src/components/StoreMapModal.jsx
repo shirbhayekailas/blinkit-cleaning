@@ -61,20 +61,26 @@ export default function StoreMapModal({
   // Google Maps layer type: 'roadmap' | 'satellite' | 'terrain'
   const [mapType, setMapType] = useState('roadmap');
 
-  // Selected Origin store for Nearest Proximity Finder
-  const [originStoreCode, setOriginStoreCode] = useState(() => {
+  // Selected Origin store for Nearest Proximity Finder (disambiguated by ID or Code__City)
+  const [originStoreKey, setOriginStoreKey] = useState(() => {
     if (initialSelectedStore) {
-      return (initialSelectedStore.storeCode || initialSelectedStore.code || '').trim().toUpperCase();
+      return initialSelectedStore.id 
+        ? String(initialSelectedStore.id) 
+        : `${(initialSelectedStore.storeCode || initialSelectedStore.code || '').trim().toUpperCase()}__${(initialSelectedStore.city || '').trim().toUpperCase()}`;
     }
-    return (stores[0]?.storeCode || stores[0]?.code || '').trim().toUpperCase();
+    const first = stores[0];
+    if (!first) return '';
+    return first.id ? String(first.id) : `${(first.storeCode || first.code || '').trim().toUpperCase()}__${(first.city || '').trim().toUpperCase()}`;
   });
 
-  // Sync originStoreCode whenever initialSelectedStore prop changes
+  // Sync originStoreKey whenever initialSelectedStore prop changes
   useEffect(() => {
     if (initialSelectedStore) {
-      const code = (initialSelectedStore.storeCode || initialSelectedStore.code || '').trim().toUpperCase();
-      if (code) {
-        setOriginStoreCode(code);
+      const key = initialSelectedStore.id 
+        ? String(initialSelectedStore.id) 
+        : `${(initialSelectedStore.storeCode || initialSelectedStore.code || '').trim().toUpperCase()}__${(initialSelectedStore.city || '').trim().toUpperCase()}`;
+      if (key) {
+        setOriginStoreKey(key);
       }
     }
   }, [initialSelectedStore]);
@@ -135,10 +141,19 @@ export default function StoreMapModal({
     });
   }, [enrichedStores, searchTerm, cityFilter, statusFilter]);
 
-  // Selected origin store object
+  // Selected origin store object (disambiguated by ID or Code__City)
   const originStore = useMemo(() => {
-    return enrichedStores.find(st => (st.storeCode || st.code || '').trim().toUpperCase() === originStoreCode) || enrichedStores[0];
-  }, [enrichedStores, originStoreCode]);
+    if (!originStoreKey) return enrichedStores[0];
+    return enrichedStores.find(st => {
+      if (st.id && String(st.id) === String(originStoreKey)) return true;
+      const key = `${(st.storeCode || st.code || '').trim().toUpperCase()}__${(st.city || '').trim().toUpperCase()}`;
+      if (key === String(originStoreKey).toUpperCase()) return true;
+      if ((st.storeCode || st.code || '').trim().toUpperCase() === String(originStoreKey).toUpperCase()) return true;
+      return false;
+    }) || enrichedStores[0];
+  }, [enrichedStores, originStoreKey]);
+
+  const originStoreCode = (originStore?.storeCode || originStore?.code || '').trim().toUpperCase();
 
   // Proximity Matrix from Origin Store (strictly ranked by distance ascending)
   const proximityMatrix = useMemo(() => {
@@ -146,11 +161,28 @@ export default function StoreMapModal({
     return getNearbyStoresMatrix(originStore, enrichedStores, cleanings);
   }, [originStore, enrichedStores, cleanings]);
 
-  // Filtered proximity list based on current status filter
+  // Filtered proximity list strictly ranked by shortest distance ascending (Nearest First)
   const filteredProximityList = useMemo(() => {
-    if (statusFilter === 'ALL') return proximityMatrix;
-    return proximityMatrix.filter(st => st.statusInfo.status === statusFilter);
-  }, [proximityMatrix, statusFilter]);
+    let list = proximityMatrix;
+    if (cityFilter !== 'ALL') {
+      list = list.filter(st => (st.city || '').toLowerCase() === cityFilter.toLowerCase());
+    }
+    if (statusFilter !== 'ALL') {
+      list = list.filter(st => st.statusInfo.status === statusFilter);
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      list = list.filter(st => {
+        const code = (st.storeCode || st.code || '').toLowerCase();
+        const name = (st.storeName || '').toLowerCase();
+        const address = (st.address || '').toLowerCase();
+        const zone = (st.zone || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || address.includes(q) || zone.includes(q);
+      });
+    }
+    // Strict numeric distance ascending sort (Nearest first: lowest km always at #1)
+    return [...list].sort((a, b) => (Number(a.distanceKm) || 0) - (Number(b.distanceKm) || 0));
+  }, [proximityMatrix, cityFilter, statusFilter, searchTerm]);
 
   // Route stores objects
   const routeStores = useMemo(() => {
@@ -366,7 +398,7 @@ export default function StoreMapModal({
         { animate: true, duration: 0.6 }
       );
     }
-  }, [originStoreCode, originStore]);
+  }, [originStoreKey, originStore]);
 
   // Update Map Markers & Route Polyline
   useEffect(() => {
@@ -517,7 +549,8 @@ export default function StoreMapModal({
 
       // Clicking marker immediately selects this store as Origin Hub
       marker.on('click', () => {
-        setOriginStoreCode(code);
+        const storeKey = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
+        setOriginStoreKey(storeKey);
       });
 
       marker.on('popupopen', () => {
@@ -527,7 +560,8 @@ export default function StoreMapModal({
 
           if (originBtn) {
             originBtn.onclick = () => {
-              setOriginStoreCode(code);
+              const storeKey = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
+              setOriginStoreKey(storeKey);
               toast.info(`Selected ${code} as Center Hub!`);
               marker.closePopup();
             };
@@ -789,15 +823,19 @@ export default function StoreMapModal({
 
                 {/* Instant Store Selector Dropdown */}
                 <select
-                  value={originStoreCode}
-                  onChange={(e) => setOriginStoreCode(e.target.value)}
+                  value={originStoreKey}
+                  onChange={(e) => setOriginStoreKey(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-xl bg-slate-800/90 border border-indigo-400/40 text-xs font-bold text-white focus:ring-2 focus:ring-indigo-400 shadow-inner"
                 >
-                  {enrichedStores.map(st => (
-                    <option key={st.storeCode || st.code} value={(st.storeCode || st.code).trim().toUpperCase()}>
-                      {st.storeCode} - {st.storeName} ({st.city})
-                    </option>
-                  ))}
+                  {enrichedStores.map((st, idx) => {
+                    const code = (st.storeCode || st.code || '').trim().toUpperCase();
+                    const optVal = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
+                    return (
+                      <option key={`side_opt_${optVal}_${idx}`} value={optVal}>
+                        {code} - {st.storeName} ({st.city})
+                      </option>
+                    );
+                  })}
                 </select>
 
                 {/* Origin Details Mini Banner */}
@@ -896,11 +934,13 @@ export default function StoreMapModal({
                     const inRoute = routeStoreCodes.includes(code);
                     const status = target.statusInfo.status;
                     const navGMapUrl = generateGoogleMapsNavUrl(originStore, target);
+                    const cardKey = target.id ? `prox_${target.id}` : `prox_${code}_${target.city || ''}_${idx}`;
+                    const targetKey = target.id ? String(target.id) : `${code}__${(target.city || '').trim().toUpperCase()}`;
 
                     return (
                       <div
-                        key={code}
-                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-xs space-y-2 group"
+                        key={cardKey}
+                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-xs space-y-2 group"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-2">
@@ -946,7 +986,7 @@ export default function StoreMapModal({
                         <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-1.5 text-[11px]">
                           <button
                             onClick={() => {
-                              setOriginStoreCode(code);
+                              setOriginStoreKey(targetKey);
                               toast.info(`Switched origin hub to ${code}`);
                             }}
                             className="px-2 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-700 font-bold transition flex items-center gap-1"
@@ -1139,15 +1179,19 @@ export default function StoreMapModal({
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <select
-                    value={originStoreCode}
-                    onChange={(e) => setOriginStoreCode(e.target.value)}
+                    value={originStoreKey}
+                    onChange={(e) => setOriginStoreKey(e.target.value)}
                     className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-slate-800 border border-indigo-400/40 text-xs font-bold text-white focus:ring-2 focus:ring-indigo-400"
                   >
-                    {enrichedStores.map(st => (
-                      <option key={st.storeCode || st.code} value={(st.storeCode || st.code).trim().toUpperCase()}>
-                        Change Origin: {st.storeCode} ({st.city})
-                      </option>
-                    ))}
+                    {enrichedStores.map((st, idx) => {
+                      const code = (st.storeCode || st.code || '').trim().toUpperCase();
+                      const optVal = st.id ? String(st.id) : `${code}__${(st.city || '').trim().toUpperCase()}`;
+                      return (
+                        <option key={`tab2_opt_${optVal}_${idx}`} value={optVal}>
+                          Change Origin: {code} - {st.storeName} ({st.city})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -1174,10 +1218,12 @@ export default function StoreMapModal({
                     const inRoute = routeStoreCodes.includes(code);
                     const status = target.statusInfo.status;
                     const navGMapUrl = generateGoogleMapsNavUrl(originStore, target);
+                    const cardKey = target.id ? `grid_${target.id}` : `grid_${code}_${target.city || ''}_${idx}`;
+                    const targetKey = target.id ? String(target.id) : `${code}__${(target.city || '').trim().toUpperCase()}`;
 
                     return (
                       <div
-                        key={code}
+                        key={cardKey}
                         className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 transition shadow-xs flex flex-col justify-between gap-3 group"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -1224,7 +1270,7 @@ export default function StoreMapModal({
                         <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
                           <button
                             onClick={() => {
-                              setOriginStoreCode(code);
+                              setOriginStoreKey(targetKey);
                               toast.info(`Switched origin to ${code}`);
                             }}
                             className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1"
